@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function Hero() {
   return (
-    <section className="pt-16 min-h-screen flex flex-col items-center justify-center bg-[#c8c8c8] relative overflow-hidden">
+    <section className="pt-20 min-h-screen flex flex-col items-center justify-center bg-[#c8c8c8] relative overflow-hidden">
       <div className="text-center px-4 z-10 flex flex-col items-center gap-6">
         <h1 className="text-4xl sm:text-5xl font-bold text-gray-800 leading-tight">
           Оптовый магазин воздушных шаров
@@ -21,14 +21,15 @@ export default function Hero() {
         </a>
       </div>
 
-      {/* Big logo at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 overflow-hidden pointer-events-none select-none flex justify-center">
+      {/* Big logo at bottom — full width, white bg blended out */}
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none select-none">
         <Image
           src="/logo.png"
           alt="Sharmaster"
-          width={900}
-          height={260}
-          className="w-full max-w-4xl opacity-90"
+          width={1920}
+          height={560}
+          className="w-full h-auto"
+          style={{ mixBlendMode: "multiply" }}
           priority
         />
       </div>
