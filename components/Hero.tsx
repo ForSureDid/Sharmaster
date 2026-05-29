@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function Hero() {
   return (
     <section className="pt-16 min-h-screen flex flex-col items-center justify-center bg-[#c8c8c8] relative overflow-hidden">
@@ -19,11 +21,16 @@ export default function Hero() {
         </a>
       </div>
 
-      {/* Big balloon-style brand name */}
-      <div className="absolute bottom-0 left-0 right-0 overflow-hidden pointer-events-none select-none">
-        <p className="balloon-text text-center leading-none pb-0 px-4">
-          Sharmaster
-        </p>
+      {/* Big logo at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 overflow-hidden pointer-events-none select-none flex justify-center">
+        <Image
+          src="/logo.png"
+          alt="Sharmaster"
+          width={900}
+          height={260}
+          className="w-full max-w-4xl opacity-90"
+          priority
+        />
       </div>
     </section>
   );

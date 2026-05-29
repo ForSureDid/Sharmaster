@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -10,8 +11,8 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <a href="/" className="text-2xl font-bold text-teal-500 tracking-tight">
-            Sharmaster
+          <a href="/">
+            <Image src="/logo.png" alt="Sharmaster" width={160} height={48} className="h-10 w-auto" priority />
           </a>
 
           {/* Desktop nav */}
