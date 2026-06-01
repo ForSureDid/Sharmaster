@@ -10,13 +10,13 @@ export default function Hero() {
         <div className="absolute -bottom-10 right-40 w-48 h-48 rounded-full bg-pink-200/30 pointer-events-none" />
         <div className="absolute top-6 left-1/3 w-24 h-24 rounded-full bg-yellow-100/50 pointer-events-none" />
 
-        {/* Right: logo — absolute, spans full banner height, flush right */}
-        <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-[480px] pointer-events-none select-none">
+        {/* Right: logo — absolute, spans full banner height, centered in right half */}
+        <div className="hidden lg:block absolute left-[38%] right-0 top-0 bottom-0 pointer-events-none select-none">
           <Image
             src="/logo-nobg.png"
             alt="Sharmaster"
             fill
-            className="object-contain object-right"
+            className="object-contain object-center"
             priority
           />
         </div>
