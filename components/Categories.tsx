@@ -1,50 +1,67 @@
 const categories = [
   {
-    title: "Латексные шары",
-    subtitle: "Широкий выбор цветов и размеров",
+    title: "Шары латексные",
+    subtitle: "Круглые, пастель, хром, металлик",
     emoji: "🎈",
-    bg: "from-red-100 to-yellow-50",
+    bg: "from-red-100 to-orange-50",
+    count: "200+ видов",
+    href: "#catalog",
   },
   {
-    title: "Фольгированные шары",
-    subtitle: "Фигурные шары для особых событий",
+    title: "Шары фольгированные",
+    subtitle: "Цифры, звёзды, фигуры, сердца",
     emoji: "⭐",
-    bg: "from-pink-100 to-purple-50",
+    bg: "from-yellow-100 to-amber-50",
+    count: "150+ видов",
+    href: "#catalog",
   },
   {
     title: "Гелий и оборудование",
-    subtitle: "Гелий и оборудование для шаров",
+    subtitle: "Баллоны, насосы, клей, нитки",
     emoji: "🫧",
-    bg: "from-blue-100 to-teal-50",
+    bg: "from-blue-100 to-sky-50",
+    count: "30+ товаров",
+    href: "#catalog",
+  },
+  {
+    title: "Аксессуары",
+    subtitle: "Ленты, конфетти, украшения",
+    emoji: "🎀",
+    bg: "from-pink-100 to-purple-50",
+    count: "50+ видов",
+    href: "#catalog",
   },
 ];
 
 export default function Categories() {
   return (
-    <section id="catalog" className="py-20 bg-[#e8f4f8]">
+    <section id="catalog" className="py-10 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-4xl font-bold text-gray-800 text-center mb-12">
-          Категории товаров
-        </h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Категории товаров</h2>
+          <a href="#catalog" className="text-sm text-sky-500 hover:text-sky-700 font-medium transition-colors">
+            Все категории →
+          </a>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {categories.map((cat) => (
-            <div
+            <a
               key={cat.title}
-              className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+              href={cat.href}
+              className="group block bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all"
             >
-              {/* Image placeholder */}
-              <div className={`h-52 bg-gradient-to-br ${cat.bg} flex items-center justify-center`}>
-                <span className="text-8xl group-hover:scale-110 transition-transform duration-300">
+              <div className={`h-36 bg-gradient-to-br ${cat.bg} flex items-center justify-center`}>
+                <span className="text-6xl group-hover:scale-110 transition-transform duration-300">
                   {cat.emoji}
                 </span>
               </div>
-              {/* Text */}
-              <div className="p-5">
-                <p className="text-xs text-gray-400 mb-1">{cat.subtitle}</p>
-                <h3 className="text-xl font-bold text-gray-800">{cat.title}</h3>
+              <div className="p-4">
+                <p className="text-[11px] text-sky-500 font-semibold mb-0.5 uppercase tracking-wide">{cat.count}</p>
+                <h3 className="text-base font-bold text-gray-800 leading-tight">{cat.title}</h3>
+                <p className="text-xs text-gray-400 mt-1">{cat.subtitle}</p>
               </div>
-            </div>
+            </a>
           ))}
         </div>
       </div>

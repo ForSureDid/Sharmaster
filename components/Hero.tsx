@@ -2,36 +2,77 @@ import Image from "next/image";
 
 export default function Hero() {
   return (
-    <section className="pt-20 min-h-screen flex flex-col items-center justify-center bg-[#c8c8c8] relative overflow-hidden">
-      <div className="text-center px-4 z-10 flex flex-col items-center gap-6">
-        <h1 className="text-4xl sm:text-5xl font-bold text-gray-800 leading-tight">
-          Оптовый магазин воздушных шаров
-        </h1>
-        <p className="text-gray-600 text-lg max-w-md leading-relaxed">
-          Широкий ассортимент шаров для любого праздника.<br />
-          Качество, доступные цены и быстрая доставка по всему<br />
-          Казахстану.
-        </p>
-        <a
-          href="#catalog"
-          className="inline-flex items-center gap-2 px-8 py-3 bg-white/80 hover:bg-white text-gray-700 font-medium rounded-full shadow-sm transition-all hover:shadow-md"
-        >
-          <span>🎈</span>
-          Перейти в каталог
-        </a>
+    <section className="pt-24 md:pt-[138px]">
+      {/* Main banner — pastel gradient matching logo colors */}
+      <div className="bg-gradient-to-r from-sky-100 via-pink-50 to-green-50 relative overflow-hidden">
+        {/* Decorative soft circles */}
+        <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-sky-200/40 pointer-events-none" />
+        <div className="absolute -bottom-10 right-40 w-48 h-48 rounded-full bg-pink-200/30 pointer-events-none" />
+        <div className="absolute top-6 left-1/3 w-24 h-24 rounded-full bg-yellow-100/50 pointer-events-none" />
+
+        {/* Right: logo — absolute, spans full banner height, flush right */}
+        <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-[480px] pointer-events-none select-none">
+          <Image
+            src="/logo-nobg.png"
+            alt="Sharmaster"
+            fill
+            className="object-contain object-right"
+            priority
+          />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+          {/* Left content */}
+          <div className="z-10 max-w-xl">
+            <p className="text-sky-500 text-sm font-semibold mb-3 uppercase tracking-widest">
+              Оптовый магазин
+            </p>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight mb-5">
+              Воздушные шары<br className="hidden sm:block" /> оптом в Казахстане
+            </h1>
+            <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed max-w-lg">
+              Более 500 видов шаров для любого праздника —<br className="hidden md:block" />
+              латексные, фольгированные, аксессуары.<br className="hidden md:block" />
+              Быстрая доставка по всему Казахстану.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <a
+                href="#catalog"
+                className="px-6 py-3 bg-sky-400 hover:bg-sky-500 text-white font-bold rounded-xl transition-colors shadow-sm"
+              >
+                Перейти в каталог
+              </a>
+              <a
+                href="https://wa.me/77769370282"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition-colors border border-gray-200 shadow-sm"
+              >
+                Написать нам
+              </a>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Big logo at bottom — full width, white bg blended out */}
-      <div className="absolute bottom-0 left-0 right-0 pointer-events-none select-none">
-        <Image
-          src="/logo.png"
-          alt="Sharmaster"
-          width={1920}
-          height={560}
-          className="w-full h-auto"
-          style={{ mixBlendMode: "multiply" }}
-          priority
-        />
+      {/* Info strip — white */}
+      <div className="bg-white border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap justify-center md:justify-between gap-4 py-3 text-sm text-gray-500">
+            <span className="flex items-center gap-2">
+              <span className="text-sky-400 font-bold">✓</span> Более 500 наименований
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-pink-400 font-bold">✓</span> Оптовые цены
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-yellow-400 font-bold">✓</span> Доставка по Казахстану
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="text-green-400 font-bold">✓</span> Работаем с организациями
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );
