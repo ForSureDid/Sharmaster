@@ -1,16 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import { useCart } from "@/context/CartContext";
 
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [search, setSearch] = useState("");
   const [accountOpen, setAccountOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setSearch(params.get("q") ?? "");
+  }, []);
   const accountRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuth();
+  const { totalCount, openCart } = useCart();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -21,6 +30,12 @@ export default function Header() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  function handleSearch(e?: React.FormEvent) {
+    e?.preventDefault();
+    const q = search.trim();
+    router.push(q ? `/catalog?q=${encodeURIComponent(q)}` : "/catalog");
+  }
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
@@ -58,7 +73,7 @@ export default function Header() {
             <Image src="/logo-nobg.png" alt="Sharmaster" width={180} height={54} className="h-11 w-auto" priority />
           </a>
 
-          <div className="flex-1 hidden md:flex max-w-xl mx-auto">
+          <form onSubmit={handleSearch} className="flex-1 hidden md:flex max-w-xl mx-auto">
             <div className="flex w-full rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
               <input
                 type="text"
@@ -67,11 +82,11 @@ export default function Header() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="flex-1 px-4 py-2 text-sm outline-none bg-white"
               />
-              <button className="px-5 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">
+              <button type="submit" className="px-5 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">
                 Найти
               </button>
             </div>
-          </div>
+          </form>
 
           <div className="flex items-center gap-3 ml-auto">
             <a href="tel:+77769370282"
@@ -127,12 +142,20 @@ export default function Header() {
               )}
             </div>
 
-            <button className="relative p-2 text-gray-600 hover:text-sky-500 transition-colors">
+            <button
+              onClick={openCart}
+              className="relative p-2 text-gray-600 hover:text-sky-500 transition-colors"
+              title="Корзина"
+            >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
-              <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-sky-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+              {totalCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 bg-sky-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {totalCount > 99 ? "99+" : totalCount}
+                </span>
+              )}
             </button>
             <button className="md:hidden p-2 text-gray-600" onClick={() => setMenuOpen(!menuOpen)}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,10 +171,16 @@ export default function Header() {
       {menuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
           <div className="px-4 py-3 border-b border-gray-100">
-            <div className="flex rounded-lg overflow-hidden border border-gray-200">
-              <input type="text" placeholder="Поиск..." className="flex-1 px-3 py-2 text-sm outline-none" />
-              <button className="px-4 bg-sky-400 text-white text-sm font-medium">Найти</button>
-            </div>
+            <form onSubmit={(e) => { setMenuOpen(false); handleSearch(e); }} className="flex rounded-lg overflow-hidden border border-gray-200">
+              <input
+                type="text"
+                placeholder="Поиск..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 px-3 py-2 text-sm outline-none"
+              />
+              <button type="submit" className="px-4 bg-sky-400 text-white text-sm font-medium">Найти</button>
+            </form>
           </div>
           <nav className="flex flex-col py-1">
             <a href="/catalog" className="px-4 py-3 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors" onClick={() => setMenuOpen(false)}>Каталог</a>
