@@ -1,5 +1,5 @@
 const hours = [
-  { day: "Пн", time: "Выходной" },
+  { day: "Пн", time: "10:00–19:00" },
   { day: "Вт", time: "10:00–19:00" },
   { day: "Ср", time: "10:00–19:00" },
   { day: "Чт", time: "10:00–19:00" },
@@ -33,7 +33,7 @@ export default function Schedule() {
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs text-gray-400">
+            <p className="mt-3 text-xs text-red-500">
               * Выходные дни уточняйте по телефону
             </p>
           </div>

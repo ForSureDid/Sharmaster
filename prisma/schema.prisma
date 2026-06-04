@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Categories (3-level tree) ────────────────────────────────────────────────
+
+model Category {
+  id        Int        @id @default(autoincrement())
+  name      String
+  slug      String
+  level     Int        // 1 = top, 2 = sub, 3 = leaf
+  parentId  Int?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  createdAt DateTime   @default(now())
+
+  @@unique([name, parentId])
+  @@index([parentId])
+  @@index([level])
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+model Product {
+  id          Int      @id             // source ID from donballon.ru
+  name        String                   // Описание для анонса
+  description String?                  // full HTML description
+  price       Decimal  @db.Decimal(10, 2)
+  salePrice   Decimal? @db.Decimal(10, 2)
+  vatRate     String?
+
+  imageUrl  String?
+  videoUrl  String?
+
+  categoryId Int?
+  category   Category? @relation(fields: [categoryId], references: [id])
+
+  collection String?
+  holidays   String[]  // e.g. ["Новый Год", "День Рождения"]
+
+  model     String?
+  material  String?
+  shade     String?
+  color     String?
+  colorGroup String?
+  sizeInches String?
+  weight    String?
+
+  minQuantity     Int  @default(1)
+  unitsPerPackage Int?
+  unitsPerBox     Int?
+
+  barcode         String?
+  manufacturer    String?
+  countryOfOrigin String?
+
+  isActive            Boolean   @default(true)
+  expectedRestockDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([colorGroup])
+  @@index([isActive])
+  @@index([price])
+  @@index([manufacturer])
+  @@index([salePrice])
+}

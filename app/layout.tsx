@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ru" className="h-full scroll-smooth">
       <body className={`${inter.className} min-h-full flex flex-col`}>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
