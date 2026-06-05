@@ -57,7 +57,9 @@ export async function getProducts(filters: ProductFilters = {}): Promise<{
       ? { price: { ...(minPrice && { gte: minPrice }), ...(maxPrice && { lte: maxPrice }) } }
       : {}),
     ...(search && {
-      name: { contains: search, mode: 'insensitive' as const },
+      AND: search.trim().split(/\s+/).filter(Boolean).map(word => ({
+        name: { contains: word, mode: 'insensitive' as const },
+      })),
     }),
   }
 
@@ -142,14 +144,18 @@ export async function getColorGroups(): Promise<string[]> {
   return rows.map(r => r.colorGroup!).filter(Boolean)
 }
 
+const HIDDEN_MANUFACTURERS = ['PrioritY', 'БАМЗ', 'Гелий 24', 'ГК Горчаков', 'Сканд-Газ', 'Патиматика']
+
 export async function getManufacturers(): Promise<string[]> {
   const rows = await db.product.findMany({
-    where: { isActive: true, manufacturer: { not: null } },
+    where: { isActive: true, manufacturer: { not: null, notIn: HIDDEN_MANUFACTURERS } },
     select: { manufacturer: true },
     distinct: ['manufacturer'],
     orderBy: { manufacturer: 'asc' },
   })
-  return rows.map(r => r.manufacturer!).filter(Boolean)
+  const list = rows.map(r => r.manufacturer!).filter(Boolean)
+  if (!list.includes('Sempertex')) list.push('Sempertex')
+  return list
 }
 
 export async function getSizes(): Promise<string[]> {
