@@ -58,7 +58,13 @@ export async function getProducts(filters: ProductFilters = {}): Promise<{
       : {}),
     ...(search && {
       AND: search.trim().split(/\s+/).filter(Boolean).map(word => ({
-        name: { contains: word, mode: 'insensitive' as const },
+        OR: [
+          { name: { contains: word, mode: 'insensitive' as const } },
+          { color: { contains: word, mode: 'insensitive' as const } },
+          { colorGroup: { contains: word, mode: 'insensitive' as const } },
+          { manufacturer: { contains: word, mode: 'insensitive' as const } },
+          ...(!isNaN(Number(word)) ? [{ id: Number(word) }] : []),
+        ],
       })),
     }),
   }
