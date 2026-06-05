@@ -63,6 +63,7 @@ export async function getProducts(filters: ProductFilters = {}): Promise<{
           { color: { contains: word, mode: 'insensitive' as const } },
           { colorGroup: { contains: word, mode: 'insensitive' as const } },
           { manufacturer: { contains: word, mode: 'insensitive' as const } },
+          { material: { contains: word, mode: 'insensitive' as const } },
           ...(!isNaN(Number(word)) ? [{ id: Number(word) }] : []),
         ],
       })),
