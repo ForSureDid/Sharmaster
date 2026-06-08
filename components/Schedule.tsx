@@ -44,13 +44,13 @@ export default function Schedule() {
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                 <p className="text-xs text-gray-400 mb-1">Телефон</p>
-                <a href="tel:+77769370282" className="text-xl font-bold text-gray-800 hover:text-sky-500 transition-colors">
-                  +7 776 937 0282
+                <a href="tel:+77769510282" className="text-xl font-bold text-gray-800 hover:text-sky-500 transition-colors">
+                  +7 776 951 0282
                 </a>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <a
-                  href="https://wa.me/77769370282"
+                  href="https://wa.me/77769510282"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 bg-green-50 hover:bg-green-100 border border-green-100 rounded-xl p-4 transition-colors"

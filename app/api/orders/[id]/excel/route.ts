@@ -1,0 +1,79 @@
+import { NextResponse } from 'next/server'
+import ExcelJS from 'exceljs'
+import path from 'path'
+import { db } from '@/lib/db'
+import { amountInWords } from '@/lib/numberToWords'
+
+const TEMPLATE_PATH = path.join(
+  process.cwd(),
+  'All the Files with material here',
+  'order_template.xlsx'
+)
+
+const ITEMS_START_ROW = 9
+const TEMPLATE_ITEM_ROWS = 25  // rows 9–33
+const TOTAL_ROW = 34
+const SUMMARY_ROW = 37
+const WORDS_ROW = 39
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const order = await db.order.findUnique({
+    where: { id: Number(id) },
+    include: { items: true },
+  })
+  if (!order) return new NextResponse('Not found', { status: 404 })
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(TEMPLATE_PATH)
+  const sheet = workbook.worksheets[0]
+
+  // ── Header ───────────────────────────────────────────────────────────────────
+  sheet.getCell('A1').value = `Заказ покупателя №${order.id}`
+  sheet.getCell('B6').value = `${order.customerName}, ${order.address}. Тел: ${order.phone}`
+
+  // ── Items ────────────────────────────────────────────────────────────────────
+  const itemCount = order.items.length
+
+  if (itemCount > TEMPLATE_ITEM_ROWS) {
+    const extra = itemCount - TEMPLATE_ITEM_ROWS
+    sheet.duplicateRow(ITEMS_START_ROW + TEMPLATE_ITEM_ROWS - 1, extra, true)
+  }
+
+  order.items.forEach((item, idx) => {
+    const r = ITEMS_START_ROW + idx
+    sheet.getCell(`A${r}`).value = idx + 1
+    sheet.getCell(`B${r}`).value = ''
+    sheet.getCell(`C${r}`).value = item.name
+    sheet.getCell(`D${r}`).value = item.qty
+    sheet.getCell(`E${r}`).value = 'шт'
+    sheet.getCell(`F${r}`).value = Number(item.price)
+    sheet.getCell(`G${r}`).value = Number(item.price) * item.qty
+  })
+
+  // ── Footer (shifts down if extra rows were inserted) ─────────────────────────
+  const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
+  const total = Number(order.total)
+
+  sheet.getCell(`G${TOTAL_ROW + shift}`).value = total
+
+  sheet.getCell(`A${SUMMARY_ROW + shift}`).value =
+    `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
+
+  const words = amountInWords(total)
+  sheet.getCell(`A${WORDS_ROW + shift}`).value =
+    words.charAt(0).toUpperCase() + words.slice(1)
+
+  // ── Output ───────────────────────────────────────────────────────────────────
+  const buffer = await workbook.xlsx.writeBuffer()
+
+  return new NextResponse(buffer as unknown as BodyInit, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename*=UTF-8''%D0%97%D0%B0%D0%BA%D0%B0%D0%B7-${order.id}.xlsx`,
+    },
+  })
+}

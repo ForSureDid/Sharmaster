@@ -3,15 +3,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import CatalogSidebar from "@/components/CatalogSidebar";
-import CatalogContent from "@/components/CatalogContent";
-import {
-  getProducts,
-  getCategories,
-  getColorGroups,
-  getManufacturers,
-  getSizes,
-  getShades,
-} from "@/lib/products";
+import StockContent from "@/components/StockContent";
+import { getStockItems } from "@/lib/stock";
+import { getCategories, getColorGroups, getManufacturers, getSizes, getShades } from "@/lib/products";
 
 type SP = { [key: string]: string | string[] | undefined };
 
@@ -33,10 +27,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const page = str(sp.page) ? Number(sp.page) : 1;
   const per = str(sp.per) ? Number(sp.per) : 48;
   const q = str(sp.q);
+  const inStockOnly = str(sp.instock) === "1";
 
   const [{ items, total }, categories, colorGroups, manufacturers, sizes, shades] =
     await Promise.all([
-      getProducts({ categoryId: catId, colorGroup, shade, sizeInches, manufacturer, minPrice, maxPrice, sort, page, pageSize: per, search: q }),
+      getStockItems({ categoryId: catId, colorGroup, shade, sizeInches, manufacturer, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
       getCategories(),
       getColorGroups(),
       getManufacturers(),
@@ -45,16 +40,12 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     ]);
 
   const totalPages = Math.ceil(total / per);
-
-  const activeCategory = catId
-    ? categories.find((c) => c.id === catId)
-    : null;
+  const activeCategory = catId ? categories.find((c) => c.id === catId) : null;
 
   return (
     <>
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
-        {/* Breadcrumbs */}
         <div className="bg-white border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-1.5 text-xs text-gray-400">
@@ -98,7 +89,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
                 <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
               </div>
             }>
-              <CatalogContent
+              <StockContent
                 items={items}
                 total={total}
                 page={page}

@@ -1,38 +1,40 @@
 import Image from "next/image";
 import { getCategories } from "@/lib/products";
 
-const ICON_MAP: Record<string, string> = {
-  "Воздушные шары из латекса": "/icons/latex-balloons.png",
-  "Воздушные шары из фольги": "/icons/foil-balloons.png",
-  "Оборудование и аксессуары": "/icons/equipment-helium.png",
-  "Карнавальные аксессуары": "/icons/carnival-accessories.png",
-  "Ленты и банты": "/icons/ribbons-bows.png",
-  "Гирлянды, освещение, фотозоны": "/icons/garlands-lighting.png",
-  "Праздничная полиграфия": "/icons/polygraphy.png",
-  "Упаковка для подарков": "/icons/festive-packaging.png",
-  "Свечи и фонтаны": "/icons/candles.png",
-  "Сервировка стола": "/icons/table-setting.png",
-  "Товары для праздника": "/icons/party-goods.png",
-  "Флористика": "/icons/party-goods.png",
+type StaticEntry = {
+  title: string;
+  subtitle: string;
+  icon: string;
+  keywords: string[];
 };
 
-const SUBTITLE_MAP: Record<string, string> = {
-  "Воздушные шары из латекса": "Круглые, пастель, хром, металлик",
-  "Воздушные шары из фольги": "Цифры, звёзды, фигуры, сердца",
-  "Оборудование и аксессуары": "Баллоны, насосы, клей, нитки",
-  "Карнавальные аксессуары": "Маски, костюмы, реквизит",
-  "Ленты и банты": "Декоративные ленты, банты, тесьма",
-  "Гирлянды, освещение, фотозоны": "Гирлянды, огни, светодиоды",
-  "Праздничная полиграфия": "Открытки, баннеры, наклейки",
-  "Упаковка для подарков": "Коробки, пакеты, упаковочная бумага",
-  "Свечи и фонтаны": "Праздничные, декоративные, цифры",
-  "Сервировка стола": "Тарелки, стаканы, скатерти",
-  "Товары для праздника": "Конфетти, хлопушки, украшения",
-  "Флористика": "Искусственные и натуральные цветы",
-};
+const STATIC: StaticEntry[] = [
+  { title: "Воздушные шары из латекса", subtitle: "Круглые, пастель, хром, металлик", icon: "/icons/latex-balloons.png", keywords: ["латекс"] },
+  { title: "Воздушные шары из фольги", subtitle: "Цифры, звёзды, фигуры, сердца", icon: "/icons/foil-balloons.png", keywords: ["фольг"] },
+  { title: "Оборудование и аксессуары", subtitle: "Баллоны, насосы, клей, нитки", icon: "/icons/equipment-helium.png", keywords: ["оборудован", "аксессуар", "насос"] },
+  { title: "Карнавальные аксессуары", subtitle: "Маски, костюмы, реквизит", icon: "/icons/carnival-accessories.png", keywords: ["карнавал"] },
+  { title: "Ленты и банты", subtitle: "Декоративные ленты, банты, тесьма", icon: "/icons/ribbons-bows.png", keywords: ["лент", "бант"] },
+  { title: "Гирлянды и освещение", subtitle: "Гирлянды, огни, светодиоды", icon: "/icons/garlands-lighting.png", keywords: ["гирлянд"] },
+  { title: "Полиграфия", subtitle: "Открытки, баннеры, наклейки", icon: "/icons/polygraphy.png", keywords: ["полиграф"] },
+  { title: "Праздничная упаковка", subtitle: "Коробки, пакеты, бумага", icon: "/icons/festive-packaging.png", keywords: ["упаковк"] },
+  { title: "Свечи", subtitle: "Праздничные, декоративные, цифры", icon: "/icons/candles.png", keywords: ["свеч"] },
+  { title: "Сервировка стола", subtitle: "Тарелки, стаканы, скатерти", icon: "/icons/table-setting.png", keywords: ["сервиров", "тарелк"] },
+  { title: "Товары для праздника", subtitle: "Конфетти, хлопушки, украшения", icon: "/icons/party-goods.png", keywords: ["праздник"] },
+];
 
 export default async function Categories() {
-  const categories = await getCategories();
+  const dbCats = await getCategories();
+  const dbLower = dbCats.map((c: { id: number; name: string }) => ({ id: c.id, lower: c.name.toLowerCase() }));
+
+  const items = STATIC.map((entry) => {
+    const match = dbLower.find((dc) => entry.keywords.some((kw) => dc.lower.includes(kw)));
+    return {
+      title: entry.title,
+      subtitle: entry.subtitle,
+      icon: entry.icon,
+      href: match ? `/catalog?cat=${match.id}` : "/catalog",
+    };
+  });
 
   return (
     <section id="catalog" className="py-10 bg-white">
@@ -45,25 +47,23 @@ export default async function Categories() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {categories.map((cat) => (
+          {items.map((cat) => (
             <a
-              key={cat.id}
-              href={`/catalog?cat=${cat.id}`}
+              key={cat.title}
+              href={cat.href}
               className="group block bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all"
             >
               <div className="relative w-full aspect-square bg-gray-50">
                 <Image
-                  src={ICON_MAP[cat.name] ?? "/icons/party-goods.png"}
-                  alt={cat.name}
+                  src={cat.icon}
+                  alt={cat.title}
                   fill
                   className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
               <div className="p-3">
-                <h3 className="text-sm font-bold text-gray-800 leading-tight">{cat.name}</h3>
-                <p className="text-xs text-gray-400 mt-1 leading-tight">
-                  {SUBTITLE_MAP[cat.name] ?? ""}
-                </p>
+                <h3 className="text-sm font-bold text-gray-800 leading-tight">{cat.title}</h3>
+                <p className="text-xs text-gray-400 mt-1 leading-tight">{cat.subtitle}</p>
               </div>
             </a>
           ))}

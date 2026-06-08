@@ -1,30 +1,54 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import { getOrdersByPhone } from "./actions";
 
-const mockOrders = [
-  { id: "#00124", date: "28 мая 2025", items: "Шары латексные 12\" × 100 шт", total: "1 500 ₸", status: "Доставлен" },
-  { id: "#00118", date: "15 мая 2025", items: "Шар фольга «Звезда» × 10 шт", total: "3 500 ₸", status: "Доставлен" },
-  { id: "#00109", date: "2 мая 2025", items: "Гелий 10л + Лента × 2 шт", total: "4 900 ₸", status: "Доставлен" },
-];
+type OrderItem = { id: number; name: string; qty: number; price: number | { toString(): string } };
+type Order = {
+  id: number;
+  customerName: string;
+  phone: string;
+  address: string;
+  total: number | { toString(): string };
+  status: string;
+  createdAt: Date | string;
+  items: OrderItem[];
+};
 
 const statusColor: Record<string, string> = {
-  "Доставлен": "bg-green-100 text-green-700",
-  "В пути": "bg-sky-100 text-sky-700",
-  "Обрабатывается": "bg-yellow-100 text-yellow-700",
+  "Принят":         "bg-yellow-100 text-yellow-700",
+  "Обрабатывается": "bg-sky-100 text-sky-700",
+  "В пути":         "bg-blue-100 text-blue-700",
+  "Доставлен":      "bg-green-100 text-green-700",
+  "Отменён":        "bg-red-100 text-red-700",
 };
+
+function formatDate(d: Date | string) {
+  return new Date(d).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
 
 export default function AccountPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user?.phone) { setOrdersLoading(false); return; }
+    getOrdersByPhone(user.phone)
+      .then(data => setOrders(data as Order[]))
+      .catch(err => console.error('Orders fetch error:', err))
+      .finally(() => setOrdersLoading(false));
+  }, [user, loading]);
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -33,6 +57,8 @@ export default function AccountPage() {
   );
 
   if (!user) return null;
+
+  const totalSpent = orders.reduce((s, o) => s + Number(o.total), 0);
 
   return (
     <>
@@ -63,16 +89,20 @@ export default function AccountPage() {
 
           {/* Quick stats */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            {[
-              { label: "Заказов", value: "3", color: "text-sky-500" },
-              { label: "Общая сумма", value: "9 900 ₸", color: "text-pink-500" },
-              { label: "Бонусы", value: "99 ₸", color: "text-green-500" },
-            ].map((s) => (
-              <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
-                <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
-                <p className="text-xs text-gray-400 mt-1">{s.label}</p>
-              </div>
-            ))}
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+              <p className="text-2xl font-extrabold text-sky-500">{orders.length}</p>
+              <p className="text-xs text-gray-400 mt-1">Заказов</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+              <p className="text-2xl font-extrabold text-pink-500">{totalSpent.toLocaleString()} ₸</p>
+              <p className="text-xs text-gray-400 mt-1">Общая сумма</p>
+            </div>
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+              <p className="text-2xl font-extrabold text-green-500">
+                {orders.filter(o => o.status === "Доставлен").length}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">Выполнено</p>
+            </div>
           </div>
 
           {/* Orders */}
@@ -80,27 +110,58 @@ export default function AccountPage() {
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="font-bold text-gray-800">История заказов</h2>
             </div>
-            <div className="divide-y divide-gray-50">
-              {mockOrders.map((o) => (
-                <div key={o.id} className="px-6 py-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold text-gray-700">{o.id}</span>
-                      <span className="text-xs text-gray-400">{o.date}</span>
+
+            {ordersLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="w-6 h-6 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="px-6 py-10 text-center">
+                <p className="text-sm text-gray-400">Заказов пока нет</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {orders.map((o) => (
+                  <div key={o.id} className="px-6 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-sm font-bold text-gray-700">Заказ #{o.id}</span>
+                          <span className="text-xs text-gray-400">{formatDate(o.createdAt)}</span>
+                          <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${statusColor[o.status] ?? "bg-gray-100 text-gray-600"}`}>
+                            {o.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-1">{o.address}</p>
+                        <ul className="space-y-0.5">
+                          {o.items.map(item => (
+                            <li key={item.id} className="text-xs text-gray-500">
+                              {item.name} × {item.qty} — {(Number(item.price) * item.qty).toLocaleString()} ₸
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                        <div className="flex-shrink-0 text-right flex flex-col items-end gap-2">
+                        <p className="text-base font-bold text-gray-800">{Number(o.total).toLocaleString()} ₸</p>
+                        <a
+                          href={`/api/orders/${o.id}/excel`}
+                          className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 font-medium transition-colors"
+                          title="Скачать Excel"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Excel
+                        </a>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">{o.items}</p>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-sm font-bold text-gray-800">{o.total}</span>
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[o.status] ?? "bg-gray-100 text-gray-600"}`}>
-                      {o.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
+
             <div className="px-6 py-4 border-t border-gray-50">
-              <a href="/" className="text-sm text-sky-500 hover:text-sky-600 font-medium transition-colors">
+              <a href="/catalog" className="text-sm text-sky-500 hover:text-sky-600 font-medium transition-colors">
                 + Новый заказ →
               </a>
             </div>

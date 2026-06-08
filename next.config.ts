@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: "www.donballon.ru",
         pathname: "/upload/**",
       },
+      {
+        protocol: "https",
+        hostname: "tjoreojidkjhfksspbwe.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
 };

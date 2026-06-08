@@ -35,6 +35,7 @@ model Product {
   vatRate     String?
 
   imageUrl  String?
+  images    String[] // additional product images (beyond the head imageUrl)
   videoUrl  String?
 
   categoryId Int?
@@ -71,4 +72,50 @@ model Product {
   @@index([price])
   @@index([manufacturer])
   @@index([salePrice])
+}
+
+// ─── Sharmaster warehouse stock ───────────────────────────────────────────────
+
+model StockItem {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  brand      String?
+  stock      Int      @default(0)
+  pricePerPc Decimal  @db.Decimal(10, 2)
+  imageUrl   String?
+  productId  Int?
+
+  updatedAt  DateTime @updatedAt
+
+  @@index([stock])
+  @@index([brand])
+  @@index([pricePerPc])
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model Order {
+  id           Int         @id @default(autoincrement())
+  customerName String
+  phone        String
+  address      String
+  total        Decimal     @db.Decimal(10, 2)
+  status       String      @default("Принят")
+  createdAt    DateTime    @default(now())
+  items        OrderItem[]
+
+  @@index([phone])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stockItemId Int?
+  name        String
+  qty         Int
+  price       Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
 }

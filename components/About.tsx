@@ -23,7 +23,7 @@ export default function About() {
               гелий, оборудование и аксессуары для оформления. Гарантируем качество и доступные оптовые цены.
             </p>
             <a
-              href="https://wa.me/77769370282"
+              href="https://wa.me/77769510282"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium rounded-xl transition-colors"

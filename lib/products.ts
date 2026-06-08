@@ -151,18 +151,14 @@ export async function getColorGroups(): Promise<string[]> {
   return rows.map(r => r.colorGroup!).filter(Boolean)
 }
 
-const HIDDEN_MANUFACTURERS = ['PrioritY', 'БАМЗ', 'Гелий 24', 'ГК Горчаков', 'Сканд-Газ', 'Патиматика']
-
 export async function getManufacturers(): Promise<string[]> {
   const rows = await db.product.findMany({
-    where: { isActive: true, manufacturer: { not: null, notIn: HIDDEN_MANUFACTURERS } },
+    where: { isActive: true, manufacturer: { not: null } },
     select: { manufacturer: true },
     distinct: ['manufacturer'],
     orderBy: { manufacturer: 'asc' },
   })
-  const list = rows.map(r => r.manufacturer!).filter(Boolean)
-  if (!list.includes('Sempertex')) list.push('Sempertex')
-  return list
+  return rows.map(r => r.manufacturer!).filter(Boolean)
 }
 
 export async function getSizes(): Promise<string[]> {

@@ -43,7 +43,7 @@ export default function Hero() {
                 Перейти в каталог
               </a>
               <a
-                href="https://wa.me/77769370282"
+                href="https://wa.me/77769510282"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition-colors border border-gray-200 shadow-sm"

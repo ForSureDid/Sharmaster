@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { ProductCard } from "@/lib/products";
+import { useCart } from "@/context/CartContext";
 
 type Props = {
   items: ProductCard[];
@@ -18,6 +19,8 @@ type ViewMode = "grid" | "list";
 function ProductCardGrid({ product }: { product: ProductCard }) {
   const hasImage = !!product.imageUrl;
   const hasSale = product.salePrice !== null && product.salePrice < product.price;
+  const { items, addToCart, updateQty } = useCart();
+  const cartItem = items.find((i) => i.id === product.id);
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex flex-col group">
@@ -45,13 +48,9 @@ function ProductCardGrid({ product }: { product: ProductCard }) {
       <div className="p-3 flex flex-col flex-1">
         <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-2 line-clamp-3">{product.name}</h3>
 
-        <div className="flex flex-wrap gap-1 mb-2">
-          {product.colorGroup && (
-            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{product.colorGroup}</span>
-          )}
-          {product.sizeInches && (
-            <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded">{product.sizeInches}&quot;</span>
-          )}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] text-gray-400 truncate">{product.manufacturer ?? ''}</span>
+          <span className="text-[10px] text-gray-300 font-mono ml-1 flex-shrink-0">#{product.id}</span>
         </div>
 
         <div className="mt-auto">
@@ -64,12 +63,33 @@ function ProductCardGrid({ product }: { product: ProductCard }) {
             <div className="text-base font-bold text-sky-600 mb-2">{Number(product.price).toLocaleString()} ₸</div>
           )}
 
-          <button className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            В корзину
-          </button>
+          {cartItem ? (
+            <div className="flex items-center justify-between border border-sky-300 rounded-lg overflow-hidden">
+              <button
+                onClick={() => updateQty(product.id, cartItem.qty - 1)}
+                className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+              >
+                −
+              </button>
+              <span className="flex-1 text-center text-sm font-bold text-sky-600">{cartItem.qty}</span>
+              <button
+                onClick={() => updateQty(product.id, cartItem.qty + 1)}
+                className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => addToCart(product)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              В корзину
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -79,6 +99,8 @@ function ProductCardGrid({ product }: { product: ProductCard }) {
 function ProductCardList({ product }: { product: ProductCard }) {
   const hasImage = !!product.imageUrl;
   const hasSale = product.salePrice !== null && product.salePrice < product.price;
+  const { items, addToCart, updateQty } = useCart();
+  const cartItem = items.find((i) => i.id === product.id);
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex gap-0">
@@ -102,10 +124,9 @@ function ProductCardList({ product }: { product: ProductCard }) {
       <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{product.name}</h3>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {product.colorGroup && <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{product.colorGroup}</span>}
-            {product.sizeInches && <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded">{product.sizeInches}&quot;</span>}
+          <div className="flex items-center gap-2 mt-1">
             {product.manufacturer && <span className="text-[10px] text-gray-400">{product.manufacturer}</span>}
+            <span className="text-[10px] text-gray-300 font-mono">#{product.id}</span>
           </div>
         </div>
         <div className="flex-shrink-0 text-right">
@@ -118,12 +139,33 @@ function ProductCardList({ product }: { product: ProductCard }) {
             <p className="text-lg font-bold text-sky-600">{Number(product.price).toLocaleString()} ₸</p>
           )}
         </div>
-        <button className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-          В корзину
-        </button>
+        {cartItem ? (
+          <div className="flex-shrink-0 flex items-center border border-sky-300 rounded-lg overflow-hidden">
+            <button
+              onClick={() => updateQty(product.id, cartItem.qty - 1)}
+              className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+            >
+              −
+            </button>
+            <span className="w-8 text-center text-sm font-bold text-sky-600">{cartItem.qty}</span>
+            <button
+              onClick={() => updateQty(product.id, cartItem.qty + 1)}
+              className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+            >
+              +
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => addToCart(product)}
+            className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            В корзину
+          </button>
+        )}
       </div>
     </div>
   );
