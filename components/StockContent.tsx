@@ -200,7 +200,9 @@ function StockCardGrid({ item }: { item: StockCard }) {
             <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded font-medium">{item.brand}</span>
           )}
         </div>
-        <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{item.name}</h3>
+        <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
+          <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{item.name}</h3>
+        </a>
 
         <div className="mt-auto">
           <div className="text-base font-bold text-sky-600 mb-1">
@@ -305,7 +307,9 @@ function StockCardList({ item }: { item: StockCard }) {
               <span className="text-[10px] text-gray-400">Нет в наличии</span>
             )}
           </div>
-          <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{item.name}</h3>
+          <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
+            <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{item.name}</h3>
+          </a>
         </div>
         <div className="flex-shrink-0 text-right min-w-[90px]">
           <p className="text-lg font-bold text-sky-600">{item.pricePerPc.toLocaleString()} ₸</p>

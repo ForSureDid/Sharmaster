@@ -14,6 +14,11 @@ export type StockCard = {
   unitsPerPackage: number | null
 }
 
+export type StockDetail = StockCard & {
+  article: string | null
+  barcode: string | null
+}
+
 export type StockFilters = {
   categoryId?: number
   colorGroup?: string
@@ -112,21 +117,8 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
   return {
     items: rawItems.map(i => {
-      const prod = i.productId != null ? productMetaMap.get(i.productId) : undefined
-      // Prefer StockItem's own images (foil direct link); fall back to Product images
-      let headUrl: string | null
-      let allImages: string[]
-      if (i.imageUrl) {
-        headUrl = i.imageUrl
-        allImages = [i.imageUrl, ...i.images.filter(u => u !== i.imageUrl)]
-      } else if (prod?.imageUrl) {
-        headUrl = prod.imageUrl
-        const extras = prod.images ?? []
-        allImages = [prod.imageUrl, ...extras.filter(u => u !== prod.imageUrl)]
-      } else {
-        headUrl = null
-        allImages = i.images.length > 0 ? i.images : (prod?.images ?? [])
-      }
+      const prod = i.productId != null ? productMetaMap.get(i.productId!) : undefined
+      const { headUrl, allImages } = buildImages(i, prod)
       return {
         id: i.id,
         name: i.name,
@@ -142,5 +134,53 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
       }
     }),
     total,
+  }
+}
+
+function buildImages(
+  item: { imageUrl: string | null; images: string[] },
+  prod?: { imageUrl: string | null; images: string[] } | null
+): { headUrl: string | null; allImages: string[] } {
+  if (item.imageUrl) {
+    return { headUrl: item.imageUrl, allImages: [item.imageUrl, ...item.images.filter(u => u !== item.imageUrl)] }
+  }
+  if (prod?.imageUrl) {
+    const extras = prod.images ?? []
+    return { headUrl: prod.imageUrl, allImages: [prod.imageUrl, ...extras.filter(u => u !== prod.imageUrl)] }
+  }
+  const allImages = item.images.length > 0 ? item.images : (prod?.images ?? [])
+  return { headUrl: allImages[0] ?? null, allImages }
+}
+
+export async function getStockItemById(id: number): Promise<StockDetail | null> {
+  const item = await db.stockItem.findUnique({
+    where: { id },
+    select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true },
+  })
+  if (!item) return null
+
+  let prod: { imageUrl: string | null; images: string[]; material: string | null; sizeInches: string | null; model: string | null; unitsPerPackage: number | null } | null = null
+  if (item.productId) {
+    prod = await db.product.findUnique({
+      where: { id: item.productId },
+      select: { imageUrl: true, images: true, material: true, sizeInches: true, model: true, unitsPerPackage: true },
+    })
+  }
+
+  const { headUrl, allImages } = buildImages(item, prod)
+  return {
+    id: item.id,
+    name: item.name,
+    brand: item.brand,
+    stock: item.stock,
+    pricePerPc: Number(item.pricePerPc),
+    imageUrl: headUrl,
+    images: allImages,
+    material: prod?.material ?? null,
+    sizeInches: prod?.sizeInches ?? null,
+    model: prod?.model ?? null,
+    unitsPerPackage: prod?.unitsPerPackage ?? null,
+    article: item.article,
+    barcode: item.barcode,
   }
 }
