@@ -1,0 +1,40 @@
+Development
+
+  npm run dev          # start local dev server → http://localhost:3000
+  npm run build        # build for production
+  npm run start        # run production build
+  npm run lint         # check code for errors
+
+  ---
+  Database — everyday use
+
+  # Refresh stock from a new XLS file (run every time you get a new warehouse report)
+  npm run db:import-stock
+
+  # Open Prisma Studio — visual DB browser (tables, rows, edit data)
+  npm run db:studio
+
+  ---
+  Database — setup / schema changes
+
+  # After editing prisma/schema.prisma — push changes to Supabase
+  npx prisma db push --url "postgresql://postgres.tjoreojidkjhfksspbwe:voBgos-pymsav-rutxa0@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
+
+  # Regenerate Prisma client after schema changes (so TypeScript knows new tables/fields)
+  npm run db:generate
+
+  # Re-import the full donballon product catalog (from Donballon.csv)
+  npm run db:import
+
+  ---
+  Most common workflow
+
+  Got a new stock file?
+  1. Put the new .xls file in All the Files with material here/
+  2. Update the filename in scripts/import-stock.ts (line xlsPath)
+  3. Run npm run db:import-stock
+
+  Changed something in the UI?
+  1. npm run dev — test locally
+  2. npm run build — make sure it compiles
+  3. git add ... && git commit -m "..." — save

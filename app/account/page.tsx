@@ -63,11 +63,11 @@ export default function AccountPage() {
   return (
     <>
       <Header />
-      <main className="pt-[138px] min-h-screen bg-gray-50">
+      <main className="pt-[88px] min-h-screen bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
           {/* Profile card */}
-          <div className="bg-white rounded-3xl border border-gray-100 p-6 mb-6 flex items-center gap-5">
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 mb-6 flex flex-wrap items-center gap-4">
             <div className="w-16 h-16 rounded-full bg-sky-400 flex items-center justify-center text-white text-2xl font-extrabold flex-shrink-0">
               {user.name.charAt(0).toUpperCase()}
             </div>
@@ -88,17 +88,17 @@ export default function AccountPage() {
           </div>
 
           {/* Quick stats */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
-              <p className="text-2xl font-extrabold text-sky-500">{orders.length}</p>
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-extrabold text-sky-500">{orders.length}</p>
               <p className="text-xs text-gray-400 mt-1">Заказов</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
-              <p className="text-2xl font-extrabold text-pink-500">{totalSpent.toLocaleString()} ₸</p>
-              <p className="text-xs text-gray-400 mt-1">Общая сумма</p>
+            <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4 text-center">
+              <p className="text-sm sm:text-xl font-extrabold text-pink-500 break-all leading-tight">{totalSpent.toLocaleString()} ₸</p>
+              <p className="text-xs text-gray-400 mt-1">Сумма</p>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
-              <p className="text-2xl font-extrabold text-green-500">
+            <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4 text-center">
+              <p className="text-xl sm:text-2xl font-extrabold text-green-500">
                 {orders.filter(o => o.status === "Доставлен").length}
               </p>
               <p className="text-xs text-gray-400 mt-1">Выполнено</p>
@@ -144,7 +144,7 @@ export default function AccountPage() {
                         <div className="flex-shrink-0 text-right flex flex-col items-end gap-2">
                         <p className="text-base font-bold text-gray-800">{Number(o.total).toLocaleString()} ₸</p>
                         <a
-                          href={`/api/orders/${o.id}/excel`}
+                          href={`/api/orders/${o.id}/excel?phone=${encodeURIComponent(user.phone ?? '')}`}
                           className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 font-medium transition-colors"
                           title="Скачать Excel"
                         >

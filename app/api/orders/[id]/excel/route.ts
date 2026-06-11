@@ -17,15 +17,27 @@ const SUMMARY_ROW = 37
 const WORDS_ROW = 39
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+
+  // Validate id is a positive integer — prevent NaN / type confusion
+  const orderId = parseInt(id, 10)
+  if (!Number.isFinite(orderId) || orderId <= 0) {
+    return new NextResponse('Bad Request', { status: 400 })
+  }
+
+  // Require the caller's phone to match the order — prevents IDOR enumeration
+  const phone = new URL(req.url).searchParams.get('phone')?.trim()
+  if (!phone) return new NextResponse('Forbidden', { status: 403 })
+
   const order = await db.order.findUnique({
-    where: { id: Number(id) },
+    where: { id: orderId },
     include: { items: true },
   })
   if (!order) return new NextResponse('Not found', { status: 404 })
+  if (order.phone !== phone) return new NextResponse('Forbidden', { status: 403 })
 
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(TEMPLATE_PATH)

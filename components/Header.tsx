@@ -11,6 +11,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const router = useRouter();
 
   const accountRef = useRef<HTMLDivElement>(null);
@@ -153,7 +154,21 @@ export default function Header() {
                 </span>
               )}
             </button>
-            <button className="md:hidden p-2 text-gray-600" onClick={() => setMenuOpen(!menuOpen)}>
+            <button
+              className="md:hidden p-2 text-gray-600 hover:text-sky-500 transition-colors"
+              onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }}
+            >
+              {searchOpen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              )}
+            </button>
+            <button className="md:hidden p-2 text-gray-600" onClick={() => { setMenuOpen(!menuOpen); setSearchOpen(false); }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
@@ -162,6 +177,23 @@ export default function Header() {
           </div>
         </div>
       </div>
+
+      {/* Mobile search row */}
+      {searchOpen && (
+        <div className="md:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
+          <form onSubmit={(e) => { setSearchOpen(false); handleSearch(e); }} className="flex rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
+            <input
+              autoFocus
+              type="text"
+              placeholder="Поиск шаров и товаров..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
+            />
+            <button type="submit" className="px-4 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">Найти</button>
+          </form>
+        </div>
+      )}
 
       {/* Mobile menu */}
       {menuOpen && (

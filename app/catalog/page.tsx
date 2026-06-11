@@ -16,16 +16,28 @@ function str(v: string | string[] | undefined): string | undefined {
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
 
-  const catId = str(sp.cat) ? Number(sp.cat) : undefined;
+  function safeInt(v: string | undefined, fallback: number): number {
+    const n = v ? parseInt(v, 10) : fallback;
+    return Number.isFinite(n) ? n : fallback;
+  }
+  function safeFloat(v: string | undefined): number | undefined {
+    if (!v) return undefined;
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  const catId = safeInt(str(sp.cat), 0) || undefined;
   const colorGroup = str(sp.color);
   const shade = str(sp.shade);
   const sizeInches = str(sp.size);
   const manufacturer = str(sp.mfr);
-  const minPrice = str(sp.min) ? Number(sp.min) : undefined;
-  const maxPrice = str(sp.max) ? Number(sp.max) : undefined;
-  const sort = (str(sp.sort) ?? "price_asc") as "price_asc" | "price_desc" | "name_asc";
-  const page = str(sp.page) ? Number(sp.page) : 1;
-  const per = str(sp.per) ? Number(sp.per) : 48;
+  const minPrice = safeFloat(str(sp.min));
+  const maxPrice = safeFloat(str(sp.max));
+  const SORT_OPTS = ["price_asc", "price_desc", "name_asc"] as const;
+  const rawSort = str(sp.sort);
+  const sort = (SORT_OPTS.includes(rawSort as typeof SORT_OPTS[number]) ? rawSort : "price_asc") as "price_asc" | "price_desc" | "name_asc";
+  const page = Math.max(safeInt(str(sp.page), 1), 1);
+  const per = Math.min(Math.max(safeInt(str(sp.per), 48), 1), 200);
   const q = str(sp.q);
   const inStockOnly = str(sp.instock) === "1";
 
@@ -73,7 +85,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             {activeCategory ? activeCategory.name : "Каталог товаров"}
           </h1>
 
-          <div className="flex gap-6 items-start">
+          <div className="flex lg:gap-6 items-start">
             <Suspense fallback={null}>
               <CatalogSidebar
                 categories={categories}

@@ -79,6 +79,8 @@ model Product {
 model StockItem {
   id         Int      @id @default(autoincrement())
   name       String   @unique
+  article    String?
+  barcode    String?
   brand      String?
   stock      Int      @default(0)
   pricePerPc Decimal  @db.Decimal(10, 2)
@@ -90,6 +92,7 @@ model StockItem {
   @@index([stock])
   @@index([brand])
   @@index([pricePerPc])
+  @@index([article])
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────

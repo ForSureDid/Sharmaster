@@ -40,6 +40,7 @@ function Section({ title, children, defaultOpen = true }: {
 export default function CatalogSidebar({ categories, colorGroups, manufacturers, shades, sizes }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   function update(key: string, value: string | null) {
     const params = new URLSearchParams(sp.toString());
@@ -63,20 +64,8 @@ export default function CatalogSidebar({ categories, colorGroups, manufacturers,
 
   const activeCount = [activeCat, activeColor, activeMfr, activeShade, activeSize, minPrice, maxPrice].filter(Boolean).length + (inStockOnly ? 1 : 0);
 
-  return (
-    <aside className="hidden lg:block w-64 flex-shrink-0 bg-white rounded-xl border border-gray-100 p-4 sticky top-[130px] max-h-[calc(100vh-150px)] overflow-y-auto">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-gray-800">Фильтры</h2>
-        {activeCount > 0 && (
-          <button onClick={() => router.push("/catalog")} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Сбросить ({activeCount})
-          </button>
-        )}
-      </div>
-
+  const filterSections = (
+    <>
       <Section title="Наличие">
         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
           <input
@@ -210,6 +199,82 @@ export default function CatalogSidebar({ categories, colorGroups, manufacturers,
           </ul>
         </Section>
       )}
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:block w-64 flex-shrink-0 bg-white rounded-xl border border-gray-100 p-4 sticky top-[130px] max-h-[calc(100vh-150px)] overflow-y-auto">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-800">Фильтры</h2>
+          {activeCount > 0 && (
+            <button onClick={() => router.push("/catalog")} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Сбросить ({activeCount})
+            </button>
+          )}
+        </div>
+        {filterSections}
+      </aside>
+
+      {/* Mobile: fixed button + bottom drawer */}
+      <div className="lg:hidden">
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="fixed bottom-6 left-4 z-40 flex items-center gap-2 px-4 py-3 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-full shadow-lg transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+          Фильтры{activeCount > 0 ? ` (${activeCount})` : ""}
+        </button>
+
+        {mobileOpen && (
+          <>
+            <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setMobileOpen(false)} />
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800">Фильтры</h2>
+                <div className="flex items-center gap-3">
+                  {activeCount > 0 && (
+                    <button
+                      onClick={() => { router.push("/catalog"); setMobileOpen(false); }}
+                      className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Сбросить ({activeCount})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-y-auto px-4 pb-4 flex-1">
+                {filterSections}
+              </div>
+              <div className="p-4 border-t border-gray-100">
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="w-full py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
+                >
+                  Показать товары
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
