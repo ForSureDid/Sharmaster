@@ -90,7 +90,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   const [rawItems, total] = await Promise.all([
     db.stockItem.findMany({
       where,
-      select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, productId: true },
+      select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -113,11 +113,20 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   return {
     items: rawItems.map(i => {
       const prod = i.productId != null ? productMetaMap.get(i.productId) : undefined
-      const headUrl = i.imageUrl ?? prod?.imageUrl ?? null
-      const extras = prod?.images ?? []
-      const allImages = headUrl
-        ? [headUrl, ...extras.filter(u => u !== headUrl)]
-        : extras
+      // Prefer StockItem's own images (foil direct link); fall back to Product images
+      let headUrl: string | null
+      let allImages: string[]
+      if (i.imageUrl) {
+        headUrl = i.imageUrl
+        allImages = [i.imageUrl, ...i.images.filter(u => u !== i.imageUrl)]
+      } else if (prod?.imageUrl) {
+        headUrl = prod.imageUrl
+        const extras = prod.images ?? []
+        allImages = [prod.imageUrl, ...extras.filter(u => u !== prod.imageUrl)]
+      } else {
+        headUrl = null
+        allImages = i.images.length > 0 ? i.images : (prod?.images ?? [])
+      }
       return {
         id: i.id,
         name: i.name,
