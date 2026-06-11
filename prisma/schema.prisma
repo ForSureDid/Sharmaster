@@ -85,6 +85,7 @@ model StockItem {
   stock      Int      @default(0)
   pricePerPc Decimal  @db.Decimal(10, 2)
   imageUrl   String?
+  images     String[]
   productId  Int?
 
   updatedAt  DateTime @updatedAt
