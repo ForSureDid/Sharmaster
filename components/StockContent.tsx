@@ -90,7 +90,7 @@ function isSoldIndividually(item: StockCard): boolean {
   return isLatex && ["18", "24", "36"].includes(item.sizeInches ?? "");
 }
 
-function ImageCarousel({ images, name, sizes }: { images: string[]; name: string; sizes: string }) {
+function ImageCarousel({ images, name, sizes, priority }: { images: string[]; name: string; sizes: string; priority?: boolean }) {
   const [idx, setIdx] = useState(0);
   const total = images.length;
 
@@ -112,6 +112,7 @@ function ImageCarousel({ images, name, sizes }: { images: string[]; name: string
         fill
         className="object-contain p-2 transition-opacity duration-200"
         sizes={sizes}
+        priority={priority}
       />
       {total > 1 && (
         <>
@@ -148,7 +149,7 @@ function ImageCarousel({ images, name, sizes }: { images: string[]; name: string
   );
 }
 
-function StockCardGrid({ item }: { item: StockCard }) {
+function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean }) {
   const { items, addToCart, updateQty } = useCart();
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
@@ -175,6 +176,7 @@ function StockCardGrid({ item }: { item: StockCard }) {
             images={item.images}
             name={item.name}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            priority={priority}
           />
         ) : (
           <div className="w-16 h-16 rounded-full bg-sky-100 flex items-center justify-center">
@@ -427,7 +429,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {items.map((i) => <StockCardGrid key={i.id} item={i} />)}
+          {items.map((i, idx) => <StockCardGrid key={i.id} item={i} priority={idx < 8} />)}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

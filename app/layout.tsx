@@ -19,6 +19,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className="h-full scroll-smooth">
+      <head>
+        <link rel="preconnect" href="https://tjoreojidkjhfksspbwe.supabase.co" />
+        <link rel="dns-prefetch" href="https://tjoreojidkjhfksspbwe.supabase.co" />
+      </head>
       <body className={`${inter.className} min-h-full flex flex-col`}>
         <AuthProvider>
           <CartProvider>

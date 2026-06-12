@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { db } from './db'
 
 export type StockCard = {
@@ -152,7 +153,7 @@ function buildImages(
   return { headUrl: allImages[0] ?? null, allImages }
 }
 
-export async function getStockItemById(id: number): Promise<StockDetail | null> {
+async function _getStockItemById(id: number): Promise<StockDetail | null> {
   const item = await db.stockItem.findUnique({
     where: { id },
     select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true },
@@ -184,3 +185,9 @@ export async function getStockItemById(id: number): Promise<StockDetail | null> 
     barcode: item.barcode,
   }
 }
+
+export const getStockItemById = unstable_cache(
+  _getStockItemById,
+  ['stockItem'],
+  { revalidate: 300, tags: ['stockItems'] }
+)

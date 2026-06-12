@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { db } from './db'
 
 export type ProductCard = {
@@ -118,18 +119,15 @@ export async function getProductById(id: number) {
   }
 }
 
-export async function getCategories() {
-  return db.category.findMany({
+export const getCategories = unstable_cache(
+  () => db.category.findMany({
     where: { level: 1 },
-    include: {
-      children: {
-        include: { children: true },
-        orderBy: { name: 'asc' },
-      },
-    },
+    include: { children: { include: { children: true }, orderBy: { name: 'asc' } } },
     orderBy: { name: 'asc' },
-  })
-}
+  }),
+  ['categories'],
+  { revalidate: 3600, tags: ['categories'] }
+)
 
 export async function getCategoryById(id: number) {
   return db.category.findUnique({
@@ -141,42 +139,38 @@ export async function getCategoryById(id: number) {
   })
 }
 
-export async function getColorGroups(): Promise<string[]> {
-  const rows = await db.product.findMany({
-    where: { isActive: true, colorGroup: { not: null } },
-    select: { colorGroup: true },
-    distinct: ['colorGroup'],
-    orderBy: { colorGroup: 'asc' },
-  })
-  return rows.map(r => r.colorGroup!).filter(Boolean)
-}
+export const getColorGroups = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await db.product.findMany({ where: { isActive: true, colorGroup: { not: null } }, select: { colorGroup: true }, distinct: ['colorGroup'], orderBy: { colorGroup: 'asc' } })
+    return rows.map(r => r.colorGroup!).filter(Boolean)
+  },
+  ['colorGroups'],
+  { revalidate: 3600, tags: ['filters'] }
+)
 
-export async function getManufacturers(): Promise<string[]> {
-  const rows = await db.product.findMany({
-    where: { isActive: true, manufacturer: { not: null } },
-    select: { manufacturer: true },
-    distinct: ['manufacturer'],
-    orderBy: { manufacturer: 'asc' },
-  })
-  return rows.map(r => r.manufacturer!).filter(Boolean)
-}
+export const getManufacturers = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await db.product.findMany({ where: { isActive: true, manufacturer: { not: null } }, select: { manufacturer: true }, distinct: ['manufacturer'], orderBy: { manufacturer: 'asc' } })
+    return rows.map(r => r.manufacturer!).filter(Boolean)
+  },
+  ['manufacturers'],
+  { revalidate: 3600, tags: ['filters'] }
+)
 
-export async function getSizes(): Promise<string[]> {
-  const rows = await db.product.findMany({
-    where: { isActive: true, sizeInches: { not: null } },
-    select: { sizeInches: true },
-    distinct: ['sizeInches'],
-    orderBy: { sizeInches: 'asc' },
-  })
-  return rows.map(r => r.sizeInches!).filter(Boolean)
-}
+export const getSizes = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await db.product.findMany({ where: { isActive: true, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'], orderBy: { sizeInches: 'asc' } })
+    return rows.map(r => r.sizeInches!).filter(Boolean)
+  },
+  ['sizes'],
+  { revalidate: 3600, tags: ['filters'] }
+)
 
-export async function getShades(): Promise<string[]> {
-  const rows = await db.product.findMany({
-    where: { isActive: true, shade: { not: null } },
-    select: { shade: true },
-    distinct: ['shade'],
-    orderBy: { shade: 'asc' },
-  })
-  return rows.map(r => r.shade!).filter(Boolean)
-}
+export const getShades = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await db.product.findMany({ where: { isActive: true, shade: { not: null } }, select: { shade: true }, distinct: ['shade'], orderBy: { shade: 'asc' } })
+    return rows.map(r => r.shade!).filter(Boolean)
+  },
+  ['shades'],
+  { revalidate: 3600, tags: ['filters'] }
+)
