@@ -157,9 +157,10 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
   const individual = isSoldIndividually(item);
   const step = individual ? 1 : (packSize ?? 1);
 
+  const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
-    name: item.name,
+    name: displayName,
     price: item.pricePerPc,
     salePrice: null,
     imageUrl: item.imageUrl,
@@ -203,7 +204,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
           )}
         </div>
         <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
-          <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{item.name}</h3>
+          <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{displayName}</h3>
         </a>
 
         <div className="mt-auto">
@@ -275,9 +276,10 @@ function StockCardList({ item }: { item: StockCard }) {
   const individual = isSoldIndividually(item);
   const step = individual ? 1 : (packSize ?? 1);
 
+  const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
-    name: item.name,
+    name: displayName,
     price: item.pricePerPc,
     salePrice: null,
     imageUrl: item.imageUrl,
@@ -310,7 +312,7 @@ function StockCardList({ item }: { item: StockCard }) {
             )}
           </div>
           <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
-            <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{item.name}</h3>
+            <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{displayName}</h3>
           </a>
         </div>
         <div className="flex-shrink-0 text-right min-w-[90px]">

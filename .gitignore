@@ -36,6 +36,19 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Scraped photos — already in Supabase Storage, no need in git
+mikros_bk_photos/
+
+# Internal Claude / agent tooling
+.agents/
+.claude/
+skills-lock.json
+
+# Large source data files (>10 MB, not versioned)
+All the Files with material here/PicturePrice.xlsx
+All the Files with material here/Donballon.csv
+All the Files with material here/~$*.xlsx
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

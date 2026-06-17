@@ -4,6 +4,7 @@ import { db } from './db'
 export type StockCard = {
   id: number
   name: string
+  fullName: string | null
   brand: string | null
   stock: number
   pricePerPc: number
@@ -22,10 +23,7 @@ export type StockDetail = StockCard & {
 
 export type StockFilters = {
   categoryId?: number
-  colorGroup?: string
-  shade?: string
-  sizeInches?: string
-  manufacturer?: string
+  brand?: string
   minPrice?: number
   maxPrice?: number
   search?: string
@@ -52,38 +50,29 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 }> {
   const {
     page = 1, pageSize = 48,
-    categoryId, colorGroup, shade, sizeInches, manufacturer,
+    categoryId, brand,
     minPrice, maxPrice, search,
     inStockOnly = false, sort = 'price_asc',
   } = filters
 
-  // Two-step: resolve product-attribute filters into a list of productIds
-  let productIdFilter: number[] | undefined
-  if (categoryId || colorGroup || shade || sizeInches || manufacturer) {
-    const categoryIds = categoryId ? await getDescendantCategoryIds(categoryId) : undefined
-    const matched = await db.product.findMany({
-      where: {
-        isActive: true,
-        ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
-        ...(colorGroup ? { colorGroup } : {}),
-        ...(shade ? { shade } : {}),
-        ...(sizeInches ? { sizeInches } : {}),
-        ...(manufacturer ? { manufacturer } : {}),
-      },
-      select: { id: true },
-    })
-    productIdFilter = matched.map(p => p.id)
-  }
+  const categoryIds = categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
   const where = {
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
-    ...(productIdFilter !== undefined ? { productId: { in: productIdFilter } } : {}),
+    ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
+    ...(brand ? { brand } : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
       : {}),
     ...(search ? {
       AND: search.trim().split(/\s+/).filter(Boolean).map(word => ({
-        name: { contains: word, mode: 'insensitive' as const },
+        OR: [
+          { name:     { contains: word, mode: 'insensitive' as const } },
+          { fullName: { contains: word, mode: 'insensitive' as const } },
+          { brand:    { contains: word, mode: 'insensitive' as const } },
+          { article:  { contains: word, mode: 'insensitive' as const } },
+          { barcode:  { contains: word, mode: 'insensitive' as const } },
+        ],
       })),
     } : {}),
   }
@@ -96,7 +85,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   const [rawItems, total] = await Promise.all([
     db.stockItem.findMany({
       where,
-      select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
+      select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -123,6 +112,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
       return {
         id: i.id,
         name: i.name,
+        fullName: i.fullName,
         brand: i.brand,
         stock: i.stock,
         pricePerPc: Number(i.pricePerPc),
@@ -156,7 +146,7 @@ function buildImages(
 async function _getStockItemById(id: number): Promise<StockDetail | null> {
   const item = await db.stockItem.findUnique({
     where: { id },
-    select: { id: true, name: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true },
+    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true },
   })
   if (!item) return null
 
@@ -172,6 +162,7 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
   return {
     id: item.id,
     name: item.name,
+    fullName: item.fullName,
     brand: item.brand,
     stock: item.stock,
     pricePerPc: Number(item.pricePerPc),
@@ -189,5 +180,50 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
 export const getStockItemById = unstable_cache(
   _getStockItemById,
   ['stockItem'],
+  { revalidate: 300, tags: ['stockItems'] }
+)
+
+async function _getSaleItems(limit = 8): Promise<StockCard[]> {
+  const rawItems = await db.stockItem.findMany({
+    where: { onSale: true },
+    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
+    orderBy: { pricePerPc: 'asc' },
+    take: limit,
+  })
+
+  const linkedProductIds = rawItems.filter(i => i.productId != null).map(i => i.productId!)
+  type ProductMeta = { imageUrl: string | null; images: string[]; material: string | null; sizeInches: string | null; model: string | null; unitsPerPackage: number | null }
+  const productMetaMap = new Map<number, ProductMeta>()
+  if (linkedProductIds.length > 0) {
+    const products = await db.product.findMany({
+      where: { id: { in: linkedProductIds } },
+      select: { id: true, imageUrl: true, images: true, material: true, sizeInches: true, model: true, unitsPerPackage: true },
+    })
+    for (const p of products) productMetaMap.set(p.id, p)
+  }
+
+  return rawItems.map(i => {
+    const prod = i.productId != null ? productMetaMap.get(i.productId!) : undefined
+    const { headUrl, allImages } = buildImages(i, prod)
+    return {
+      id: i.id,
+      name: i.name,
+      fullName: i.fullName,
+      brand: i.brand,
+      stock: i.stock,
+      pricePerPc: Number(i.pricePerPc),
+      imageUrl: headUrl,
+      images: allImages,
+      material: prod?.material ?? null,
+      sizeInches: prod?.sizeInches ?? null,
+      model: prod?.model ?? null,
+      unitsPerPackage: prod?.unitsPerPackage ?? null,
+    }
+  })
+}
+
+export const getSaleItems = unstable_cache(
+  _getSaleItems,
+  ['saleItems'],
   { revalidate: 300, tags: ['stockItems'] }
 )

@@ -17,8 +17,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const err = login(email, password);
+    const err = await login(email, password);
     setLoading(false);
     if (err) { setError(err); return; }
     router.push("/account");

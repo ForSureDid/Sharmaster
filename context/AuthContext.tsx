@@ -1,19 +1,20 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useTransition } from "react";
+import { login as loginAction, register as registerAction, logout as logoutAction, getCurrentUser } from "@/app/auth/actions";
 
-type User = {
+export type User = {
   name: string;
   email: string;
-  phone: string;
+  phone: string | null;
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => string | null;
-  register: (name: string, email: string, phone: string, password: string) => string | null;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<string | null>;
+  register: (name: string, email: string, phone: string, password: string) => Promise<string | null>;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -21,40 +22,43 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [, startTransition] = useTransition();
 
   useEffect(() => {
-    const stored = localStorage.getItem("sharmaster_user");
-    if (stored) setUser(JSON.parse(stored));
-    setLoading(false);
+    // Pre-migration auth stored plaintext passwords here; purge any leftovers.
+    localStorage.removeItem("sharmaster_user");
+    localStorage.removeItem("sharmaster_users");
   }, []);
 
-  function login(email: string, password: string): string | null {
-    const usersRaw = localStorage.getItem("sharmaster_users");
-    const users: (User & { password: string })[] = usersRaw ? JSON.parse(usersRaw) : [];
-    const found = users.find((u) => u.email === email && u.password === password);
-    if (!found) return "Неверный email или пароль";
-    const { password: _, ...userData } = found;
-    setUser(userData);
-    localStorage.setItem("sharmaster_user", JSON.stringify(userData));
-    return null;
+  useEffect(() => {
+    getCurrentUser()
+      .then((session) => {
+        if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function login(email: string, password: string): Promise<string | null> {
+    const err = await loginAction(email, password);
+    if (!err) {
+      const session = await getCurrentUser();
+      if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+    }
+    return err;
   }
 
-  function register(name: string, email: string, phone: string, password: string): string | null {
-    const usersRaw = localStorage.getItem("sharmaster_users");
-    const users: (User & { password: string })[] = usersRaw ? JSON.parse(usersRaw) : [];
-    if (users.find((u) => u.email === email)) return "Пользователь с таким email уже существует";
-    const newUser = { name, email, phone, password };
-    users.push(newUser);
-    localStorage.setItem("sharmaster_users", JSON.stringify(users));
-    const { password: _, ...userData } = newUser;
-    setUser(userData);
-    localStorage.setItem("sharmaster_user", JSON.stringify(userData));
-    return null;
+  async function register(name: string, email: string, phone: string, password: string): Promise<string | null> {
+    const err = await registerAction(name, email, phone, password);
+    if (!err) {
+      const session = await getCurrentUser();
+      if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+    }
+    return err;
   }
 
-  function logout() {
+  async function logout(): Promise<void> {
+    await logoutAction();
     setUser(null);
-    localStorage.removeItem("sharmaster_user");
   }
 
   return (

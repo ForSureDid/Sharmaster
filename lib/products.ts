@@ -157,6 +157,15 @@ export const getManufacturers = unstable_cache(
   { revalidate: 3600, tags: ['filters'] }
 )
 
+export const getBrands = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await db.stockItem.findMany({ where: { brand: { not: null } }, select: { brand: true }, distinct: ['brand'], orderBy: { brand: 'asc' } })
+    return rows.map(r => r.brand!).filter(Boolean)
+  },
+  ['brands'],
+  { revalidate: 3600, tags: ['filters'] }
+)
+
 export const getSizes = unstable_cache(
   async (): Promise<string[]> => {
     const rows = await db.product.findMany({ where: { isActive: true, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'], orderBy: { sizeInches: 'asc' } })

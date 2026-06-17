@@ -11,10 +11,7 @@ type Category = {
 
 type Props = {
   categories: Category[];
-  colorGroups: string[];
-  manufacturers: string[];
-  shades: string[];
-  sizes: string[];
+  brands: string[];
 };
 
 function Section({ title, children, defaultOpen = true }: {
@@ -37,7 +34,7 @@ function Section({ title, children, defaultOpen = true }: {
   );
 }
 
-export default function CatalogSidebar({ categories, colorGroups, manufacturers, shades, sizes }: Props) {
+export default function CatalogSidebar({ categories, brands }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -54,15 +51,12 @@ export default function CatalogSidebar({ categories, colorGroups, manufacturers,
   }
 
   const activeCat = sp.get("cat") ?? "";
-  const activeColor = sp.get("color") ?? "";
-  const activeMfr = sp.get("mfr") ?? "";
-  const activeShade = sp.get("shade") ?? "";
-  const activeSize = sp.get("size") ?? "";
+  const activeBrand = sp.get("brand") ?? "";
   const minPrice = sp.get("min") ?? "";
   const maxPrice = sp.get("max") ?? "";
   const inStockOnly = sp.get("instock") === "1";
 
-  const activeCount = [activeCat, activeColor, activeMfr, activeShade, activeSize, minPrice, maxPrice].filter(Boolean).length + (inStockOnly ? 1 : 0);
+  const activeCount = [activeCat, activeBrand, minPrice, maxPrice].filter(Boolean).length + (inStockOnly ? 1 : 0);
 
   const filterSections = (
     <>
@@ -92,10 +86,24 @@ export default function CatalogSidebar({ categories, colorGroups, manufacturers,
             <li key={cat.id}>
               <button
                 onClick={() => update("cat", activeCat === String(cat.id) ? null : String(cat.id))}
-                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${activeCat === String(cat.id) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-sky-500"}`}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === String(cat.id) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
               >
                 {cat.name}
               </button>
+              {cat.children.length > 0 && (
+                <ul className="ml-3 mt-0.5 space-y-0.5">
+                  {cat.children.map((sub) => (
+                    <li key={sub.id}>
+                      <button
+                        onClick={() => update("cat", activeCat === String(sub.id) ? null : String(sub.id))}
+                        className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === String(sub.id) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
+                      >
+                        {sub.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
@@ -121,78 +129,20 @@ export default function CatalogSidebar({ categories, colorGroups, manufacturers,
         </div>
       </Section>
 
-      {sizes.length > 0 && (
-        <Section title="Размер (дюймы)" defaultOpen={false}>
-          <div className="flex flex-wrap gap-1.5">
-            {sizes.map((s) => (
-              <button
-                key={s}
-                onClick={() => update("size", activeSize === s ? null : s)}
-                className={`px-2.5 py-1 text-xs rounded-lg border transition-colors font-medium ${activeSize === s ? "bg-sky-500 text-white border-sky-500" : "border-gray-200 text-gray-600 hover:border-sky-300 hover:text-sky-600"}`}
-              >
-                {s}&quot;
-              </button>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      {colorGroups.length > 0 && (
-        <Section title="Группа цвета" defaultOpen={false}>
+      {brands.length > 0 && (
+        <Section title="Бренд" defaultOpen={false}>
           <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {colorGroups.map((c) => (
-              <li key={c}>
+            {brands.map((b) => (
+              <li key={b}>
                 <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
                   <input
                     type="radio"
-                    name="color"
-                    checked={activeColor === c}
-                    onChange={() => update("color", activeColor === c ? null : c)}
+                    name="brand"
+                    checked={activeBrand === b}
+                    onChange={() => update("brand", activeBrand === b ? null : b)}
                     className="w-3.5 h-3.5 accent-sky-500"
                   />
-                  {c}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {shades.length > 0 && (
-        <Section title="Оттенок" defaultOpen={false}>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {shades.map((s) => (
-              <li key={s}>
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-                  <input
-                    type="radio"
-                    name="shade"
-                    checked={activeShade === s}
-                    onChange={() => update("shade", activeShade === s ? null : s)}
-                    className="w-3.5 h-3.5 accent-sky-500"
-                  />
-                  {s}
-                </label>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {manufacturers.length > 0 && (
-        <Section title="Производитель" defaultOpen={false}>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {manufacturers.map((m) => (
-              <li key={m}>
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-                  <input
-                    type="radio"
-                    name="mfr"
-                    checked={activeMfr === m}
-                    onChange={() => update("mfr", activeMfr === m ? null : m)}
-                    className="w-3.5 h-3.5 accent-sky-500"
-                  />
-                  {m}
+                  {b}
                 </label>
               </li>
             ))}

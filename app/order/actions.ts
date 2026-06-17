@@ -1,7 +1,12 @@
 'use server'
 
 import { db } from '@/lib/db'
+import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
+
+class StockError extends Error {
+  constructor(msg: string) { super(msg); this.name = 'StockError' }
+}
 
 type OrderItem = { id: number; qty: number; name: string; price: number }
 
@@ -56,6 +61,7 @@ export async function placeOrder(input: {
     return { item, stockRow: byId ?? byName ?? null }
   })
 
+  // Fast-path early return for obvious stock shortfalls (stale read — enforced atomically below)
   for (const { item, stockRow } of resolved) {
     if (!stockRow) continue
     if (stockRow.stock < item.qty) {
@@ -74,30 +80,51 @@ export async function placeOrder(input: {
     return sum + unitPrice * item.qty
   }, 0)
 
-  const [order] = await db.$transaction([
-    db.order.create({
-      data: {
-        customerName: name,
-        phone: ph,
-        address: addr,
-        total,
-        items: {
-          create: resolved.map(({ item, stockRow }) => ({
-            stockItemId: stockRow?.id ?? null,
-            name: item.name,
-            qty: item.qty,
-            price: stockRow ? stockRow.pricePerPc : 0,
-          })),
+  const session = await getSession()
+
+  // ── Atomic check-and-decrement inside one transaction ─────────────────────
+  // updateMany with stock >= qty is a single conditional UPDATE in the DB —
+  // if another request already consumed the stock, count === 0 and we abort.
+  let order: { id: number }
+  try {
+    order = await db.$transaction(async (tx) => {
+      for (const { item, stockRow } of toDecrement) {
+        const { count } = await tx.stockItem.updateMany({
+          where: { id: stockRow!.id, stock: { gte: item.qty } },
+          data: { stock: { decrement: item.qty } },
+        })
+        if (count === 0) {
+          const cur = await tx.stockItem.findUnique({
+            where: { id: stockRow!.id },
+            select: { stock: true },
+          })
+          throw new StockError(
+            `Недостаточно товара "${stockRow!.name}" на складе (доступно: ${cur?.stock ?? 0} шт.)`
+          )
+        }
+      }
+      return tx.order.create({
+        data: {
+          ...(session?.userId ? { userId: session.userId } : {}),
+          customerName: name,
+          phone: ph,
+          address: addr,
+          total,
+          items: {
+            create: resolved.map(({ item, stockRow }) => ({
+              stockItemId: stockRow?.id ?? null,
+              name: item.name,
+              qty: item.qty,
+              price: stockRow ? stockRow.pricePerPc : 0,
+            })),
+          },
         },
-      },
-    }),
-    ...toDecrement.map(({ item, stockRow }) =>
-      db.stockItem.update({
-        where: { id: stockRow!.id },
-        data: { stock: { decrement: item.qty } },
       })
-    ),
-  ])
+    })
+  } catch (err) {
+    if (err instanceof StockError) return { ok: false, error: err.message }
+    throw err
+  }
 
   revalidatePath('/catalog')
 

@@ -20,10 +20,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     if (form.password !== form.confirm) { setError("Пароли не совпадают"); return; }
-    if (form.password.length < 6) { setError("Пароль должен быть не менее 6 символов"); return; }
+    if (form.password.length < 8) { setError("Пароль должен быть не менее 8 символов"); return; }
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const err = register(form.name, form.email, form.phone, form.password);
+    const err = await register(form.name, form.email, form.phone, form.password);
     setLoading(false);
     if (err) { setError(err); return; }
     router.push("/account");
@@ -86,7 +85,7 @@ export default function RegisterPage() {
               required
               value={form.password}
               onChange={(e) => set("password", e.target.value)}
-              placeholder="Минимум 6 символов"
+              placeholder="Минимум 8 символов"
               className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sky-300 focus:outline-none text-sm transition-colors"
             />
           </div>

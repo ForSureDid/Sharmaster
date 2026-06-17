@@ -8,8 +8,10 @@ import About from "@/components/About";
 import Schedule from "@/components/Schedule";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
+import { getSaleItems } from "@/lib/stock";
 
-export default function Home() {
+export default async function Home() {
+  const saleItems = await getSaleItems();
   return (
     <>
       <Header />
@@ -17,7 +19,7 @@ export default function Home() {
         <Hero />
         <Occasions />
         <Categories />
-        <ProductGrid />
+        <ProductGrid items={saleItems} />
         <Benefits />
         <About />
         <Schedule />

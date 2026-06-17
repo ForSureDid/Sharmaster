@@ -5,7 +5,7 @@ import FloatingCart from "@/components/FloatingCart";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import StockContent from "@/components/StockContent";
 import { getStockItems } from "@/lib/stock";
-import { getCategories, getColorGroups, getManufacturers, getSizes, getShades } from "@/lib/products";
+import { getCategories, getBrands } from "@/lib/products";
 
 type SP = { [key: string]: string | string[] | undefined };
 
@@ -27,10 +27,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   }
 
   const catId = safeInt(str(sp.cat), 0) || undefined;
-  const colorGroup = str(sp.color);
-  const shade = str(sp.shade);
-  const sizeInches = str(sp.size);
-  const manufacturer = str(sp.mfr);
+  const brand = str(sp.brand);
   const minPrice = safeFloat(str(sp.min));
   const maxPrice = safeFloat(str(sp.max));
   const SORT_OPTS = ["price_asc", "price_desc", "name_asc"] as const;
@@ -41,14 +38,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const q = str(sp.q);
   const inStockOnly = str(sp.instock) === "1";
 
-  const [{ items, total }, categories, colorGroups, manufacturers, sizes, shades] =
+  const [{ items, total }, categories, brands] =
     await Promise.all([
-      getStockItems({ categoryId: catId, colorGroup, shade, sizeInches, manufacturer, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
+      getStockItems({ categoryId: catId, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
       getCategories(),
-      getColorGroups(),
-      getManufacturers(),
-      getSizes(),
-      getShades(),
+      getBrands(),
     ]);
 
   const totalPages = Math.ceil(total / per);
@@ -89,10 +83,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             <Suspense fallback={null}>
               <CatalogSidebar
                 categories={categories}
-                colorGroups={colorGroups}
-                manufacturers={manufacturers}
-                shades={shades}
-                sizes={sizes}
+                brands={brands}
               />
             </Suspense>
 

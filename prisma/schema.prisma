@@ -16,8 +16,9 @@ model Category {
   parentId  Int?
   parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
   children  Category[] @relation("CategoryTree")
-  products  Product[]
-  createdAt DateTime   @default(now())
+  products    Product[]
+  stockItems  StockItem[] @relation("StockItemCategory")
+  createdAt   DateTime   @default(now())
 
   @@unique([name, parentId])
   @@index([parentId])
@@ -79,6 +80,7 @@ model Product {
 model StockItem {
   id         Int      @id @default(autoincrement())
   name       String   @unique
+  fullName   String?
   article    String?
   barcode    String?
   brand      String?
@@ -87,6 +89,10 @@ model StockItem {
   imageUrl   String?
   images     String[]
   productId  Int?
+  onSale     Boolean  @default(false)
+
+  categoryId Int?
+  category   Category? @relation("StockItemCategory", fields: [categoryId], references: [id])
 
   updatedAt  DateTime @updatedAt
 
@@ -94,12 +100,44 @@ model StockItem {
   @@index([brand])
   @@index([pricePerPc])
   @@index([article])
+  @@index([categoryId])
+  @@index([onSale])
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  phone     String?
+  password  String   // bcrypt hash — never stored in plaintext
+  createdAt DateTime @default(now())
+  orders    Order[]
+  sessions  Session[]
+
+  @@index([email])
+}
+
+// Server-side session record. The JWT's `jti` claim references the id here —
+// deleting the row revokes the token immediately, before its signature expires.
+model Session {
+  id        String   @id
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 model Order {
   id           Int         @id @default(autoincrement())
+  userId       Int?
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName String
   phone        String
   address      String
@@ -108,6 +146,7 @@ model Order {
   createdAt    DateTime    @default(now())
   items        OrderItem[]
 
+  @@index([userId])
   @@index([phone])
   @@index([createdAt])
 }

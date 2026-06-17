@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
-import { getOrdersByPhone } from "./actions";
+import { getMyOrders } from "./actions";
 
 type OrderItem = { id: number; name: string; qty: number; price: number | { toString(): string } };
 type Order = {
@@ -43,8 +43,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user?.phone) { setOrdersLoading(false); return; }
-    getOrdersByPhone(user.phone)
+    getMyOrders()
       .then(data => setOrders(data as Order[]))
       .catch(err => console.error('Orders fetch error:', err))
       .finally(() => setOrdersLoading(false));
@@ -144,7 +143,7 @@ export default function AccountPage() {
                         <div className="flex-shrink-0 text-right flex flex-col items-end gap-2">
                         <p className="text-base font-bold text-gray-800">{Number(o.total).toLocaleString()} ₸</p>
                         <a
-                          href={`/api/orders/${o.id}/excel?phone=${encodeURIComponent(user.phone ?? '')}`}
+                          href={`/api/orders/${o.id}/excel`}
                           className="flex items-center gap-1 text-xs text-sky-500 hover:text-sky-700 font-medium transition-colors"
                           title="Скачать Excel"
                         >

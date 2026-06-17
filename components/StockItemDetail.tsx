@@ -139,9 +139,10 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const individual = isSoldIndividually(item);
   const step = individual ? 1 : (packSize ?? 1);
 
+  const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
-    name: item.name,
+    name: displayName,
     price: item.pricePerPc,
     salePrice: null,
     imageUrl: item.imageUrl,
@@ -178,7 +179,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         </div>
 
         {/* Name */}
-        <h1 className="text-2xl font-extrabold text-gray-800 leading-snug">{item.name}</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800 leading-snug">{displayName}</h1>
 
         {/* Price block */}
         <div className="bg-gray-50 rounded-2xl p-4 flex items-end gap-3">
