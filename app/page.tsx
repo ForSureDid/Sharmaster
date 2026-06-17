@@ -1,6 +1,6 @@
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
-import Occasions from "@/components/Occasions";
+// import Occasions from "@/components/Occasions";
 import Categories from "@/components/Categories";
 import ProductGrid from "@/components/ProductGrid";
 import Benefits from "@/components/Benefits";
@@ -17,7 +17,7 @@ export default async function Home() {
       <Header />
       <main>
         <Hero />
-        <Occasions />
+        {/* <Occasions /> */}
         <Categories />
         <ProductGrid items={saleItems} />
         <Benefits />

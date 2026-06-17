@@ -25,10 +25,13 @@ export default function ProductGrid({ items }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           {items.map((item) => {
             const cartItem = cartItems.find((i) => i.id === item.id);
+            const salePrice = item.salePercent
+              ? Math.round(item.pricePerPc * (1 - item.salePercent / 100))
+              : null;
             const asCartProduct = {
               id: item.id,
               name: item.fullName ?? item.name,
-              price: item.pricePerPc,
+              price: salePrice ?? item.pricePerPc,
               salePrice: null,
               imageUrl: item.imageUrl,
               colorGroup: null,
@@ -54,7 +57,7 @@ export default function ProductGrid({ items }: Props) {
                     <div className="w-full h-full flex items-center justify-center text-4xl">🎈</div>
                   )}
                   <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
-                    Акция
+                    {item.salePercent ? `-${item.salePercent}%` : 'Акция'}
                   </span>
                 </Link>
 
@@ -65,7 +68,16 @@ export default function ProductGrid({ items }: Props) {
 
                   <div className="flex items-end justify-between gap-2 mt-auto">
                     <div>
-                      <span className="text-lg font-bold text-red-600">{item.pricePerPc} ₸</span>
+                      {item.salePercent ? (
+                        <>
+                          <span className="text-lg font-bold text-red-600">
+                            {Math.round(item.pricePerPc * (1 - item.salePercent / 100))} ₸
+                          </span>
+                          <p className="text-xs text-gray-400 line-through">{item.pricePerPc} ₸</p>
+                        </>
+                      ) : (
+                        <span className="text-lg font-bold text-red-600">{item.pricePerPc} ₸</span>
+                      )}
                       {item.brand && (
                         <p className="text-[10px] text-gray-400 mt-0.5">{item.brand}</p>
                       )}

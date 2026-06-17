@@ -89,7 +89,8 @@ model StockItem {
   imageUrl   String?
   images     String[]
   productId  Int?
-  onSale     Boolean  @default(false)
+  onSale      Boolean  @default(false)
+  salePercent Int?
 
   categoryId Int?
   category   Category? @relation("StockItemCategory", fields: [categoryId], references: [id])

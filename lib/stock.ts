@@ -14,6 +14,8 @@ export type StockCard = {
   sizeInches: string | null
   model: string | null
   unitsPerPackage: number | null
+  onSale: boolean
+  salePercent: number | null
 }
 
 export type StockDetail = StockCard & {
@@ -85,7 +87,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   const [rawItems, total] = await Promise.all([
     db.stockItem.findMany({
       where,
-      select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
+      select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -122,6 +124,8 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
         sizeInches: prod?.sizeInches ?? null,
         model: prod?.model ?? null,
         unitsPerPackage: prod?.unitsPerPackage ?? null,
+        onSale: i.onSale,
+        salePercent: i.salePercent,
       }
     }),
     total,
@@ -146,7 +150,7 @@ function buildImages(
 async function _getStockItemById(id: number): Promise<StockDetail | null> {
   const item = await db.stockItem.findUnique({
     where: { id },
-    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true },
+    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true, onSale: true, salePercent: true },
   })
   if (!item) return null
 
@@ -172,6 +176,8 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     sizeInches: prod?.sizeInches ?? null,
     model: prod?.model ?? null,
     unitsPerPackage: prod?.unitsPerPackage ?? null,
+    onSale: item.onSale,
+    salePercent: item.salePercent,
     article: item.article,
     barcode: item.barcode,
   }
@@ -186,7 +192,7 @@ export const getStockItemById = unstable_cache(
 async function _getSaleItems(limit = 8): Promise<StockCard[]> {
   const rawItems = await db.stockItem.findMany({
     where: { onSale: true },
-    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true },
+    select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
     orderBy: { pricePerPc: 'asc' },
     take: limit,
   })
@@ -218,6 +224,8 @@ async function _getSaleItems(limit = 8): Promise<StockCard[]> {
       sizeInches: prod?.sizeInches ?? null,
       model: prod?.model ?? null,
       unitsPerPackage: prod?.unitsPerPackage ?? null,
+      onSale: i.onSale,
+      salePercent: i.salePercent,
     }
   })
 }
