@@ -31,7 +31,7 @@ export default function Hero() {
               Воздушные шары<br className="hidden sm:block" /> оптом в Казахстане
             </h1>
             <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed max-w-lg">
-              Более 500 видов шаров для любого праздника —<br className="hidden md:block" />
+              Более 10000 наименований для любого праздника —<br className="hidden md:block" />
               латексные, фольгированные, аксессуары.<br className="hidden md:block" />
               Быстрая доставка по всему Казахстану.
             </p>
@@ -60,7 +60,7 @@ export default function Hero() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap justify-center md:justify-between gap-4 py-3 text-sm text-gray-500">
             <span className="flex items-center gap-2">
-              <span className="text-sky-400 font-bold">✓</span> Более 500 наименований
+              <span className="text-sky-400 font-bold">✓</span> Более 10000 наименований
             </span>
             <span className="flex items-center gap-2">
               <span className="text-pink-400 font-bold">✓</span> Оптовые цены
