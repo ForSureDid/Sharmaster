@@ -3,9 +3,12 @@ import { cookies } from 'next/headers'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 
-if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET env var is not set')
-const SECRET = new TextEncoder().encode(process.env.SESSION_SECRET)
 const COOKIE = 'sm_session'
+
+function getSecret(): Uint8Array {
+  if (!process.env.SESSION_SECRET) throw new Error('SESSION_SECRET env var is not set')
+  return new TextEncoder().encode(process.env.SESSION_SECRET)
+}
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 
 export type SessionPayload = {
@@ -22,7 +25,7 @@ async function signToken(payload: SessionPayload, jti: string): Promise<string> 
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(SECRET)
+    .sign(getSecret())
 }
 
 // The JWT signature alone can't be revoked before it expires, so every read
@@ -35,7 +38,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 
   let claims: TokenClaims
   try {
-    const { payload } = await jwtVerify(token, SECRET)
+    const { payload } = await jwtVerify(token, getSecret())
     claims = payload as unknown as TokenClaims
   } catch {
     return null
@@ -73,7 +76,7 @@ export async function clearSession(): Promise<void> {
   const token = jar.get(COOKIE)?.value
   if (token) {
     try {
-      const { payload } = await jwtVerify(token, SECRET)
+      const { payload } = await jwtVerify(token, getSecret())
       const { jti } = payload as unknown as TokenClaims
       await db.session.delete({ where: { id: jti } })
     } catch {
