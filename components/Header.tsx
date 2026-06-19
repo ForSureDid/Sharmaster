@@ -67,7 +67,7 @@ export default function Header() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-16">
           <a href="/" className="flex-shrink-0">
-            <Image src="/logo-nobg.png" alt="Sharmaster" width={180} height={54} className="h-11 w-auto" priority />
+            <Image src="/logo-nobg.png" alt="Sharmaster" width={280} height={84} className="h-14 w-auto" priority />
           </a>
 
           <form onSubmit={handleSearch} className="flex-1 hidden md:flex max-w-xl mx-auto">
