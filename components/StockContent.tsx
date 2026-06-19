@@ -377,7 +377,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
     router.push(`/catalog?${params.toString()}`);
   }
 
-  const sort = sp.get("sort") ?? "price_asc";
+  const sort = sp.get("sort") ?? "smart";
 
   return (
     <div className="flex-1 min-w-0">
@@ -394,6 +394,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
             onChange={(e) => update("sort", e.target.value)}
             className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-sky-300 bg-white text-gray-700 cursor-pointer"
           >
+            <option value="smart">По умолчанию</option>
             <option value="price_asc">Сначала дешевле</option>
             <option value="price_desc">Сначала дороже</option>
             <option value="name_asc">По названию А–Я</option>

@@ -30,9 +30,30 @@ export type StockFilters = {
   maxPrice?: number
   search?: string
   inStockOnly?: boolean
-  sort?: 'price_asc' | 'price_desc' | 'name_asc'
+  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart'
   page?: number
   pageSize?: number
+}
+
+// Latex top-level ID 268 + its children; Foil top-level 275 + children
+const LATEX_IDS = new Set([268, 269, 270, 271, 272, 273])
+const FOIL_IDS  = new Set([275, 276, 277, 278, 279, 280, 281, 282, 283])
+
+// User-visible size priorities for latex: 12 → 24 → 18 → 5 → 36 → rest
+const LATEX_SIZE_RANK: Record<number, number> = { 12: 1, 24: 2, 18: 3, 5: 4, 36: 5 }
+
+function extractLatexSize(name: string): number {
+  // Sempertex: "R12 ...", "R5 ..."
+  const rMatch = /^R(\d+)\s/.exec(name)
+  if (rMatch) return parseInt(rMatch[1])
+  // Other brands: "(12''/30 см)" pattern
+  const inchMatch = /\((\d+)''/.exec(name)
+  if (inchMatch) return parseInt(inchMatch[1])
+  return 0
+}
+
+function latexSizeOrder(name: string): number {
+  return LATEX_SIZE_RANK[extractLatexSize(name)] ?? 6
 }
 
 async function getDescendantCategoryIds(categoryId: number): Promise<number[]> {
@@ -54,7 +75,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
     page = 1, pageSize = 48,
     categoryId, brand,
     minPrice, maxPrice, search,
-    inStockOnly = false, sort = 'price_asc',
+    inStockOnly = false, sort = 'smart',
   } = filters
 
   const categoryIds = categoryId ? await getDescendantCategoryIds(categoryId) : undefined
@@ -79,6 +100,74 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
     } : {}),
   }
 
+  // ── Smart sort: two-pass (all IDs → JS sort → paginate → full fetch) ─────────
+  if (sort === 'smart') {
+    const isLatex = categoryId != null && (LATEX_IDS.has(categoryId) || (categoryIds?.some(id => LATEX_IDS.has(id)) ?? false))
+    const isFoil  = categoryId != null && (FOIL_IDS.has(categoryId)  || (categoryIds?.some(id => FOIL_IDS.has(id))  ?? false))
+
+    const allRows = await db.stockItem.findMany({
+      where,
+      select: { id: true, name: true, brand: true, stock: true },
+    })
+
+    if (isLatex) {
+      allRows.sort((a, b) =>
+        latexSizeOrder(a.name) - latexSizeOrder(b.name) ||
+        a.name.localeCompare(b.name, 'ru')
+      )
+    } else if (isFoil) {
+      allRows.sort((a, b) =>
+        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        a.name.localeCompare(b.name, 'ru')
+      )
+    } else {
+      // Default: in-stock first → Sempertex first → alphabetical
+      allRows.sort((a, b) =>
+        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        (b.brand?.toLowerCase() === 'sempertex' ? 1 : 0) - (a.brand?.toLowerCase() === 'sempertex' ? 1 : 0) ||
+        a.name.localeCompare(b.name, 'ru')
+      )
+    }
+
+    const total = allRows.length
+    const pageIds = allRows.slice((page - 1) * pageSize, page * pageSize).map(r => r.id)
+
+    const rawItems = await db.stockItem.findMany({
+      where: { id: { in: pageIds } },
+      select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+    })
+    const itemMap = new Map(rawItems.map(i => [i.id, i]))
+    const orderedRaw = pageIds.map(id => itemMap.get(id)!).filter(Boolean)
+
+    const linkedProductIds = orderedRaw.filter(i => i.productId != null).map(i => i.productId!)
+    type ProductMeta = { imageUrl: string | null; images: string[]; material: string | null; sizeInches: string | null; model: string | null; unitsPerPackage: number | null }
+    const productMetaMap = new Map<number, ProductMeta>()
+    if (linkedProductIds.length > 0) {
+      const products = await db.product.findMany({
+        where: { id: { in: linkedProductIds } },
+        select: { id: true, imageUrl: true, images: true, material: true, sizeInches: true, model: true, unitsPerPackage: true },
+      })
+      for (const p of products) productMetaMap.set(p.id, p)
+    }
+
+    return {
+      total,
+      items: orderedRaw.map(i => {
+        const prod = i.productId != null ? productMetaMap.get(i.productId!) : undefined
+        const { headUrl, allImages } = buildImages(i, prod)
+        return {
+          id: i.id, name: i.name, fullName: i.fullName, brand: i.brand,
+          stock: i.stock, pricePerPc: Number(i.pricePerPc),
+          imageUrl: headUrl, images: allImages,
+          material: prod?.material ?? null, sizeInches: prod?.sizeInches ?? null,
+          model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null,
+          onSale: i.onSale, salePercent: i.salePercent,
+        }
+      }),
+    }
+  }
+
+  // ── Explicit sort (price_asc / price_desc / name_asc) ─────────────────────────
   const orderBy =
     sort === 'price_desc' ? { pricePerPc: 'desc' as const } :
     sort === 'name_asc'   ? { name:       'asc'  as const } :
