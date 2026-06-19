@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { StockCard } from "@/lib/stock";
 import { useCart } from "@/context/CartContext";
 
@@ -369,6 +369,13 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
   const router = useRouter();
   const sp = useSearchParams();
   const [view, setView] = useState<ViewMode>("grid");
+  const currentQ = sp.get("q") ?? "";
+  const [searchDraft, setSearchDraft] = useState(currentQ);
+
+  // Sync input when URL q changes (back/forward nav, header search)
+  useEffect(() => {
+    setSearchDraft(currentQ);
+  }, [currentQ]);
 
   function update(key: string, value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -377,14 +384,69 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
     router.push(`/catalog?${params.toString()}`);
   }
 
+  function submitSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const params = new URLSearchParams(sp.toString());
+    const q = searchDraft.trim();
+    if (q) params.set("q", q); else params.delete("q");
+    params.delete("page");
+    router.push(`/catalog?${params.toString()}`);
+  }
+
+  function clearSearch() {
+    setSearchDraft("");
+    const params = new URLSearchParams(sp.toString());
+    params.delete("q");
+    params.delete("page");
+    router.push(`/catalog?${params.toString()}`);
+  }
+
   const sort = sp.get("sort") ?? "smart";
 
   return (
     <div className="flex-1 min-w-0">
+      {/* Search bar */}
+      <form onSubmit={submitSearch} className="mb-3">
+        <div className="flex rounded-xl overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors bg-white">
+          <input
+            type="text"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder="Поиск по названию, артикулу, бренду..."
+            className="flex-1 px-4 py-2.5 text-sm outline-none bg-transparent"
+          />
+          {searchDraft && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="px-3 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="submit"
+            className="px-5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium transition-colors"
+          >
+            Найти
+          </button>
+        </div>
+      </form>
+
       {/* Toolbar */}
       <div className="bg-white rounded-xl border border-gray-100 px-4 py-3 flex items-center gap-3 mb-4 flex-wrap">
         <span className="text-xs text-gray-500 flex-shrink-0">
-          <span className="font-semibold text-gray-700">{total.toLocaleString()}</span> товаров
+          {currentQ ? (
+            <>
+              <span className="font-semibold text-gray-700">{total.toLocaleString()}</span>
+              {" "}результатов по{" "}
+              <span className="font-semibold text-sky-600">«{currentQ}»</span>
+            </>
+          ) : (
+            <><span className="font-semibold text-gray-700">{total.toLocaleString()}</span> товаров</>
+          )}
         </span>
         <div className="h-4 w-px bg-gray-200 hidden sm:block" />
         <div className="flex items-center gap-1.5">

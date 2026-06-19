@@ -107,7 +107,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
     const allRows = await db.stockItem.findMany({
       where,
-      select: { id: true, name: true, brand: true, stock: true },
+      select: { id: true, name: true, brand: true, stock: true, categoryId: true },
     })
 
     if (isLatex) {
@@ -121,9 +121,10 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
         a.name.localeCompare(b.name, 'ru')
       )
     } else {
-      // Default: in-stock first → Sempertex first → alphabetical
+      // Default: in-stock first → latex without print (cat 270) → Sempertex → alphabetical
       allRows.sort((a, b) =>
         (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        (b.categoryId === 270 ? 1 : 0) - (a.categoryId === 270 ? 1 : 0) ||
         (b.brand?.toLowerCase() === 'sempertex' ? 1 : 0) - (a.brand?.toLowerCase() === 'sempertex' ? 1 : 0) ||
         a.name.localeCompare(b.name, 'ru')
       )
