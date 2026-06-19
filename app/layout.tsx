@@ -10,6 +10,9 @@ const inter = Inter({ subsets: ["latin", "cyrillic"] });
 export const metadata: Metadata = {
   title: "Sharmaster — Оптовый магазин воздушных шаров",
   description: "Широкий ассортимент шаров для любого праздника. Качество, доступные цены и быстрая доставка по всему Казахстану.",
+  icons: {
+    icon: "/profile-icon.png",
+  },
 };
 
 export default function RootLayout({
