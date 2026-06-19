@@ -65,9 +65,9 @@ export default function Header() {
 
       {/* Tier 2: Logo + Search + Cart */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-14">
           <a href="/" className="flex-shrink-0">
-            <Image src="/logo-nobg.png" alt="Sharmaster" width={360} height={108} className="h-20 w-auto" priority />
+            <Image src="/logo-header.png" alt="Sharmaster" width={320} height={96} className="h-16 w-auto" priority />
           </a>
 
           <form onSubmit={handleSearch} className="flex-1 hidden md:flex max-w-xl mx-auto">
