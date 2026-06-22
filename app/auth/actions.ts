@@ -26,7 +26,7 @@ export async function login(email: string, password: string): Promise<string | n
   const ok = await bcrypt.compare(password, user.password)
   if (!ok) return 'Неверный email или пароль'
 
-  await setSession({ userId: user.id, name: user.name, email: user.email, phone: user.phone ?? null })
+  await setSession({ userId: user.id, name: user.name, email: user.email, phone: user.phone ?? null, role: user.role })
   return null
 }
 
@@ -55,7 +55,7 @@ export async function register(
     data: { name: trimName, email: trimEmail, phone: trimPhone || null, password: hash },
   })
 
-  await setSession({ userId: user.id, name: user.name, email: user.email, phone: user.phone ?? null })
+  await setSession({ userId: user.id, name: user.name, email: user.email, phone: user.phone ?? null, role: user.role })
   return null
 }
 

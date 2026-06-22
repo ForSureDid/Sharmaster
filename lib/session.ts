@@ -16,6 +16,7 @@ export type SessionPayload = {
   name: string
   email: string
   phone: string | null
+  role: string
 }
 
 type TokenClaims = SessionPayload & { jti: string }

@@ -7,10 +7,12 @@ export type User = {
   name: string;
   email: string;
   phone: string | null;
+  role: string;
 };
 
 type AuthContextType = {
   user: User | null;
+  isAdmin: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<string | null>;
   register: (name: string, email: string, phone: string, password: string) => Promise<string | null>;
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [, startTransition] = useTransition();
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     // Pre-migration auth stored plaintext passwords here; purge any leftovers.
@@ -33,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     getCurrentUser()
       .then((session) => {
-        if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+        if (session) setUser({ name: session.name, email: session.email, phone: session.phone, role: session.role });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -42,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const err = await loginAction(email, password);
     if (!err) {
       const session = await getCurrentUser();
-      if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+      if (session) setUser({ name: session.name, email: session.email, phone: session.phone, role: session.role });
     }
     return err;
   }
@@ -51,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const err = await registerAction(name, email, phone, password);
     if (!err) {
       const session = await getCurrentUser();
-      if (session) setUser({ name: session.name, email: session.email, phone: session.phone });
+      if (session) setUser({ name: session.name, email: session.email, phone: session.phone, role: session.role });
     }
     return err;
   }
@@ -62,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

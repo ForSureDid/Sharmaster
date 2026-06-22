@@ -113,6 +113,7 @@ model User {
   email     String   @unique
   phone     String?
   password  String   // bcrypt hash — never stored in plaintext
+  role      String   @default("user") // "user" | "admin"
   createdAt DateTime @default(now())
   orders    Order[]
   sessions  Session[]

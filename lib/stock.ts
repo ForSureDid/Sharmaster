@@ -25,6 +25,7 @@ export type StockDetail = StockCard & {
 
 export type StockFilters = {
   categoryId?: number
+  categoryIds?: number[]  // pre-expanded list; takes precedence over categoryId when set
   brand?: string
   minPrice?: number
   maxPrice?: number
@@ -56,7 +57,7 @@ function latexSizeOrder(name: string): number {
   return LATEX_SIZE_RANK[extractLatexSize(name)] ?? 6
 }
 
-async function getDescendantCategoryIds(categoryId: number): Promise<number[]> {
+export async function getDescendantCategoryIds(categoryId: number): Promise<number[]> {
   const cat = await db.category.findUnique({
     where: { id: categoryId },
     include: { children: { include: { children: true } } },
@@ -73,12 +74,14 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 }> {
   const {
     page = 1, pageSize = 48,
-    categoryId, brand,
+    categoryId, categoryIds: explicitCategoryIds, brand,
     minPrice, maxPrice, search,
     inStockOnly = false, sort = 'smart',
   } = filters
 
-  const categoryIds = categoryId ? await getDescendantCategoryIds(categoryId) : undefined
+  const categoryIds = explicitCategoryIds
+    ? explicitCategoryIds
+    : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
   const where = {
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
@@ -102,8 +105,8 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
   // ── Smart sort: two-pass (all IDs → JS sort → paginate → full fetch) ─────────
   if (sort === 'smart') {
-    const isLatex = categoryId != null && (LATEX_IDS.has(categoryId) || (categoryIds?.some(id => LATEX_IDS.has(id)) ?? false))
-    const isFoil  = categoryId != null && (FOIL_IDS.has(categoryId)  || (categoryIds?.some(id => FOIL_IDS.has(id))  ?? false))
+    const isLatex = categoryIds != null && categoryIds.some(id => LATEX_IDS.has(id))
+    const isFoil  = categoryIds != null && categoryIds.some(id => FOIL_IDS.has(id))
 
     const allRows = await db.stockItem.findMany({
       where,

@@ -4,7 +4,7 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import StockContent from "@/components/StockContent";
-import { getStockItems } from "@/lib/stock";
+import { getStockItems, getDescendantCategoryIds } from "@/lib/stock";
 import { getCategories, getBrands } from "@/lib/products";
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -27,6 +27,13 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   }
 
   const catId = safeInt(str(sp.cat), 0) || undefined;
+  const catsParam = str(sp.cats);
+  const multiCatRoots = catsParam
+    ? catsParam.split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0)
+    : undefined;
+  const expandedCategoryIds = multiCatRoots && multiCatRoots.length > 0
+    ? (await Promise.all(multiCatRoots.map(getDescendantCategoryIds))).flat()
+    : undefined;
   const brand = str(sp.brand);
   const minPrice = safeFloat(str(sp.min));
   const maxPrice = safeFloat(str(sp.max));
@@ -40,7 +47,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   const [{ items, total }, categories, brands] =
     await Promise.all([
-      getStockItems({ categoryId: catId, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
       getCategories(),
       getBrands(),
     ]);
