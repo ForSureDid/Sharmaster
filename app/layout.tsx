@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Nunito } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import CartDrawer from "@/components/CartDrawer";
 
-const inter = Inter({ subsets: ["latin", "cyrillic"] });
+const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
   title: "Sharmaster — Оптовый магазин воздушных шаров",
@@ -26,7 +26,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://tjoreojidkjhfksspbwe.supabase.co" />
         <link rel="dns-prefetch" href="https://tjoreojidkjhfksspbwe.supabase.co" />
       </head>
-      <body className={`${inter.className} min-h-full flex flex-col`}>
+      <body className={`${nunito.className} min-h-full flex flex-col`}>
         <AuthProvider>
           <CartProvider>
             {children}
