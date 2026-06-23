@@ -282,12 +282,12 @@ export const getStockItemById = unstable_cache(
   { revalidate: 300, tags: ['stockItems'] }
 )
 
-async function _getSaleItems(limit = 8): Promise<StockCard[]> {
+async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   const rawItems = await db.stockItem.findMany({
     where: { onSale: true },
     select: { id: true, name: true, fullName: true, brand: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
     orderBy: { pricePerPc: 'asc' },
-    take: limit,
+    ...(limit != null ? { take: limit } : {}),
   })
 
   const linkedProductIds = rawItems.filter(i => i.productId != null).map(i => i.productId!)
@@ -324,7 +324,13 @@ async function _getSaleItems(limit = 8): Promise<StockCard[]> {
 }
 
 export const getSaleItems = unstable_cache(
-  _getSaleItems,
+  () => _getSaleItems(8),
   ['saleItems'],
+  { revalidate: 300, tags: ['stockItems'] }
+)
+
+export const getAllSaleItems = unstable_cache(
+  () => _getSaleItems(),
+  ['allSaleItems'],
   { revalidate: 300, tags: ['stockItems'] }
 )

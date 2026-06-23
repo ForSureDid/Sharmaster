@@ -17,8 +17,8 @@ export default function ProductGrid({ items }: Props) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Акция</h2>
-          <Link href="/catalog" className="text-sm text-sky-500 hover:text-sky-700 font-medium transition-colors">
-            Все товары →
+          <Link href="/sale" className="text-sm text-sky-500 hover:text-sky-700 font-medium transition-colors">
+            Все акции →
           </Link>
         </div>
 
