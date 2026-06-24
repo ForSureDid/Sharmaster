@@ -3,6 +3,22 @@ import Image from "next/image";
 export default function Hero() {
   return (
     <section className="pt-24 md:pt-[138px]">
+      {/* Beta notice strip */}
+      <div className="bg-amber-50 border-b border-amber-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-center gap-2 text-sm text-amber-700">
+          <span>🚧</span>
+          <span>
+            Сайт работает в тестовом режиме — будем рады вашим отзывам.{" "}
+            <a
+              href="#"
+              className="underline underline-offset-2 hover:text-amber-900 font-medium"
+            >
+              Оставить отзыв
+            </a>
+          </span>
+        </div>
+      </div>
+
       {/* Main banner — pastel gradient matching logo colors */}
       <div className="bg-gradient-to-r from-sky-100 via-pink-50 to-green-50 relative overflow-hidden">
         {/* Decorative soft circles */}
