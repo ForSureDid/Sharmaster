@@ -1,21 +1,126 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
 
+type SuggestItem = {
+  id: number;
+  name: string;
+  brand: string | null;
+  stock: number;
+  pricePerPc: number;
+  imageUrl: string | null;
+};
+
+function SearchDropdown({
+  items,
+  query,
+  isAdmin,
+  onSelect,
+  onShowAll,
+}: {
+  items: SuggestItem[];
+  query: string;
+  isAdmin: boolean;
+  onSelect: (id: number) => void;
+  onShowAll: () => void;
+}) {
+  const hint: CategoryHint | null = query.trim().length >= 2 ? getMatchingHint(query) : null;
+  if (items.length === 0 && !hint) return null;
+  return (
+    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+      {/* Category quick-jump hint */}
+      {hint && (
+        <a
+          href={hint.url}
+          onMouseDown={(e) => e.preventDefault()}
+          className="flex items-center gap-3 px-3 py-2.5 bg-sky-50 hover:bg-sky-100 transition-colors border-b border-sky-100"
+        >
+          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-sky-400 flex items-center justify-center text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-sky-700">{hint.label}</p>
+            <p className="text-xs text-sky-500 truncate">{hint.subtitle}</p>
+          </div>
+          <svg className="w-4 h-4 text-sky-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+      )}
+      {items.map((item) => (
+        <button
+          key={item.id}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(item.id); }}
+          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-sky-50 transition-colors text-left"
+        >
+          <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+            {item.imageUrl ? (
+              <Image
+                src={item.imageUrl}
+                alt={item.name}
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-800 truncate">{item.name}</p>
+            {item.brand && (
+              <p className="text-xs text-gray-400 truncate">{item.brand}</p>
+            )}
+          </div>
+          <div className="flex-shrink-0 text-right">
+            <p className="text-sm font-semibold text-sky-600">
+              {item.pricePerPc.toLocaleString("ru-RU")} ₸
+            </p>
+            <p className={`text-xs ${item.stock > 0 ? "text-green-500" : "text-red-400"}`}>
+              {isAdmin
+                ? (item.stock > 0 ? `${item.stock} шт` : "нет")
+                : (item.stock > 0 ? "есть" : "нет")}
+            </p>
+          </div>
+        </button>
+      ))}
+      <button
+        onMouseDown={(e) => { e.preventDefault(); onShowAll(); }}
+        className="w-full px-3 py-2.5 text-sm text-sky-600 hover:bg-sky-50 border-t border-gray-100 transition-colors font-medium flex items-center gap-1"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        Показать все результаты для «{query}»
+      </button>
+    </div>
+  );
+}
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
-  const router = useRouter();
+  const [suggestions, setSuggestions] = useState<SuggestItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
-  const { user, logout } = useAuth();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user, isAdmin, logout } = useAuth();
   const { totalCount, openCart } = useCart();
 
   useEffect(() => {
@@ -28,10 +133,63 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Debounced autocomplete fetch
+  const fetchSuggestions = useCallback((q: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (q.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(q.trim())}`);
+        const data = await res.json();
+        setSuggestions(data.items ?? []);
+        setShowSuggestions(true);
+      } catch {
+        setSuggestions([]);
+      }
+    }, 280);
+  }, []);
+
+  function handleSearchChange(val: string) {
+    setSearch(val);
+    fetchSuggestions(val);
+  }
+
   function handleSearch(e?: React.FormEvent) {
     e?.preventDefault();
     const q = search.trim();
+    setShowSuggestions(false);
     router.push(q ? `/catalog?q=${encodeURIComponent(q)}` : "/catalog");
+  }
+
+  function handleSuggestSelect(id: number) {
+    setShowSuggestions(false);
+    setSearch("");
+    setSuggestions([]);
+    router.push(`/catalog/${id}`);
+  }
+
+  function handleShowAll() {
+    setShowSuggestions(false);
+    handleSearch();
+  }
+
+  function handleInputBlur() {
+    // Small delay so onMouseDown on dropdown fires before blur closes it
+    setTimeout(() => setShowSuggestions(false), 150);
+  }
+
+  function handleInputFocus() {
+    if (suggestions.length > 0) setShowSuggestions(true);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
   }
 
   return (
@@ -70,20 +228,35 @@ export default function Header() {
             <Image src="/logo-header.png" alt="Sharmaster" width={320} height={96} className="h-8 sm:h-11 w-auto" priority />
           </a>
 
-          <form onSubmit={handleSearch} className="flex-1 hidden md:flex max-w-xl mx-auto">
-            <div className="flex w-full rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
-              <input
-                type="text"
-                placeholder="Поиск шаров и товаров..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-2 text-sm outline-none bg-white"
+          {/* Desktop search with autocomplete */}
+          <div className="flex-1 hidden md:block max-w-xl mx-auto relative">
+            <form onSubmit={handleSearch} className="w-full">
+              <div className="flex w-full rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
+                <input
+                  type="text"
+                  placeholder="Поиск шаров и товаров..."
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                  onKeyDown={handleInputKeyDown}
+                  className="flex-1 px-4 py-2 text-sm outline-none bg-white"
+                />
+                <button type="submit" className="px-5 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">
+                  Найти
+                </button>
+              </div>
+            </form>
+            {showSuggestions && (
+              <SearchDropdown
+                items={suggestions}
+                query={search}
+                isAdmin={isAdmin}
+                onSelect={handleSuggestSelect}
+                onShowAll={handleShowAll}
               />
-              <button type="submit" className="px-5 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">
-                Найти
-              </button>
-            </div>
-          </form>
+            )}
+          </div>
 
           <div className="flex items-center gap-3 ml-auto">
             <a href="tel:+77769510282"
@@ -178,20 +351,35 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile search row */}
+      {/* Mobile search row with autocomplete */}
       {searchOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
-          <form onSubmit={(e) => { setSearchOpen(false); handleSearch(e); }} className="flex rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
-            <input
-              autoFocus
-              type="text"
-              placeholder="Поиск шаров и товаров..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
-            />
-            <button type="submit" className="px-4 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">Найти</button>
-          </form>
+          <div className="relative">
+            <form onSubmit={(e) => { setSearchOpen(false); setShowSuggestions(false); handleSearch(e); }}
+              className="flex rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Поиск шаров и товаров..."
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                onKeyDown={handleInputKeyDown}
+                className="flex-1 px-3 py-2.5 text-sm outline-none bg-white"
+              />
+              <button type="submit" className="px-4 bg-sky-400 hover:bg-sky-500 text-white text-sm font-medium transition-colors">Найти</button>
+            </form>
+            {showSuggestions && (
+              <SearchDropdown
+                items={suggestions}
+                query={search}
+                isAdmin={isAdmin}
+                onSelect={(id) => { setSearchOpen(false); handleSuggestSelect(id); }}
+                onShowAll={() => { setSearchOpen(false); handleShowAll(); }}
+              />
+            )}
+          </div>
         </div>
       )}
 
@@ -199,16 +387,31 @@ export default function Header() {
       {menuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
           <div className="px-4 py-3 border-b border-gray-100">
-            <form onSubmit={(e) => { setMenuOpen(false); handleSearch(e); }} className="flex rounded-lg overflow-hidden border border-gray-200">
-              <input
-                type="text"
-                placeholder="Поиск..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm outline-none"
-              />
-              <button type="submit" className="px-4 bg-sky-400 text-white text-sm font-medium">Найти</button>
-            </form>
+            <div className="relative">
+              <form onSubmit={(e) => { setMenuOpen(false); setShowSuggestions(false); handleSearch(e); }}
+                className="flex rounded-lg overflow-hidden border border-gray-200">
+                <input
+                  type="text"
+                  placeholder="Поиск..."
+                  value={search}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                  onKeyDown={handleInputKeyDown}
+                  className="flex-1 px-3 py-2 text-sm outline-none"
+                />
+                <button type="submit" className="px-4 bg-sky-400 text-white text-sm font-medium">Найти</button>
+              </form>
+              {showSuggestions && (
+                <SearchDropdown
+                  items={suggestions}
+                  query={search}
+                  isAdmin={isAdmin}
+                  onSelect={(id) => { setMenuOpen(false); handleSuggestSelect(id); }}
+                  onShowAll={() => { setMenuOpen(false); handleShowAll(); }}
+                />
+              )}
+            </div>
           </div>
           <nav className="flex flex-col py-1">
             <a href="/catalog" className="px-4 py-3 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors" onClick={() => setMenuOpen(false)}>Каталог</a>

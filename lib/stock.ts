@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { db } from './db'
+import { WORD_SYNONYMS } from './search-hints'
 
 export type StockCard = {
   id: number
@@ -57,6 +58,68 @@ function latexSizeOrder(name: string): number {
   return LATEX_SIZE_RANK[extractLatexSize(name)] ?? 6
 }
 
+// Relevance score for a search query against one item.
+// Higher = more relevant. Scoring tiers:
+//   exact name match   → +12/word
+//   prefix of name     → +6/word
+//   word-boundary hit  → +3/word
+//   substring          → +1/word (already guaranteed by WHERE clause)
+//   brand exact        → +4/word   brand prefix → +2   brand substring → +1
+export function scoreRelevance(
+  name: string,
+  fullName: string | null,
+  brand: string | null,
+  words: string[],
+): number {
+  let score = 0
+  const short  = name.toLowerCase()
+  const full   = (fullName ?? name).toLowerCase()
+  const bLow   = (brand ?? '').toLowerCase()
+
+  for (const word of words) {
+    const w = word.toLowerCase()
+
+    if (short === w || full === w) {
+      score += 12
+    } else if (short.startsWith(w + ' ') || short.startsWith(w) || full.startsWith(w + ' ') || full.startsWith(w)) {
+      score += 6
+    } else if (short.includes(' ' + w) || full.includes(' ' + w)) {
+      score += 3
+    } else {
+      score += 1
+    }
+
+    if (bLow === w) score += 4
+    else if (bLow.startsWith(w)) score += 2
+    else if (bLow.includes(w)) score += 1
+  }
+
+  return score
+}
+
+// Fuzzy search via pg_trgm — returns ranked IDs of items whose name/fullName/brand
+// is similar to the query (handles typos, wrong endings, etc.).
+// Requires the pg_trgm extension and GIN indexes created by migration 20260624000000.
+export async function getFuzzyItemIds(query: string, limit = 200): Promise<number[]> {
+  const rows = await db.$queryRaw<Array<{ id: number }>>`
+    SELECT id
+    FROM "StockItem"
+    WHERE
+      word_similarity(${query}::text, name) > 0.25
+      OR ("fullName" IS NOT NULL AND word_similarity(${query}::text, "fullName") > 0.25)
+      OR (brand IS NOT NULL AND similarity(${query}::text, brand) > 0.3)
+    ORDER BY
+      GREATEST(
+        word_similarity(${query}::text, name),
+        COALESCE(word_similarity(${query}::text, "fullName"), 0),
+        COALESCE(similarity(${query}::text, brand), 0)
+      ) DESC,
+      CASE WHEN stock > 0 THEN 1 ELSE 0 END DESC
+    LIMIT ${limit}
+  `
+  return rows.map((r) => Number(r.id))
+}
+
 export async function getDescendantCategoryIds(categoryId: number): Promise<number[]> {
   const cat = await db.category.findUnique({
     where: { id: categoryId },
@@ -91,15 +154,18 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
       : {}),
     ...(search ? {
-      AND: search.trim().split(/\s+/).filter(Boolean).map(word => ({
-        OR: [
-          { name:     { contains: word, mode: 'insensitive' as const } },
-          { fullName: { contains: word, mode: 'insensitive' as const } },
-          { brand:    { contains: word, mode: 'insensitive' as const } },
-          { article:  { contains: word, mode: 'insensitive' as const } },
-          { barcode:  { contains: word, mode: 'insensitive' as const } },
-        ],
-      })),
+      AND: search.trim().split(/\s+/).filter(Boolean).map(word => {
+        const variants = [word, ...(WORD_SYNONYMS[word.toLowerCase()] ?? [])]
+        return {
+          OR: variants.flatMap(w => [
+            { name:     { contains: w, mode: 'insensitive' as const } },
+            { fullName: { contains: w, mode: 'insensitive' as const } },
+            { brand:    { contains: w, mode: 'insensitive' as const } },
+            { article:  { contains: w, mode: 'insensitive' as const } },
+            { barcode:  { contains: w, mode: 'insensitive' as const } },
+          ]),
+        }
+      }),
     } : {}),
   }
 
@@ -110,10 +176,19 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
     const allRows = await db.stockItem.findMany({
       where,
-      select: { id: true, name: true, brand: true, stock: true, categoryId: true },
+      select: { id: true, name: true, fullName: true, brand: true, stock: true, categoryId: true },
     })
 
-    if (isLatex) {
+    if (search) {
+      // Search active: sort by relevance first, then in-stock, then alpha
+      const words = search.trim().split(/\s+/).filter(Boolean)
+      allRows.sort((a, b) =>
+        scoreRelevance(b.name, b.fullName, b.brand, words) -
+        scoreRelevance(a.name, a.fullName, a.brand, words) ||
+        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        a.name.localeCompare(b.name, 'ru')
+      )
+    } else if (isLatex) {
       allRows.sort((a, b) =>
         latexSizeOrder(a.name) - latexSizeOrder(b.name) ||
         a.name.localeCompare(b.name, 'ru')
@@ -133,8 +208,17 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
       )
     }
 
-    const total = allRows.length
-    const pageIds = allRows.slice((page - 1) * pageSize, page * pageSize).map(r => r.id)
+    let total = allRows.length
+    let pageIds = allRows.slice((page - 1) * pageSize, page * pageSize).map(r => r.id)
+
+    // ── Fuzzy fallback: zero exact results → try pg_trgm ────────────────────────
+    if (search && total === 0) {
+      const fuzzyIds = await getFuzzyItemIds(search, pageSize * 10)
+      total = fuzzyIds.length
+      pageIds = fuzzyIds.slice((page - 1) * pageSize, page * pageSize)
+    }
+
+    if (pageIds.length === 0) return { total, items: [] }
 
     const rawItems = await db.stockItem.findMany({
       where: { id: { in: pageIds } },

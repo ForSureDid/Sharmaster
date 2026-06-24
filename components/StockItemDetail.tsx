@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, useCallback } from "react";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import type { StockDetail } from "@/lib/stock";
 
 const LATEX_BRANDS = ["512", "забав", "sempertex", "белбал", "belbal", "эвертс", "everts", "shai", "yuhang", "юханг"];
@@ -133,6 +134,7 @@ function NoImage() {
 
 export default function StockItemDetail({ item }: { item: StockDetail }) {
   const { items, addToCart, updateQty } = useCart();
+  const { isAdmin } = useAuth();
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
@@ -169,7 +171,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
           )}
           {inStock ? (
             <span className="text-xs bg-green-50 text-green-600 border border-green-100 px-2.5 py-1 rounded-full font-medium">
-              В наличии · {item.stock} шт
+              В наличии{isAdmin ? ` · ${item.stock} шт` : ""}
             </span>
           ) : (
             <span className="text-xs bg-gray-100 text-gray-400 px-2.5 py-1 rounded-full font-medium">
