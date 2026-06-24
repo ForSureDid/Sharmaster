@@ -10,7 +10,7 @@ export default function Hero() {
           <span>
             Сайт работает в тестовом режиме — будем рады вашим отзывам.{" "}
             <a
-              href="#"
+              href="#feedback"
               className="underline underline-offset-2 hover:text-amber-900 font-medium"
             >
               Оставить отзыв

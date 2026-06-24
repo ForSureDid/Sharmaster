@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
@@ -8,6 +8,7 @@ import ProductGrid from "@/components/ProductGrid";
 import Benefits from "@/components/Benefits";
 import About from "@/components/About";
 import Schedule from "@/components/Schedule";
+import FeedbackForm from "@/components/FeedbackForm";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import { getSaleItems } from "@/lib/stock";
@@ -25,6 +26,7 @@ export default async function Home() {
         <Benefits />
         <About />
         <Schedule />
+        <FeedbackForm />
       </main>
       <Footer />
       <FloatingCart />
