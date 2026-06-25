@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export default function Footer() {
   return (
@@ -24,11 +25,11 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold text-sm mb-4 uppercase tracking-wide">Каталог</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#catalog" className="hover:text-white transition-colors">Шары латексные</a></li>
-              <li><a href="#catalog" className="hover:text-white transition-colors">Шары фольгированные</a></li>
-              <li><a href="#catalog" className="hover:text-white transition-colors">Гелий и оборудование</a></li>
-              <li><a href="#catalog" className="hover:text-white transition-colors">Аксессуары</a></li>
-              <li><a href="#catalog" className="hover:text-white transition-colors">Акции</a></li>
+              <li><Link href="/catalog" className="hover:text-white transition-colors">Шары латексные</Link></li>
+              <li><Link href="/catalog" className="hover:text-white transition-colors">Шары фольгированные</Link></li>
+              <li><Link href="/catalog" className="hover:text-white transition-colors">Гелий и оборудование</Link></li>
+              <li><Link href="/catalog" className="hover:text-white transition-colors">Аксессуары</Link></li>
+              <li><Link href="/sale" className="hover:text-white transition-colors">Акции</Link></li>
             </ul>
           </div>
 
@@ -36,10 +37,10 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold text-sm mb-4 uppercase tracking-wide">Информация</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="#about" className="hover:text-white transition-colors">О магазине</a></li>
-              <li><a href="#schedule" className="hover:text-white transition-colors">График работы</a></li>
-              <li><a href="#services" className="hover:text-white transition-colors">Преимущества</a></li>
-              <li><a href="#schedule" className="hover:text-white transition-colors">Контакты</a></li>
+              <li><Link href="/#about" className="hover:text-white transition-colors">О магазине</Link></li>
+              <li><Link href="/#schedule" className="hover:text-white transition-colors">График работы</Link></li>
+              <li><Link href="/#services" className="hover:text-white transition-colors">Преимущества</Link></li>
+              <li><Link href="/#schedule" className="hover:text-white transition-colors">Контакты</Link></li>
             </ul>
           </div>
 

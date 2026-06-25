@@ -131,22 +131,16 @@ export async function getDescendantCategoryIds(categoryId: number): Promise<numb
   return [categoryId, ...childIds, ...grandIds]
 }
 
-export async function getStockItems(filters: StockFilters = {}): Promise<{
-  items: StockCard[]
-  total: number
-}> {
-  const {
-    page = 1, pageSize = 48,
-    categoryId, categoryIds: explicitCategoryIds, brand,
-    minPrice, maxPrice, search,
-    inStockOnly = false, sort = 'smart',
-  } = filters
-
-  const categoryIds = explicitCategoryIds
-    ? explicitCategoryIds
-    : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
-
-  const where = {
+function buildStockWhere(opts: {
+  categoryIds?: number[]
+  brand?: string
+  minPrice?: number
+  maxPrice?: number
+  search?: string
+  inStockOnly?: boolean
+}) {
+  const { categoryIds, brand, minPrice, maxPrice, search, inStockOnly = false } = opts
+  return {
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brand ? { brand } : {}),
@@ -168,16 +162,68 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
       }),
     } : {}),
   }
+}
+
+async function _fetchAllForSmartSort(
+  categoryIds: number[] | null,
+  brand: string | null,
+  minPrice: number | null,
+  maxPrice: number | null,
+  search: string | null,
+  inStockOnly: boolean,
+) {
+  const where = buildStockWhere({
+    categoryIds: categoryIds ?? undefined,
+    brand: brand ?? undefined,
+    minPrice: minPrice ?? undefined,
+    maxPrice: maxPrice ?? undefined,
+    search: search ?? undefined,
+    inStockOnly,
+  })
+  return db.stockItem.findMany({
+    where,
+    select: { id: true, name: true, fullName: true, brand: true, stock: true, categoryId: true },
+  })
+}
+
+const fetchAllForSmartSort = unstable_cache(
+  _fetchAllForSmartSort,
+  ['stock-smart-sort'],
+  { revalidate: 300, tags: ['stockItems'] }
+)
+
+export async function getStockItems(filters: StockFilters = {}): Promise<{
+  items: StockCard[]
+  total: number
+}> {
+  const {
+    page = 1, pageSize = 48,
+    categoryId, categoryIds: explicitCategoryIds, brand,
+    minPrice, maxPrice, search,
+    inStockOnly = false, sort = 'smart',
+  } = filters
+
+  const categoryIds = explicitCategoryIds
+    ? explicitCategoryIds
+    : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
+
+  const where = buildStockWhere({ categoryIds, brand, minPrice, maxPrice, search, inStockOnly })
 
   // ── Smart sort: two-pass (all IDs → JS sort → paginate → full fetch) ─────────
   if (sort === 'smart') {
     const isLatex = categoryIds != null && categoryIds.some(id => LATEX_IDS.has(id))
     const isFoil  = categoryIds != null && categoryIds.some(id => FOIL_IDS.has(id))
 
-    const allRows = await db.stockItem.findMany({
-      where,
-      select: { id: true, name: true, fullName: true, brand: true, stock: true, categoryId: true },
-    })
+    // Stable cache key: sort category IDs numerically
+    const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
+    const allRows = [...(await fetchAllForSmartSort(
+      stableCatIds,
+      brand ?? null,
+      minPrice ?? null,
+      maxPrice ?? null,
+      search ?? null,
+      inStockOnly,
+    ))]
 
     if (search) {
       // Search active: sort by relevance first, then in-stock, then alpha
