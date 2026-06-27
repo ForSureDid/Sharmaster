@@ -44,3 +44,51 @@ export async function updateOrderStatus(orderId: number, status: string) {
   await db.order.update({ where: { id: orderId }, data: { status } })
   revalidatePath('/admin')
 }
+
+export async function getStockItems(search = '', page = 0) {
+  await requireAdmin()
+  const take = 50
+  const skip = page * take
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { fullName: { contains: search, mode: 'insensitive' as const } },
+          { brand: { contains: search, mode: 'insensitive' as const } },
+          { article: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }
+    : {}
+
+  const [items, total] = await Promise.all([
+    db.stockItem.findMany({
+      where,
+      orderBy: [{ stock: 'asc' }, { name: 'asc' }],
+      take,
+      skip,
+    }),
+    db.stockItem.count({ where }),
+  ])
+
+  return {
+    items: items.map(i => ({
+      id: i.id,
+      name: i.name,
+      fullName: i.fullName,
+      article: i.article,
+      brand: i.brand,
+      stock: i.stock,
+      pricePerPc: Number(i.pricePerPc),
+      imageUrl: i.imageUrl,
+      onSale: i.onSale,
+      salePercent: i.salePercent,
+    })),
+    total,
+  }
+}
+
+export async function updateStockQty(id: number, stock: number) {
+  await requireAdmin()
+  await db.stockItem.update({ where: { id }, data: { stock: Math.max(0, stock) } })
+  revalidatePath('/admin')
+}
