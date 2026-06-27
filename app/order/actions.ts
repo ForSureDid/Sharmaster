@@ -3,6 +3,9 @@
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
+import ExcelJS from 'exceljs'
+import path from 'path'
+import { amountInWords } from '@/lib/numberToWords'
 
 class StockError extends Error {
   constructor(msg: string) { super(msg); this.name = 'StockError' }
@@ -128,5 +131,92 @@ export async function placeOrder(input: {
 
   revalidatePath('/catalog')
 
+  notifyTelegram(order.id, name, ph, addr, resolved, total).catch(() => {})
+
   return { ok: true, orderId: order.id }
+}
+
+const TEMPLATE_PATH = path.join(process.cwd(), 'All the Files with material here', 'order_template.xlsx')
+const ITEMS_START_ROW = 9
+const TEMPLATE_ITEM_ROWS = 25
+const TOTAL_ROW = 34
+const SUMMARY_ROW = 37
+const WORDS_ROW = 39
+
+async function notifyTelegram(
+  orderId: number,
+  name: string,
+  phone: string,
+  address: string,
+  resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number } | null }[],
+  total: number,
+) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+  if (!token || !chatId) return
+
+  const dateStr = new Date().toLocaleString('ru-RU', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    timeZone: 'Asia/Almaty',
+  })
+
+  const caption = [
+    `📅 ${dateStr}`,
+    `🛒 Новый заказ #${orderId}`,
+    `📞 ${phone}`,
+    `📍 ${address}`,
+  ].join('\n')
+
+  // Build Excel
+  const items = resolved.map(({ item, stockRow }) => ({
+    name: item.name,
+    qty: item.qty,
+    price: stockRow ? Number(stockRow.pricePerPc) : 0,
+  }))
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(TEMPLATE_PATH)
+  const sheet = workbook.worksheets[0]
+
+  sheet.getCell('A1').value = `Заказ покупателя №${orderId}`
+  sheet.getCell('B6').value = `${name}, ${address}. Тел: ${phone}`
+
+  const itemCount = items.length
+  if (itemCount > TEMPLATE_ITEM_ROWS) {
+    sheet.duplicateRow(ITEMS_START_ROW + TEMPLATE_ITEM_ROWS - 1, itemCount - TEMPLATE_ITEM_ROWS, true)
+  }
+  items.forEach((item, idx) => {
+    const r = ITEMS_START_ROW + idx
+    sheet.getCell(`A${r}`).value = idx + 1
+    sheet.getCell(`B${r}`).value = ''
+    sheet.getCell(`C${r}`).value = item.name
+    sheet.getCell(`D${r}`).value = item.qty
+    sheet.getCell(`E${r}`).value = 'шт'
+    sheet.getCell(`F${r}`).value = item.price
+    sheet.getCell(`G${r}`).value = item.price * item.qty
+  })
+
+  const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
+  sheet.getCell(`G${TOTAL_ROW + shift}`).value = total
+  sheet.getCell(`A${SUMMARY_ROW + shift}`).value =
+    `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
+  const words = amountInWords(total)
+  sheet.getCell(`A${WORDS_ROW + shift}`).value = words.charAt(0).toUpperCase() + words.slice(1)
+
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+  const form = new FormData()
+  form.append('chat_id', chatId)
+  form.append('caption', caption)
+  form.append(
+    'document',
+    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `Заказ-${orderId}.xlsx`,
+  )
+
+  await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: 'POST',
+    body: form,
+  })
 }
