@@ -131,7 +131,10 @@ export async function placeOrder(input: {
 
   revalidatePath('/catalog')
 
-  notifyTelegram(order.id, name, ph, addr, resolved, total).catch(() => {})
+  notifyTelegram(order.id, name, ph, addr, resolved.map(({ item, stockRow }) => ({
+    item,
+    stockRow: stockRow ? { name: stockRow.name, pricePerPc: Number(stockRow.pricePerPc) } : null,
+  })), total).catch(() => {})
 
   return { ok: true, orderId: order.id }
 }
