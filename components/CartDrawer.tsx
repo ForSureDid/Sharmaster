@@ -1,9 +1,34 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
+
+function CartImage({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <PlaceholderIcon />;
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className="object-contain p-1"
+      sizes="64px"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function PlaceholderIcon() {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <svg className="w-7 h-7 text-sky-200" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+      </svg>
+    </div>
+  );
+}
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, removeFromCart, updateQty, clearCart, totalPrice } = useCart();
@@ -79,21 +104,9 @@ export default function CartDrawer() {
                 <li key={item.id} className="py-4 flex gap-3">
                   {/* Image */}
                   <div className="w-16 h-16 flex-shrink-0 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden relative">
-                    {item.imageUrl ? (
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.name}
-                        fill
-                        className="object-contain p-1"
-                        sizes="64px"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <svg className="w-7 h-7 text-sky-200" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-                        </svg>
-                      </div>
-                    )}
+                    {item.imageUrl
+                      ? <CartImage src={item.imageUrl} alt={item.name} />
+                      : <PlaceholderIcon />}
                   </div>
 
                   {/* Info */}
