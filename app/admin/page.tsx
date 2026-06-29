@@ -273,6 +273,81 @@ function StockTab() {
   );
 }
 
+// ─── Export tab ───────────────────────────────────────────────────────────────
+
+function DownloadCard({
+  title,
+  description,
+  period,
+  href,
+  color,
+}: {
+  title: string;
+  description: string;
+  period: string;
+  href: string;
+  color: "blue" | "green";
+}) {
+  const blue  = color === "blue";
+  return (
+    <div className={`flex flex-col gap-4 p-6 rounded-2xl border ${blue ? "border-sky-100 bg-sky-50/40" : "border-green-100 bg-green-50/40"}`}>
+      <div>
+        <h3 className="font-bold text-gray-800 text-base mb-1">{title}</h3>
+        <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
+      </div>
+      <div className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${blue ? "bg-sky-100 text-sky-700" : "bg-green-100 text-green-700"}`}>
+        {period}
+      </div>
+      <a
+        href={href}
+        download
+        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 mt-auto ${blue ? "bg-sky-500" : "bg-green-600"}`}
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Скачать .xlsx
+      </a>
+    </div>
+  );
+}
+
+function ExportTab() {
+  return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-gray-800">Экспорт данных</h2>
+        <p className="text-sm text-gray-400 mt-0.5">Файлы формируются автоматически по актуальным данным из базы</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <DownloadCard
+          title="Продажи за неделю"
+          description="Все проданные товары за последние 7 дней: артикул, название, количество штук и сумма по каждой позиции."
+          period="Последние 7 дней"
+          href="/api/admin/exports/sales?period=week"
+          color="blue"
+        />
+        <DownloadCard
+          title="Продажи за месяц"
+          description="Все проданные товары за последние 30 дней: артикул, название, количество штук и сумма по каждой позиции."
+          period="Последние 30 дней"
+          href="/api/admin/exports/sales?period=month"
+          color="blue"
+        />
+        <DownloadCard
+          title="Оперативные остатки"
+          description="Текущие остатки всех товаров на складе: артикул, название, бренд, количество и стоимость. Позиции без остатка выделены красным."
+          period="Актуально на сейчас"
+          href="/api/admin/exports/stock"
+          color="green"
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -285,7 +360,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -408,6 +483,14 @@ export default function AdminPage() {
               }`}
             >
               Склад
+            </button>
+            <button
+              onClick={() => setActiveTab("export")}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                activeTab === "export" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Экспорт
             </button>
           </div>
 
@@ -553,6 +636,9 @@ export default function AdminPage() {
 
           {/* ─── Stock tab ─── */}
           {activeTab === "stock" && <StockTab />}
+
+          {/* ─── Export tab ─── */}
+          {activeTab === "export" && <ExportTab />}
 
         </div>
       </main>
