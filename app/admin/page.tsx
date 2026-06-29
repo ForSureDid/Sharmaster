@@ -273,6 +273,296 @@ function StockTab() {
   );
 }
 
+// ─── Import tab ───────────────────────────────────────────────────────────────
+
+type PreviewRow = {
+  article: string;
+  name: string;
+  qty: number;
+  price: number | null;
+  existingId: number | null;
+  existingStock: number | null;
+  willCreate: boolean;
+};
+type PreviewData = {
+  rows: PreviewRow[];
+  stats: { total: number; willUpdate: number; willCreate: number };
+};
+type ImportResult = { updated: number; created: number; errors: string[] };
+
+function ImportTab() {
+  const [phase, setPhase]     = useState<"idle" | "uploading" | "preview" | "applying" | "done">("idle");
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [result, setResult]   = useState<ImportResult | null>(null);
+  const [error, setError]     = useState<string | null>(null);
+  const [drag, setDrag]       = useState(false);
+  const fileRef               = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    if (!file.name.match(/\.xlsx?$/i)) {
+      setError("Загрузите файл в формате .xlsx"); return;
+    }
+    setPhase("uploading"); setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/imports/preview", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Ошибка чтения файла");
+      setPreview(data);
+      setPhase("preview");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Неизвестная ошибка");
+      setPhase("idle");
+    }
+  }
+
+  async function handleApply() {
+    if (!preview) return;
+    setPhase("applying"); setError(null);
+    try {
+      const res = await fetch("/api/admin/imports/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: preview.rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Ошибка импорта");
+      setResult(data);
+      setPhase("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Неизвестная ошибка");
+      setPhase("preview");
+    }
+  }
+
+  function reset() {
+    setPhase("idle"); setPreview(null); setResult(null); setError(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  // ── Idle ──────────────────────────────────────────────────────────────────
+  if (phase === "idle" || phase === "uploading") return (
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-gray-800">Импорт прихода</h2>
+        <p className="text-sm text-gray-400 mt-0.5">
+          Загрузите Excel-файл — система найдёт товары в базе и пополнит остатки
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={e => {
+          e.preventDefault(); setDrag(false);
+          const f = e.dataTransfer.files[0];
+          if (f) handleFile(f);
+        }}
+        onClick={() => fileRef.current?.click()}
+        className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-3xl py-16 px-8 cursor-pointer transition-colors ${
+          drag ? "border-sky-400 bg-sky-50" : "border-gray-200 bg-white hover:border-sky-300 hover:bg-sky-50/30"
+        }`}
+      >
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+        />
+        {phase === "uploading" ? (
+          <>
+            <div className="w-10 h-10 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+            <p className="text-sm text-sky-600 font-medium">Анализируем файл...</p>
+          </>
+        ) : (
+          <>
+            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+              <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-semibold text-gray-700">Перетащите файл сюда</p>
+              <p className="text-xs text-gray-400 mt-1">или нажмите, чтобы выбрать</p>
+            </div>
+            <span className="px-3 py-1 bg-sky-100 text-sky-700 text-xs font-semibold rounded-full">.xlsx</span>
+          </>
+        )}
+      </div>
+
+      {/* Format hint */}
+      <div className="mt-4 bg-white rounded-2xl border border-gray-100 p-4">
+        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Поддерживаемые форматы</p>
+        <div className="space-y-1.5 text-xs text-gray-500">
+          <div className="flex gap-2">
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Артикул</span>
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Наименование</span>
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Количество</span>
+            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Цена</span>
+          </div>
+          <p className="text-gray-400">Заголовки распознаются автоматически. Также поддерживается формат Оценка.xlsx.</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── Preview ────────────────────────────────────────────────────────────────
+  if (phase === "preview" && preview) return (
+    <div>
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">Проверьте данные перед импортом</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Убедитесь, что всё верно, затем нажмите «Применить»</p>
+        </div>
+        <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 mt-1">
+          Отмена
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
+          <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+          Пополнение: {preview.stats.willUpdate} позиций
+        </div>
+        {preview.stats.willCreate > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-700 font-medium">
+            <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
+            Новых товаров: {preview.stats.willCreate}
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
+          Итого: {preview.stats.total} строк
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden mb-5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Наименование</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Приход, шт</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Было → Станет</th>
+                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Цена</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Действие</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {preview.rows.map((row, idx) => (
+                <tr key={idx} className={`${row.willCreate ? "bg-sky-50/30" : "bg-green-50/20"} hover:bg-gray-50 transition-colors`}>
+                  <td className="px-5 py-2.5 font-mono text-xs text-gray-500">{row.article || "—"}</td>
+                  <td className="px-4 py-2.5 text-gray-800 font-medium max-w-xs">
+                    <div className="truncate">{row.name}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-center font-bold text-gray-800">+{row.qty}</td>
+                  <td className="px-4 py-2.5 text-center text-xs text-gray-500">
+                    {row.willCreate
+                      ? <span className="text-sky-600 font-medium">новый</span>
+                      : <><span className="text-gray-400">{row.existingStock}</span><span className="mx-1 text-gray-300">→</span><span className="text-green-600 font-semibold">{(row.existingStock ?? 0) + row.qty}</span></>
+                    }
+                  </td>
+                  <td className="px-5 py-2.5 text-right text-gray-600 text-xs">
+                    {row.price != null ? `${row.price.toLocaleString("ru-RU")} ₸` : "—"}
+                  </td>
+                  <td className="px-4 py-2.5 text-center">
+                    {row.willCreate
+                      ? <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-700 font-medium rounded-full">Создать</span>
+                      : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 font-medium rounded-full">Пополнить</span>
+                    }
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Action */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleApply}
+          className="px-6 py-2.5 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 transition-colors shadow-sm"
+        >
+          Применить приход
+        </button>
+        <button onClick={reset} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          Отмена
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── Applying ───────────────────────────────────────────────────────────────
+  if (phase === "applying") return (
+    <div className="flex flex-col items-center justify-center py-20 gap-4">
+      <div className="w-10 h-10 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
+      <p className="text-sm text-gray-600 font-medium">Применяем приход...</p>
+    </div>
+  );
+
+  // ── Done ──────────────────────────────────────────────────────────────────
+  if (phase === "done" && result) return (
+    <div>
+      <div className="bg-white rounded-3xl border border-gray-100 p-8 max-w-md">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="font-bold text-gray-800">Импорт завершён</h2>
+            <p className="text-sm text-gray-400">Остатки склада обновлены</p>
+          </div>
+        </div>
+        <div className="space-y-2.5 text-sm mb-6">
+          <div className="flex justify-between items-center py-2 border-b border-gray-50">
+            <span className="text-gray-500">Пополнено позиций</span>
+            <span className="font-bold text-green-600">{result.updated}</span>
+          </div>
+          {result.created > 0 && (
+            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+              <span className="text-gray-500">Создано новых товаров</span>
+              <span className="font-bold text-sky-600">{result.created}</span>
+            </div>
+          )}
+          {result.errors.length > 0 && (
+            <div className="py-2">
+              <p className="text-red-600 text-xs font-medium mb-1">Ошибки ({result.errors.length}):</p>
+              {result.errors.map((e, i) => <p key={i} className="text-xs text-red-500">{e}</p>)}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={reset}
+          className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+        >
+          Загрузить ещё один файл
+        </button>
+      </div>
+    </div>
+  );
+
+  return null;
+}
+
 // ─── Export tab ───────────────────────────────────────────────────────────────
 
 function DownloadCard({
@@ -360,7 +650,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export" | "import">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -491,6 +781,14 @@ export default function AdminPage() {
               }`}
             >
               Экспорт
+            </button>
+            <button
+              onClick={() => setActiveTab("import")}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                activeTab === "import" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Импорт
             </button>
           </div>
 
@@ -639,6 +937,9 @@ export default function AdminPage() {
 
           {/* ─── Export tab ─── */}
           {activeTab === "export" && <ExportTab />}
+
+          {/* ─── Import tab ─── */}
+          {activeTab === "import" && <ImportTab />}
 
         </div>
       </main>
