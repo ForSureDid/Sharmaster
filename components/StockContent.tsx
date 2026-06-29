@@ -36,14 +36,14 @@ function parseSizeFromName(name: string): string {
   return "";
 }
 
-// 24" latex: sold per piece (customer can quick-add a full package via secondary button).
+// 24" and 36" latex: sold per piece (customer can quick-add a full package via secondary button).
 function isSoldByPiece(item: StockCard): boolean {
   const isLatex =
     (item.material ?? "").toLowerCase().includes("латекс") ||
     LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
   if (!isLatex) return false;
   const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  return size === "24";
+  return size === "24" || size === "36";
 }
 
 // Returns the required pack size, or null if the item is sold individually.
@@ -77,7 +77,12 @@ function getPackSize(item: StockCard): number | null {
       const isChrome = ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром");
       return isChrome ? 10 : 25;
     }
-    const t: Record<string, number> = { "5": 100, "12": 50, "24": 3, "36": 10 };
+    const t: Record<string, number> = {
+      "1/3": 50, "2/5": 50, "2/6": 50, "3/8": 50,
+      "5": 100, "6": 100, "10": 100,
+      "12": 50, "16": 25, "116": 50,
+      "24": 10, "36": 10,
+    };
     return t[size] ?? 50;
   }
 

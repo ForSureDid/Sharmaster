@@ -41,7 +41,12 @@ function getPackSize(item: StockDetail): number | null {
       const isChrome = ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром");
       return isChrome ? 10 : 25;
     }
-    const t: Record<string, number> = { "5": 100, "12": 50, "24": 3, "36": 10 };
+    const t: Record<string, number> = {
+      "1/3": 50, "2/5": 50, "2/6": 50, "3/8": 50,
+      "5": 100, "6": 100, "10": 100,
+      "12": 50, "16": 25, "116": 50,
+      "24": 10, "36": 10,
+    };
     return t[size] ?? 50;
   }
   if (brand.includes("белбал") || brand.includes("belbal")) {
@@ -61,7 +66,7 @@ function isSoldByPiece(item: StockDetail): boolean {
     LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
   if (!isLatex) return false;
   const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  return size === "24";
+  return size === "24" || size === "36";
 }
 
 function Gallery({ images, name }: { images: string[]; name: string }) {
