@@ -1315,7 +1315,7 @@ export default function AdminPage() {
           </div>
 
           {/* Tab bar */}
-          <div className="flex gap-1 mb-6 bg-white rounded-2xl border border-gray-100 p-1 w-fit">
+          <div className="flex items-center gap-1 mb-6 bg-white rounded-2xl border border-gray-100 p-1 w-fit">
             <button
               onClick={() => setActiveTab("orders")}
               className={`relative px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
@@ -1329,6 +1329,9 @@ export default function AdminPage() {
                 </span>
               )}
             </button>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
             <button
               onClick={() => setActiveTab("stock")}
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
@@ -1337,6 +1340,9 @@ export default function AdminPage() {
             >
               Склад
             </button>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
             <button
               onClick={() => setActiveTab("export")}
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
@@ -1353,6 +1359,9 @@ export default function AdminPage() {
             >
               Импорт
             </button>
+
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+
             <button
               onClick={() => setActiveTab("new")}
               className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
