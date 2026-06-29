@@ -26,6 +26,16 @@ function parsePackFromName(name: string): number | null {
   return n && n > 1 ? n : null;
 }
 
+// Extract inch size from name when sizeInches DB field is not populated.
+// Handles "(18''/46 см)" and Sempertex "R18 ..." patterns.
+function parseSizeFromName(name: string): string {
+  const r = /^R(\d+)\s/.exec(name);
+  if (r) return r[1];
+  const inch = /\((\d+)''/.exec(name);
+  if (inch) return inch[1];
+  return "";
+}
+
 // Returns the required pack size, or null if the item is sold individually.
 function getPackSize(item: StockCard): number | null {
   const isLatex =
@@ -34,7 +44,7 @@ function getPackSize(item: StockCard): number | null {
   if (!isLatex) return null;
 
   const brand = (item.brand ?? "").toLowerCase();
-  const size = item.sizeInches ?? "";
+  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
 
   // ── 512 ────────────────────────────────────────────────────────────────────
   if (brand.includes("512")) {

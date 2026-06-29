@@ -14,13 +14,21 @@ function parsePackFromName(name: string): number | null {
   return n && n > 1 ? n : null;
 }
 
+function parseSizeFromName(name: string): string {
+  const r = /^R(\d+)\s/.exec(name);
+  if (r) return r[1];
+  const inch = /\((\d+)''/.exec(name);
+  if (inch) return inch[1];
+  return "";
+}
+
 function getPackSize(item: StockDetail): number | null {
   const isLatex =
     (item.material ?? "").toLowerCase().includes("латекс") ||
     LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
   if (!isLatex) return null;
   const brand = (item.brand ?? "").toLowerCase();
-  const size = item.sizeInches ?? "";
+  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
   if (brand.includes("512")) {
     if (size === "36") return null;
     const t: Record<string, number> = { "5": 100, "12": 100, "18": 10, "24": 3 };
