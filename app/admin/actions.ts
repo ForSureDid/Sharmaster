@@ -77,6 +77,7 @@ export async function getStockItems(search = '', page = 0) {
       fullName: i.fullName,
       article: i.article,
       brand: i.brand,
+      sizeInches: i.sizeInches,
       stock: i.stock,
       pricePerPc: Number(i.pricePerPc),
       imageUrl: i.imageUrl,
@@ -85,6 +86,14 @@ export async function getStockItems(search = '', page = 0) {
     })),
     total,
   }
+}
+
+export async function updateSizeInches(id: number, sizeInches: string | null) {
+  await requireAdmin()
+  await db.stockItem.update({ where: { id }, data: { sizeInches: sizeInches?.trim() || null } })
+  revalidatePath('/admin')
+  revalidatePath('/catalog')
+  revalidatePath('/catalog/[id]')
 }
 
 export async function updateStockQty(id: number, stock: number) {

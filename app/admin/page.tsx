@@ -11,6 +11,7 @@ import {
   updateOrderStatus,
   getStockItems,
   updateStockQty,
+  updateSizeInches,
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
@@ -42,6 +43,7 @@ type StockItem = {
   fullName: string | null;
   article: string | null;
   brand: string | null;
+  sizeInches: string | null;
   stock: number;
   pricePerPc: number;
   imageUrl: string | null;
@@ -93,8 +95,11 @@ function StockTab() {
   const [loading, setLoading]     = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editVal, setEditVal]     = useState("");
+  const [sizeEditingId, setSizeEditingId] = useState<number | null>(null);
+  const [sizeEditVal, setSizeEditVal]     = useState("");
   const [isPending, startTx]      = useTransition();
   const inputRef                  = useRef<HTMLInputElement>(null);
+  const sizeInputRef              = useRef<HTMLInputElement>(null);
 
   // debounce search
   useEffect(() => {
@@ -108,6 +113,7 @@ function StockTab() {
   }, [debSearch, page]);
 
   function startEdit(item: StockItem) {
+    setSizeEditingId(null);
     setEditingId(item.id);
     setEditVal(String(item.stock));
     setTimeout(() => inputRef.current?.select(), 30);
@@ -121,6 +127,23 @@ function StockTab() {
         prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, stock: qty } : i) } : null
       );
       setEditingId(null);
+    });
+  }
+
+  function startSizeEdit(item: StockItem) {
+    setEditingId(null);
+    setSizeEditingId(item.id);
+    setSizeEditVal(item.sizeInches ?? "");
+    setTimeout(() => sizeInputRef.current?.select(), 30);
+  }
+  function saveSizeEdit(id: number) {
+    startTx(async () => {
+      const val = sizeEditVal.trim() || null;
+      await updateSizeInches(id, val);
+      setData(prev =>
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, sizeInches: val } : i) } : null
+      );
+      setSizeEditingId(null);
     });
   }
 
@@ -162,7 +185,7 @@ function StockTab() {
 
         {/* Tip */}
         <div className="px-6 py-2.5 bg-blue-50 border-b border-blue-100 text-xs text-blue-600">
-          Нажмите на число в колонке «Остаток», чтобы изменить количество. Подтвердите клавишей Enter.
+          Нажмите на значение в колонке «Остаток» или «Размер», чтобы изменить. Подтвердите клавишей Enter.
         </div>
 
         {loading ? (
@@ -177,6 +200,7 @@ function StockTab() {
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Название</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Бренд</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Размер</th>
                     <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Остаток</th>
                     <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Статус</th>
@@ -199,6 +223,32 @@ function StockTab() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{item.brand ?? "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          {sizeEditingId === item.id ? (
+                            <input
+                              ref={sizeInputRef}
+                              type="text"
+                              value={sizeEditVal}
+                              onChange={e => setSizeEditVal(e.target.value)}
+                              onBlur={() => saveSizeEdit(item.id)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter")  saveSizeEdit(item.id);
+                                if (e.key === "Escape") setSizeEditingId(null);
+                              }}
+                              placeholder="12, 18, 2/5..."
+                              className="w-20 text-center px-2 py-1 border-2 border-sky-400 rounded-lg focus:outline-none text-sm font-bold"
+                            />
+                          ) : (
+                            <button
+                              onClick={() => startSizeEdit(item)}
+                              disabled={isPending}
+                              title="Нажмите, чтобы изменить размер"
+                              className="px-2.5 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-700 transition-colors disabled:opacity-50 cursor-pointer min-w-[2.5rem]"
+                            >
+                              {item.sizeInches ?? <span className="text-gray-300">—</span>}
+                            </button>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{item.article ?? "—"}</td>
                         <td className="px-4 py-3 text-center">
                           {isEditing ? (
