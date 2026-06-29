@@ -7,6 +7,80 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
 
+type TopCategory = { id: number; name: string; slug: string };
+
+function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className?: string }) {
+  switch (slug) {
+    case "lateksnye-shary":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2C8.686 2 6 5.134 6 9c0 3.314 1.8 6.1 4.5 7.45V18h3v-1.55C16.2 15.1 18 12.314 18 9c0-3.866-2.686-7-6-7z" />
+          <path d="M10.5 18.5c0 .828.672 1.5 1.5 1.5s1.5-.672 1.5-1.5" />
+          <line x1="12" y1="20" x2="12" y2="22" />
+        </svg>
+      );
+    case "folgirovannye-shary":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.3L12 14.3l-4.8 2.5.9-5.3L4.2 7.7l5.4-.8z" />
+          <line x1="12" y1="17" x2="12" y2="22" />
+        </svg>
+      );
+    case "aksessuary":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 8c-2.5-3-6-3-6-3s0 3.5 3 6l3 3 3-3c3-2.5 3-6 3-6s-3.5 0-6 3z" />
+          <line x1="12" y1="14" x2="12" y2="22" />
+          <path d="M8 22h8" />
+        </svg>
+      );
+    case "vse-dlya-prazdnika":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 18l4-8 4 5 3-3 4 6H3z" />
+          <circle cx="17" cy="5" r="2" />
+          <line x1="17" y1="7" x2="17" y2="10" />
+          <line x1="5" y1="3" x2="5" y2="6" />
+          <line x1="3.5" y1="4.5" x2="6.5" y2="4.5" />
+        </svg>
+      );
+    case "gelij-i-oborudovanie":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <rect x="8" y="4" width="8" height="14" rx="4" />
+          <path d="M10 4V2h4v2" />
+          <path d="M12 18v3" />
+          <path d="M9 21h6" />
+          <line x1="12" y1="8" x2="12" y2="14" />
+        </svg>
+      );
+    case "igrushki":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="3" />
+          <path d="M9 11.5C6.5 12.5 5 15 5 18h14c0-3-1.5-5.5-4-6.5" />
+          <path d="M10 8a2 2 0 010-4" />
+        </svg>
+      );
+    case "raznoe":
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1" />
+          <rect x="14" y="3" width="7" height="7" rx="1" />
+          <rect x="3" y="14" width="7" height="7" rx="1" />
+          <rect x="14" y="14" width="7" height="7" rx="1" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v4l3 3" />
+        </svg>
+      );
+  }
+}
+
 type SuggestItem = {
   id: number;
   name: string;
@@ -116,6 +190,7 @@ export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [categories, setCategories] = useState<TopCategory[]>([]);
 
   const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
@@ -131,6 +206,13 @@ export default function Header() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then(setCategories)
+      .catch(() => {});
   }, []);
 
   // Debounced autocomplete fetch
@@ -259,10 +341,6 @@ export default function Header() {
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <a href="tel:+77769510282"
-              className="hidden lg:block text-sm font-semibold text-gray-700 hover:text-sky-500 transition-colors">
-              +7 776 951 0282
-            </a>
             <a href="https://wa.me/77769510282" target="_blank" rel="noopener noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
               Связаться
@@ -351,6 +429,26 @@ export default function Header() {
         </div>
       </div>
 
+      {/* Tier 3: Category catalog bar */}
+      {categories.length > 0 && (
+        <div className="hidden md:block bg-white border-b border-gray-100 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+              {categories.map((cat) => (
+                <a
+                  key={cat.id}
+                  href={`/catalog?cat=${cat.id}`}
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors whitespace-nowrap flex-shrink-0 font-medium"
+                >
+                  <CategoryIcon slug={cat.slug} />
+                  {cat.name}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
       {/* Mobile search row with autocomplete */}
       {searchOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
@@ -414,8 +512,19 @@ export default function Header() {
             </div>
           </div>
           <nav className="flex flex-col py-1">
-            <a href="/catalog" className="px-4 py-3 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors" onClick={() => setMenuOpen(false)}>Каталог</a>
-            <a href="tel:+77769510282" className="px-4 py-3 text-sky-500 font-semibold text-sm">
+            <a href="/catalog" className="px-4 py-3 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors" onClick={() => setMenuOpen(false)}>Весь каталог</a>
+            {categories.map((cat) => (
+              <a
+                key={cat.id}
+                href={`/catalog?cat=${cat.id}`}
+                className="px-4 py-2.5 text-sm text-gray-600 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center gap-2"
+                onClick={() => setMenuOpen(false)}
+              >
+                <CategoryIcon slug={cat.slug} />
+                {cat.name}
+              </a>
+            ))}
+            <a href="tel:+77769510282" className="px-4 py-3 text-sky-500 font-semibold text-sm border-t border-gray-100 mt-1">
               +7 776 951 0282
             </a>
           </nav>
