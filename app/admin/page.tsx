@@ -11,6 +11,8 @@ import {
   updateOrderStatus,
   getStockItems,
   updateStockQty,
+  getAdminMeta,
+  createStockItem,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -638,6 +640,347 @@ function ExportTab() {
   );
 }
 
+// ─── New item tab ─────────────────────────────────────────────────────────────
+
+type MetaData = { categories: { id: number; name: string; parentId: number | null; level: number }[]; brands: string[] };
+
+type FlatCat = { id: number; name: string; depth: number };
+
+function buildFlatCategories(cats: MetaData["categories"]): FlatCat[] {
+  const flat: FlatCat[] = [];
+  function add(parentId: number | null, depth: number) {
+    cats.filter(c => c.parentId === parentId).sort((a, b) => a.name.localeCompare(b.name, "ru"))
+      .forEach(c => { flat.push({ id: c.id, name: c.name, depth }); add(c.id, depth + 1); });
+  }
+  add(null, 0);
+  return flat;
+}
+
+const EMPTY_FORM = {
+  name: "", fullName: "", article: "", barcode: "",
+  brand: "", sizeInches: "", stock: "0", pricePerPc: "",
+  categoryId: "", onSale: false, salePercent: "",
+};
+
+function ImageUploadZone({
+  label, url, uploading, onFile, onRemove, multi = false,
+}: {
+  label: string; url?: string; uploading?: boolean;
+  onFile: (f: File) => void; onRemove?: () => void; multi?: boolean;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const [drag, setDrag] = useState(false);
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-1.5">{label}</p>
+      <div
+        onClick={() => ref.current?.click()}
+        onDragOver={e => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) onFile(f); }}
+        className={`relative flex items-center justify-center rounded-2xl border-2 border-dashed cursor-pointer transition-colors overflow-hidden
+          ${drag ? "border-sky-400 bg-sky-50" : "border-gray-200 hover:border-sky-300 hover:bg-sky-50/30"}
+          ${url ? "h-40" : "h-32"}`}
+      >
+        <input ref={ref} type="file" accept="image/*" multiple={multi} className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-6 h-6 rounded-full border-3 border-sky-400 border-t-transparent animate-spin" />
+            <p className="text-xs text-sky-600">Загружаем...</p>
+          </div>
+        ) : url ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="h-full w-full object-contain" />
+            {onRemove && (
+              <button onClick={e => { e.stopPropagation(); onRemove(); }}
+                className="absolute top-2 right-2 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">
+                ×
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="flex flex-col items-center gap-1.5 text-gray-400">
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <p className="text-xs">Перетащите или нажмите</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NewItemTab() {
+  const [form, setForm]       = useState({ ...EMPTY_FORM });
+  const [meta, setMeta]       = useState<MetaData | null>(null);
+  const [mainImg, setMainImg] = useState<string>("");
+  const [mainUploading, setMainUploading] = useState(false);
+  const [extraImgs, setExtraImgs]         = useState<string[]>([]);
+  const [extraUploading, setExtraUploading] = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [done, setDone]       = useState<{ id: number; name: string } | null>(null);
+
+  useEffect(() => { getAdminMeta().then(setMeta); }, []);
+
+  function set(k: keyof typeof EMPTY_FORM, v: string | boolean) {
+    setForm(f => ({ ...f, [k]: v }));
+  }
+
+  async function uploadImage(file: File): Promise<string | null> {
+    const fd = new FormData(); fd.append("file", file);
+    const res = await fetch("/api/admin/items/upload-image", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error ?? "Ошибка загрузки"); return null; }
+    return data.url as string;
+  }
+
+  async function handleMainImg(file: File) {
+    setMainUploading(true); setError(null);
+    const url = await uploadImage(file);
+    if (url) setMainImg(url);
+    setMainUploading(false);
+  }
+
+  async function handleExtraImg(file: File) {
+    setExtraUploading(true); setError(null);
+    const url = await uploadImage(file);
+    if (url) setExtraImgs(prev => [...prev, url]);
+    setExtraUploading(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const price = parseFloat(form.pricePerPc.replace(",", "."));
+    const stock = parseInt(form.stock);
+    if (!form.name.trim()) { setError("Название обязательно"); return; }
+    if (isNaN(price) || price < 0) { setError("Укажите корректную цену"); return; }
+    setSubmitting(true);
+    try {
+      const result = await createStockItem({
+        name:       form.name,
+        fullName:   form.fullName   || undefined,
+        article:    form.article    || undefined,
+        barcode:    form.barcode    || undefined,
+        brand:      form.brand      || undefined,
+        sizeInches: form.sizeInches || undefined,
+        stock:      isNaN(stock) ? 0 : stock,
+        pricePerPc: price,
+        categoryId: form.categoryId ? parseInt(form.categoryId) : null,
+        onSale:     form.onSale,
+        salePercent: form.onSale && form.salePercent ? parseInt(form.salePercent) : null,
+        imageUrl:   mainImg  || undefined,
+        images:     extraImgs,
+      });
+      setDone(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка создания товара");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function resetForm() {
+    setForm({ ...EMPTY_FORM });
+    setMainImg(""); setExtraImgs([]);
+    setError(null); setDone(null);
+  }
+
+  const flatCats = meta ? buildFlatCategories(meta.categories) : [];
+
+  if (done) return (
+    <div className="bg-white rounded-3xl border border-gray-100 p-8 max-w-md">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="font-bold text-gray-800">Товар создан</h2>
+          <p className="text-sm text-gray-400 mt-0.5 truncate max-w-xs">{done.name}</p>
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={resetForm}
+          className="flex-1 px-4 py-2.5 bg-sky-500 text-white text-sm font-semibold rounded-xl hover:bg-sky-600 transition-colors">
+          Добавить ещё
+        </button>
+        <a href="/catalog" target="_blank"
+          className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors text-center">
+          Открыть каталог
+        </a>
+      </div>
+    </div>
+  );
+
+  return (
+    <form onSubmit={handleSubmit} className="max-w-2xl">
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-gray-800">Новый товар</h2>
+        <p className="text-sm text-gray-400 mt-0.5">Заполните карточку — товар сразу появится на сайте</p>
+      </div>
+
+      {error && (
+        <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
+      )}
+
+      {/* ── Основная информация ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 mb-4 space-y-4">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Основная информация</p>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Название <span className="text-red-400">*</span></label>
+          <input value={form.name} onChange={e => set("name", e.target.value)} required
+            placeholder="Например: Шар 12'' Красный пастель"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Полное название</label>
+          <input value={form.fullName} onChange={e => set("fullName", e.target.value)}
+            placeholder="Полное описание для поиска (необязательно)"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Артикул</label>
+            <input value={form.article} onChange={e => set("article", e.target.value)}
+              placeholder="1234-5678"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Штрихкод</label>
+            <input value={form.barcode} onChange={e => set("barcode", e.target.value)}
+              placeholder="4601234567890"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Бренд</label>
+            <input value={form.brand} onChange={e => set("brand", e.target.value)}
+              list="brands-list" placeholder="Belbal, Sempertex..."
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+            <datalist id="brands-list">
+              {meta?.brands.map(b => <option key={b} value={b} />)}
+            </datalist>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Размер (дюймы)</label>
+            <input value={form.sizeInches} onChange={e => set("sizeInches", e.target.value)}
+              placeholder='5", 10", 12"...'
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Категория</label>
+          <select value={form.categoryId} onChange={e => set("categoryId", e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400 bg-white">
+            <option value="">— Без категории —</option>
+            {flatCats.map(c => (
+              <option key={c.id} value={c.id}>
+                {"— ".repeat(c.depth)}{c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* ── Цена и остаток ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 mb-4 space-y-4">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Цена и остаток</p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Цена за штуку, ₸ <span className="text-red-400">*</span></label>
+            <input value={form.pricePerPc} onChange={e => set("pricePerPc", e.target.value)} required
+              type="number" min="0" step="0.01" placeholder="0"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Остаток на складе, шт</label>
+            <input value={form.stock} onChange={e => set("stock", e.target.value)}
+              type="number" min="0" step="1" placeholder="0"
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-1">
+          <button type="button" onClick={() => set("onSale", !form.onSale)}
+            className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${form.onSale ? "bg-sky-500" : "bg-gray-200"}`}>
+            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${form.onSale ? "translate-x-4" : ""}`} />
+          </button>
+          <span className="text-sm text-gray-700 font-medium">Акционный товар</span>
+        </div>
+
+        {form.onSale && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Скидка, %</label>
+            <input value={form.salePercent} onChange={e => set("salePercent", e.target.value)}
+              type="number" min="1" max="99" placeholder="10"
+              className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
+          </div>
+        )}
+      </div>
+
+      {/* ── Фотографии ── */}
+      <div className="bg-white rounded-3xl border border-gray-100 p-6 mb-6 space-y-4">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Фотографии</p>
+
+        <ImageUploadZone
+          label="Главное фото"
+          url={mainImg}
+          uploading={mainUploading}
+          onFile={handleMainImg}
+          onRemove={() => setMainImg("")}
+        />
+
+        {/* Additional images */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 mb-1.5">Дополнительные фото</p>
+          <div className="grid grid-cols-4 gap-2">
+            {extraImgs.map((url, i) => (
+              <div key={url} className="relative h-24 rounded-xl overflow-hidden border border-gray-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button type="button" onClick={() => setExtraImgs(prev => prev.filter((_, j) => j !== i))}
+                  className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600">
+                  ×
+                </button>
+              </div>
+            ))}
+            {extraImgs.length < 8 && (
+              <ImageUploadZone
+                label=""
+                uploading={extraUploading}
+                onFile={handleExtraImg}
+              />
+            )}
+          </div>
+          {extraImgs.length === 0 && !extraUploading && (
+            <p className="text-xs text-gray-400 mt-1">Можно добавить до 8 дополнительных фото</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Submit ── */}
+      <button type="submit" disabled={submitting}
+        className="w-full py-3 bg-sky-500 text-white text-sm font-bold rounded-2xl hover:bg-sky-600 transition-colors disabled:opacity-60 shadow-sm">
+        {submitting ? "Создаём товар..." : "Создать товар"}
+      </button>
+    </form>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -650,7 +993,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export" | "import">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export" | "import" | "new">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -789,6 +1132,14 @@ export default function AdminPage() {
               }`}
             >
               Импорт
+            </button>
+            <button
+              onClick={() => setActiveTab("new")}
+              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                activeTab === "new" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              + Товар
             </button>
           </div>
 
@@ -940,6 +1291,9 @@ export default function AdminPage() {
 
           {/* ─── Import tab ─── */}
           {activeTab === "import" && <ImportTab />}
+
+          {/* ─── New item tab ─── */}
+          {activeTab === "new" && <NewItemTab />}
 
         </div>
       </main>

@@ -92,3 +92,72 @@ export async function updateStockQty(id: number, stock: number) {
   await db.stockItem.update({ where: { id }, data: { stock: Math.max(0, stock) } })
   revalidatePath('/admin')
 }
+
+export async function getAdminMeta() {
+  await requireAdmin()
+  const [categories, brandRows] = await Promise.all([
+    db.category.findMany({ orderBy: { name: 'asc' } }),
+    db.stockItem.findMany({
+      where: { brand: { not: null } },
+      select: { brand: true },
+      distinct: ['brand'],
+      orderBy: { brand: 'asc' },
+    }),
+  ])
+  return {
+    categories: categories.map(c => ({
+      id: c.id,
+      name: c.name,
+      parentId: c.parentId,
+      level: c.level,
+    })),
+    brands: brandRows.map(r => r.brand!).filter(Boolean),
+  }
+}
+
+export async function createStockItem(data: {
+  name: string
+  fullName?: string
+  article?: string
+  barcode?: string
+  brand?: string
+  sizeInches?: string
+  stock: number
+  pricePerPc: number
+  categoryId?: number | null
+  onSale: boolean
+  salePercent?: number | null
+  imageUrl?: string
+  images?: string[]
+}) {
+  await requireAdmin()
+
+  if (!data.name?.trim()) throw new Error('Название обязательно')
+  if (data.pricePerPc < 0) throw new Error('Цена не может быть отрицательной')
+  if (data.stock < 0)      throw new Error('Остаток не может быть отрицательным')
+
+  const item = await db.stockItem.create({
+    data: {
+      name:       data.name.trim(),
+      fullName:   data.fullName?.trim()   || null,
+      article:    data.article?.trim()    || null,
+      barcode:    data.barcode?.trim()    || null,
+      brand:      data.brand?.trim()      || null,
+      sizeInches: data.sizeInches?.trim() || null,
+      stock:      data.stock,
+      pricePerPc: data.pricePerPc,
+      categoryId: data.categoryId ?? null,
+      onSale:     data.onSale,
+      salePercent: data.onSale ? (data.salePercent ?? null) : null,
+      imageUrl:   data.imageUrl  || null,
+      images:     data.images    ?? [],
+    },
+  })
+
+  revalidatePath('/')
+  revalidatePath('/catalog')
+  revalidatePath('/sale')
+  revalidatePath('/admin')
+
+  return { id: item.id, name: item.name }
+}
