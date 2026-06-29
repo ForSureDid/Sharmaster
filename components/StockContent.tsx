@@ -189,7 +189,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
 
   return (
     <div className={`bg-white border rounded-xl overflow-hidden transition-all flex flex-col group ${inStock ? "border-gray-100 hover:border-sky-200 hover:shadow-md" : "border-gray-100 opacity-60"}`}>
-      <div className="relative h-44 bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
         {item.images.length > 0 ? (
           <ImageCarousel
             images={item.images}
@@ -310,7 +310,7 @@ function StockCardList({ item }: { item: StockCard }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex group">
-      <div className="relative w-28 flex-shrink-0 bg-gray-50">
+      <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-gray-50 self-center">
         {item.images.length > 0 ? (
           <ImageCarousel images={item.images} name={item.name} sizes="112px" />
         ) : (
