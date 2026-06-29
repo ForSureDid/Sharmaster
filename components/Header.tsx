@@ -7,7 +7,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
 
-type TopCategory = { id: number; name: string; slug: string };
+type SubCategory = { id: number; name: string; slug: string };
+type TopCategory = { id: number; name: string; slug: string; children: SubCategory[] };
 
 function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className?: string }) {
   switch (slug) {
@@ -107,7 +108,6 @@ function SearchDropdown({
   if (items.length === 0 && !hint) return null;
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-      {/* Category quick-jump hint */}
       {hint && (
         <a
           href={hint.url}
@@ -136,13 +136,7 @@ function SearchDropdown({
         >
           <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
             {item.imageUrl ? (
-              <Image
-                src={item.imageUrl}
-                alt={item.name}
-                width={40}
-                height={40}
-                className="w-full h-full object-cover"
-              />
+              <Image src={item.imageUrl} alt={item.name} width={40} height={40} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,18 +148,12 @@ function SearchDropdown({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-gray-800 truncate">{item.name}</p>
-            {item.brand && (
-              <p className="text-xs text-gray-400 truncate">{item.brand}</p>
-            )}
+            {item.brand && <p className="text-xs text-gray-400 truncate">{item.brand}</p>}
           </div>
           <div className="flex-shrink-0 text-right">
-            <p className="text-sm font-semibold text-sky-600">
-              {item.pricePerPc.toLocaleString("ru-RU")} ₸
-            </p>
+            <p className="text-sm font-semibold text-sky-600">{item.pricePerPc.toLocaleString("ru-RU")} ₸</p>
             <p className={`text-xs ${item.stock > 0 ? "text-green-500" : "text-red-400"}`}>
-              {isAdmin
-                ? (item.stock > 0 ? `${item.stock} шт` : "нет")
-                : (item.stock > 0 ? "есть" : "нет")}
+              {isAdmin ? (item.stock > 0 ? `${item.stock} шт` : "нет") : (item.stock > 0 ? "есть" : "нет")}
             </p>
           </div>
         </button>
@@ -191,9 +179,12 @@ export default function Header() {
   const [suggestions, setSuggestions] = useState<SuggestItem[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [categories, setCategories] = useState<TopCategory[]>([]);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [activeL1, setActiveL1] = useState<number | null>(null);
 
   const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
+  const catalogRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user, isAdmin, logout } = useAuth();
   const { totalCount, openCart } = useCart();
@@ -203,19 +194,32 @@ export default function Header() {
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
         setAccountOpen(false);
       }
+      if (catalogRef.current && !catalogRef.current.contains(e.target as Node)) {
+        setCatalogOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setCatalogOpen(false);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  useEffect(() => {
     fetch("/api/categories")
       .then((r) => r.json())
-      .then(setCategories)
+      .then((data: TopCategory[]) => {
+        setCategories(data);
+        if (data.length > 0) setActiveL1(data[0].id);
+      })
       .catch(() => {});
   }, []);
 
-  // Debounced autocomplete fetch
   const fetchSuggestions = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (q.trim().length < 2) {
@@ -260,7 +264,6 @@ export default function Header() {
   }
 
   function handleInputBlur() {
-    // Small delay so onMouseDown on dropdown fires before blur closes it
     setTimeout(() => setShowSuggestions(false), 150);
   }
 
@@ -269,14 +272,14 @@ export default function Header() {
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      setShowSuggestions(false);
-    }
+    if (e.key === "Escape") setShowSuggestions(false);
   }
 
+  const activeCategory = categories.find((c) => c.id === activeL1) ?? null;
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
-      {/* Tier 1: Utility bar */}
+    <header className="fixed top-0 left-0 right-0 z-50" ref={catalogRef}>
+      {/* Utility bar */}
       <div className="bg-gray-100 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-8 text-xs text-gray-500">
           <span className="hidden sm:block">Оптовый магазин воздушных шаров в Казахстане</span>
@@ -303,15 +306,39 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Tier 2: Logo + Search + Cart */}
+      {/* Main bar: Logo + Catalog btn + Search + Icons */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-4 h-14">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-3 h-14">
+          {/* Logo */}
           <a href="/" className="flex-shrink-0">
             <Image src="/logo-header.png" alt="Sharmaster" width={320} height={96} className="h-8 sm:h-11 w-auto" priority />
           </a>
 
-          {/* Desktop search with autocomplete */}
-          <div className="flex-1 hidden md:block max-w-xl mx-auto relative">
+          {/* Catalog button — desktop only */}
+          {categories.length > 0 && (
+            <button
+              onClick={() => setCatalogOpen((o) => !o)}
+              className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0 ${
+                catalogOpen
+                  ? "bg-sky-500 text-white"
+                  : "bg-sky-500 hover:bg-sky-600 text-white"
+              }`}
+            >
+              {catalogOpen ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+              Каталог товаров
+            </button>
+          )}
+
+          {/* Desktop search */}
+          <div className="flex-1 hidden md:block relative">
             <form onSubmit={handleSearch} className="w-full">
               <div className="flex w-full rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
                 <input
@@ -340,11 +367,13 @@ export default function Header() {
             )}
           </div>
 
+          {/* Right icons */}
           <div className="flex items-center gap-3 ml-auto">
             <a href="https://wa.me/77769510282" target="_blank" rel="noopener noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
               Связаться
             </a>
+
             {/* Account */}
             <div className="relative" ref={accountRef}>
               {user ? (
@@ -363,7 +392,6 @@ export default function Header() {
                   </svg>
                 </a>
               )}
-
               {accountOpen && user && (
                 <div className="absolute right-0 top-full mt-2 w-52 bg-white rounded-2xl shadow-lg border border-gray-100 py-2 z-50">
                   <div className="px-4 py-2 border-b border-gray-100">
@@ -390,11 +418,8 @@ export default function Header() {
               )}
             </div>
 
-            <button
-              onClick={openCart}
-              className="relative p-2 text-gray-600 hover:text-sky-500 transition-colors"
-              title="Корзина"
-            >
+            {/* Cart */}
+            <button onClick={openCart} className="relative p-2 text-gray-600 hover:text-sky-500 transition-colors" title="Корзина">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -405,6 +430,8 @@ export default function Header() {
                 </span>
               )}
             </button>
+
+            {/* Mobile search toggle */}
             <button
               className="md:hidden p-2 text-gray-600 hover:text-sky-500 transition-colors"
               onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }}
@@ -419,6 +446,8 @@ export default function Header() {
                 </svg>
               )}
             </button>
+
+            {/* Mobile hamburger */}
             <button className="md:hidden p-2 text-gray-600" onClick={() => { setMenuOpen(!menuOpen); setSearchOpen(false); }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -429,27 +458,70 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Tier 3: Category catalog bar */}
-      {categories.length > 0 && (
-        <div className="hidden md:block bg-white border-b border-gray-100 shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+      {/* ── Mega-menu dropdown ── */}
+      {catalogOpen && categories.length > 0 && (
+        <div className="hidden md:block absolute left-0 right-0 top-full bg-white shadow-2xl border-t border-gray-100 z-40">
+          <div className="max-w-7xl mx-auto flex" style={{ minHeight: 320 }}>
+            {/* Left column — L1 categories */}
+            <div className="w-60 flex-shrink-0 bg-gray-50 border-r border-gray-100 py-2">
               {categories.map((cat) => (
-                <a
+                <button
                   key={cat.id}
-                  href={`/catalog?cat=${cat.id}`}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-gray-600 hover:text-sky-600 hover:bg-sky-50 rounded-md transition-colors whitespace-nowrap flex-shrink-0 font-medium"
+                  onMouseEnter={() => setActiveL1(cat.id)}
+                  onClick={() => { router.push(`/catalog?cat=${cat.id}`); setCatalogOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${
+                    activeL1 === cat.id
+                      ? "bg-white text-sky-600 font-semibold border-l-2 border-sky-500"
+                      : "text-gray-700 hover:bg-white hover:text-sky-600 border-l-2 border-transparent"
+                  }`}
                 >
-                  <CategoryIcon slug={cat.slug} />
-                  {cat.name}
-                </a>
+                  <CategoryIcon slug={cat.slug} className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1 truncate">{cat.name}</span>
+                  <svg className="w-4 h-4 flex-shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               ))}
-            </nav>
+            </div>
+
+            {/* Right panel — L2 subcategories */}
+            <div className="flex-1 p-6">
+              {activeCategory && (
+                <>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-bold text-gray-800">{activeCategory.name}</h3>
+                    <a
+                      href={`/catalog?cat=${activeCategory.id}`}
+                      onClick={() => setCatalogOpen(false)}
+                      className="text-sm text-sky-500 hover:text-sky-700 transition-colors"
+                    >
+                      Смотреть все →
+                    </a>
+                  </div>
+                  {activeCategory.children.length > 0 ? (
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-1">
+                      {activeCategory.children.map((sub) => (
+                        <a
+                          key={sub.id}
+                          href={`/catalog?cat=${sub.id}`}
+                          onClick={() => setCatalogOpen(false)}
+                          className="py-2 text-sm text-gray-600 hover:text-sky-600 transition-colors border-b border-gray-50 hover:border-sky-100 truncate"
+                        >
+                          {sub.name}
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">Нет подкатегорий</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Mobile search row with autocomplete */}
+      {/* Mobile search row */}
       {searchOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
           <div className="relative">
@@ -483,7 +555,7 @@ export default function Header() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 shadow-lg">
+        <div className="md:hidden bg-white border-t border-gray-100 shadow-lg max-h-[80vh] overflow-y-auto">
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="relative">
               <form onSubmit={(e) => { setMenuOpen(false); setShowSuggestions(false); handleSearch(e); }}
@@ -512,17 +584,32 @@ export default function Header() {
             </div>
           </div>
           <nav className="flex flex-col py-1">
-            <a href="/catalog" className="px-4 py-3 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors" onClick={() => setMenuOpen(false)}>Весь каталог</a>
+            <a href="/catalog"
+              className="px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors"
+              onClick={() => setMenuOpen(false)}>
+              Весь каталог
+            </a>
             {categories.map((cat) => (
-              <a
-                key={cat.id}
-                href={`/catalog?cat=${cat.id}`}
-                className="px-4 py-2.5 text-sm text-gray-600 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center gap-2"
-                onClick={() => setMenuOpen(false)}
-              >
-                <CategoryIcon slug={cat.slug} />
-                {cat.name}
-              </a>
+              <div key={cat.id}>
+                <a
+                  href={`/catalog?cat=${cat.id}`}
+                  className="px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center gap-2"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <CategoryIcon slug={cat.slug} />
+                  {cat.name}
+                </a>
+                {cat.children.map((sub) => (
+                  <a
+                    key={sub.id}
+                    href={`/catalog?cat=${sub.id}`}
+                    className="pl-10 pr-4 py-2 text-xs text-gray-500 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {sub.name}
+                  </a>
+                ))}
+              </div>
             ))}
             <a href="tel:+77769510282" className="px-4 py-3 text-sky-500 font-semibold text-sm border-t border-gray-100 mt-1">
               +7 776 951 0282

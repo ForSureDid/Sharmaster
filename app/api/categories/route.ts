@@ -7,7 +7,13 @@ export async function GET() {
   const categories = await db.category.findMany({
     where: { level: 1 },
     orderBy: { id: "asc" },
-    select: { id: true, name: true, slug: true },
+    include: {
+      children: {
+        where: { level: 2 },
+        orderBy: { id: "asc" },
+        select: { id: true, name: true, slug: true },
+      },
+    },
   });
   return NextResponse.json(categories);
 }
