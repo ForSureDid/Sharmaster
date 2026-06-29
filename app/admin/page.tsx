@@ -13,6 +13,7 @@ import {
   updateStockQty,
   getAdminMeta,
   createStockItem,
+  bulkCreateItems,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -820,7 +821,7 @@ function NewItemTab() {
   );
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-2xl">
+    <form onSubmit={handleSubmit}>
       <div className="mb-6">
         <h2 className="text-lg font-bold text-gray-800">Новый товар</h2>
         <p className="text-sm text-gray-400 mt-0.5">Заполните карточку — товар сразу появится на сайте</p>
@@ -979,6 +980,225 @@ function NewItemTab() {
       </button>
     </form>
   );
+}
+
+// ─── Bulk item import (right panel of "+ Товар" tab) ──────────────────────────
+
+type BulkRow = {
+  article: string; name: string; fullName: string; barcode: string
+  brand: string; sizeInches: string; stock: number | null; price: number | null
+  existingId: number | null; existingStock: number | null; willCreate: boolean
+}
+type BulkStats = { total: number; willCreate: number; conflicts: number }
+type BulkPhase = "idle" | "uploading" | "preview" | "applying" | "done"
+type BulkDone  = { created: number; skipped: number; errors: string[] }
+
+function BulkItemImport() {
+  const [phase, setPhase]       = useState<BulkPhase>("idle")
+  const [rows,  setRows]        = useState<BulkRow[]>([])
+  const [stats, setStats]       = useState<BulkStats | null>(null)
+  const [done,  setDone]        = useState<BulkDone  | null>(null)
+  const [error, setError]       = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function handleFile(file: File) {
+    setPhase("uploading"); setError(null)
+    const fd = new FormData(); fd.append("file", file)
+    const res = await fetch("/api/admin/items/bulk-preview", { method: "POST", body: fd })
+    const data = await res.json()
+    if (!res.ok) { setError(data.error ?? "Ошибка парсинга"); setPhase("idle"); return }
+    setRows(data.rows); setStats(data.stats); setPhase("preview")
+  }
+
+  async function handleApply() {
+    setPhase("applying"); setError(null)
+    const toCreate = rows.filter(r => r.willCreate)
+    try {
+      const result = await bulkCreateItems(toCreate)
+      setDone(result); setPhase("done")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка создания"); setPhase("preview")
+    }
+  }
+
+  function reset() { setPhase("idle"); setRows([]); setStats(null); setDone(null); setError(null) }
+
+  return (
+    <div className="bg-white rounded-3xl border border-gray-100 p-6 h-fit sticky top-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div>
+          <h2 className="font-bold text-gray-800">Массовый импорт</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Загрузить Excel со списком новых товаров</p>
+        </div>
+        {phase !== "idle" && (
+          <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">сбросить</button>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-4 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">{error}</div>
+      )}
+
+      {/* ── Idle ── */}
+      {phase === "idle" && (
+        <div>
+          <div
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}
+            className="flex flex-col items-center justify-center h-36 rounded-2xl border-2 border-dashed border-gray-200 hover:border-sky-300 hover:bg-sky-50/30 cursor-pointer transition-colors"
+          >
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+            <svg className="w-8 h-8 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-sm text-gray-500 font-medium">Перетащите .xlsx или нажмите</p>
+            <p className="text-xs text-gray-400 mt-1">Файл из 1С или любой Excel</p>
+          </div>
+
+          {/* 1C reminder */}
+          <div className="mt-4 px-3 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-xs font-semibold text-amber-700 mb-1">⚠️ Ожидаем образец файла 1С</p>
+            <p className="text-xs text-amber-600">
+              Пришлите файл экспорта из 1С — настроим точное распознавание колонок под ваш формат.
+              Пока работает авто-определение (Наименование, Артикул, Количество, Цена).
+            </p>
+          </div>
+
+          {/* Expected columns hint */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 mb-2">Ожидаемые колонки</p>
+            <div className="flex flex-wrap gap-1.5">
+              {["Наименование*", "Артикул", "Количество", "Цена", "Бренд", "Размер", "Штрихкод"].map(col => (
+                <span key={col} className={`px-2 py-0.5 rounded-md text-xs font-medium ${
+                  col.endsWith("*") ? "bg-sky-100 text-sky-700" : "bg-gray-100 text-gray-500"
+                }`}>{col}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Uploading ── */}
+      {phase === "uploading" && (
+        <div className="flex flex-col items-center justify-center h-48 gap-3">
+          <div className="w-8 h-8 rounded-full border-[3px] border-sky-400 border-t-transparent animate-spin" />
+          <p className="text-sm text-sky-600 font-medium">Анализируем файл...</p>
+        </div>
+      )}
+
+      {/* ── Preview ── */}
+      {phase === "preview" && stats && (
+        <div>
+          {/* Stats chips */}
+          <div className="flex gap-2 mb-4">
+            <span className="px-3 py-1.5 bg-green-100 text-green-700 text-xs font-bold rounded-xl">
+              {stats.willCreate} новых
+            </span>
+            {stats.conflicts > 0 && (
+              <span className="px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-xl">
+                {stats.conflicts} конфликт{stats.conflicts === 1 ? "" : "ов"}
+              </span>
+            )}
+            <span className="px-3 py-1.5 bg-gray-100 text-gray-500 text-xs font-bold rounded-xl">
+              {stats.total} всего
+            </span>
+          </div>
+
+          {/* Preview table */}
+          <div className="overflow-y-auto max-h-64 rounded-2xl border border-gray-100 mb-4">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-gray-50 border-b border-gray-100">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold text-gray-500">Название</th>
+                  <th className="text-left px-3 py-2 font-semibold text-gray-500">Арт.</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gray-500">Кол.</th>
+                  <th className="text-right px-3 py-2 font-semibold text-gray-500">Цена</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className={`border-b border-gray-50 last:border-0 ${
+                    r.willCreate ? "" : "bg-amber-50/60"
+                  }`}>
+                    <td className="px-3 py-2 max-w-[160px] truncate font-medium text-gray-800">{r.name}</td>
+                    <td className="px-3 py-2 text-gray-400">{r.article || "—"}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{r.stock ?? "—"}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{r.price != null ? `${r.price}₸` : "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      {r.willCreate ? (
+                        <span className="text-green-600 font-bold">+</span>
+                      ) : (
+                        <span className="text-amber-500 font-bold" title={`Уже есть (ID ${r.existingId})`}>!</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {stats.conflicts > 0 && (
+            <p className="text-xs text-amber-600 mb-3">
+              <span className="font-bold">!</span> {stats.conflicts} товар{stats.conflicts === 1 ? "" : "а"} уже есть в базе — будут пропущены
+            </p>
+          )}
+
+          {stats.willCreate === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-2">Все товары уже существуют в базе</p>
+          ) : (
+            <button onClick={handleApply}
+              className="w-full py-2.5 bg-sky-500 text-white text-sm font-bold rounded-2xl hover:bg-sky-600 transition-colors shadow-sm">
+              Создать {stats.willCreate} товар{stats.willCreate === 1 ? "" : stats.willCreate < 5 ? "а" : "ов"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Applying ── */}
+      {phase === "applying" && (
+        <div className="flex flex-col items-center justify-center h-48 gap-3">
+          <div className="w-8 h-8 rounded-full border-[3px] border-sky-400 border-t-transparent animate-spin" />
+          <p className="text-sm text-sky-600 font-medium">Создаём товары...</p>
+        </div>
+      )}
+
+      {/* ── Done ── */}
+      {phase === "done" && done && (
+        <div>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-bold text-gray-800">Готово</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Создано: {done.created} · Пропущено: {done.skipped}
+                {done.errors.length > 0 ? ` · Ошибок: ${done.errors.length}` : ""}
+              </p>
+            </div>
+          </div>
+          {done.errors.length > 0 && (
+            <div className="mb-4 px-3 py-2 bg-red-50 rounded-xl text-xs text-red-600">
+              <p className="font-semibold mb-1">Не удалось создать:</p>
+              {done.errors.slice(0, 5).map((e, i) => <p key={i}>{e}</p>)}
+              {done.errors.length > 5 && <p>...ещё {done.errors.length - 5}</p>}
+            </div>
+          )}
+          <button onClick={reset}
+            className="w-full py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-2xl hover:bg-gray-200 transition-colors">
+            Загрузить ещё файл
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -1293,7 +1513,12 @@ export default function AdminPage() {
           {activeTab === "import" && <ImportTab />}
 
           {/* ─── New item tab ─── */}
-          {activeTab === "new" && <NewItemTab />}
+          {activeTab === "new" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              <NewItemTab />
+              <BulkItemImport />
+            </div>
+          )}
 
         </div>
       </main>

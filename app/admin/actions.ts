@@ -136,6 +136,23 @@ export async function createStockItem(data: {
   if (data.pricePerPc < 0) throw new Error('Цена не может быть отрицательной')
   if (data.stock < 0)      throw new Error('Остаток не может быть отрицательным')
 
+  // Duplicate guard
+  const dupe = await db.stockItem.findFirst({
+    where: {
+      OR: [
+        { name: data.name.trim() },
+        ...(data.article?.trim() ? [{ article: data.article.trim() }] : []),
+      ],
+    },
+    select: { id: true, name: true, article: true },
+  })
+  if (dupe) {
+    const by = dupe.article && data.article?.trim() === dupe.article
+      ? `артикулу "${dupe.article}"`
+      : `названию "${dupe.name}"`
+    throw new Error(`Товар с таким ${by} уже есть в базе`)
+  }
+
   const item = await db.stockItem.create({
     data: {
       name:       data.name.trim(),
@@ -160,4 +177,64 @@ export async function createStockItem(data: {
   revalidatePath('/admin')
 
   return { id: item.id, name: item.name }
+}
+
+export async function bulkCreateItems(rows: Array<{
+  article: string; name: string; fullName: string; barcode: string
+  brand: string; sizeInches: string; stock: number | null; price: number | null
+}>) {
+  await requireAdmin()
+  if (!rows.length) throw new Error('Нет строк для создания')
+
+  // Re-check conflicts right before inserting (race-condition guard)
+  const articles = rows.filter(r => r.article).map(r => r.article)
+  const names    = rows.map(r => r.name)
+
+  const existing = await db.stockItem.findMany({
+    where: {
+      OR: [
+        ...(articles.length ? [{ article: { in: articles } }] : []),
+        { name: { in: names } },
+      ],
+    },
+    select: { article: true, name: true },
+  })
+  const dupArticles = new Set(existing.filter(e => e.article).map(e => e.article!))
+  const dupNames    = new Set(existing.map(e => e.name))
+
+  const toCreate = rows.filter(r =>
+    !(r.article && dupArticles.has(r.article)) && !dupNames.has(r.name)
+  )
+  const skipped = rows.length - toCreate.length
+
+  let created = 0
+  const errors: string[] = []
+
+  for (const r of toCreate) {
+    try {
+      await db.stockItem.create({
+        data: {
+          name:       r.name,
+          fullName:   r.fullName   || null,
+          article:    r.article    || null,
+          barcode:    r.barcode    || null,
+          brand:      r.brand      || null,
+          sizeInches: r.sizeInches || null,
+          stock:      r.stock   ?? 0,
+          pricePerPc: r.price   ?? 0,
+          onSale:     false,
+          images:     [],
+        },
+      })
+      created++
+    } catch {
+      errors.push(r.name)
+    }
+  }
+
+  revalidatePath('/')
+  revalidatePath('/catalog')
+  revalidatePath('/admin')
+
+  return { created, skipped, errors }
 }
