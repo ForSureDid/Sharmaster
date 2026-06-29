@@ -26,7 +26,7 @@ export default function OrderPage() {
         customerName: name,
         phone,
         address,
-        items: items.map(i => ({ id: i.id, qty: i.qty, name: i.name, price: i.salePrice ?? i.price })),
+        items: items.map(i => ({ id: i.id, qty: i.packSize ? i.qty * i.packSize : i.qty, name: i.name, price: i.salePrice ?? i.price })),
       });
       if (result.ok) {
         clearCart();
@@ -187,7 +187,7 @@ export default function OrderPage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-800 leading-snug line-clamp-2">{item.name}</p>
                           <p className="text-[11px] text-gray-400 mt-0.5">
-                            {(item.salePrice ?? item.price).toLocaleString()} ₸ × {item.qty}
+                            {(item.salePrice ?? item.price).toLocaleString()} ₸ × {item.qty}{item.packSize ? " уп" : ""}
                           </p>
                         </div>
                         <p className="text-sm font-bold text-sky-600 flex-shrink-0">

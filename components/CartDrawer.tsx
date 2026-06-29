@@ -74,7 +74,7 @@ export default function CartDrawer() {
             </svg>
             <h2 className="text-base font-bold text-gray-800">Корзина</h2>
             {items.length > 0 && (
-              <span className="text-xs text-gray-400">({items.reduce((s, i) => s + i.qty, 0)} шт.)</span>
+              <span className="text-xs text-gray-400">({items.length} поз.)</span>
             )}
           </div>
           <button
@@ -117,27 +117,27 @@ export default function CartDrawer() {
                     </p>
                     {item.qty > 1 && (
                       <p className="text-[11px] text-gray-400">
-                        {(item.salePrice ?? item.price).toLocaleString()} ₸ × {item.qty}
+                        {(item.salePrice ?? item.price).toLocaleString()} ₸ × {item.qty}{item.packSize ? " уп" : ""}
                       </p>
                     )}
 
                     {/* Qty stepper */}
                     <div className="flex items-center gap-2 mt-2">
                       {item.packSize && (
-                        <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                          уп. {item.packSize} шт
+                        <span className="text-[10px] text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">
+                          {item.packSize} шт/уп
                         </span>
                       )}
                       <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
                         <button
-                          onClick={() => updateQty(item.id, item.qty - (item.packSize ?? 1))}
+                          onClick={() => updateQty(item.id, item.qty - 1)}
                           className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg leading-none"
                         >
                           −
                         </button>
-                        <span className="w-8 text-center text-sm font-semibold text-gray-800">{item.qty}</span>
+                        <span className="w-10 text-center text-sm font-semibold text-gray-800">{item.qty}{item.packSize ? " уп" : ""}</span>
                         <button
-                          onClick={() => updateQty(item.id, item.qty + (item.packSize ?? 1))}
+                          onClick={() => updateQty(item.id, item.qty + 1)}
                           className="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors text-lg leading-none"
                         >
                           +

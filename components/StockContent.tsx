@@ -82,13 +82,6 @@ function getPackSize(item: StockCard): number | null {
   return item.unitsPerPackage ?? 50;
 }
 
-// 18" and larger latex → sold individually (but pack can be added in one tap).
-function isSoldIndividually(item: StockCard): boolean {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  return isLatex && ["18", "24", "36"].includes(item.sizeInches ?? "");
-}
 
 function ImageCarousel({ images, name, sizes, priority }: { images: string[]; name: string; sizes: string; priority?: boolean }) {
   const [idx, setIdx] = useState(0);
@@ -154,14 +147,13 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
-  const individual = isSoldIndividually(item);
-  const step = individual ? 1 : (packSize ?? 1);
+  const packagePrice = packSize ? item.pricePerPc * packSize : item.pricePerPc;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
     name: displayName,
-    price: item.pricePerPc,
+    price: packagePrice,
     salePrice: null,
     imageUrl: item.imageUrl,
     colorGroup: null,
@@ -208,59 +200,40 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
         </a>
 
         <div className="mt-auto">
-          <div className="text-base font-bold text-sky-600 mb-1">
-            {item.pricePerPc.toLocaleString()} ₸<span className="text-xs font-normal text-gray-400"> / шт</span>
+          <div className="text-base font-bold text-sky-600 mb-0.5">
+            {packagePrice.toLocaleString()} ₸<span className="text-xs font-normal text-gray-400"> / {packSize ? "уп" : "шт"}</span>
           </div>
-          {/* Pack badge only for pack-only items */}
-          {!individual && packSize && (
-            <div className="text-[10px] text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 inline-block mb-2">
-              упак. {packSize} шт
+          {packSize && (
+            <div className="text-[10px] text-gray-400 mb-2">
+              {packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт
             </div>
           )}
 
           {cartItem ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between border border-sky-300 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty - step)}
-                  className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                >−</button>
-                <span className="flex-1 text-center text-sm font-bold text-sky-600">{cartItem.qty}</span>
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + step)}
-                  className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                >+</button>
-              </div>
-              {individual && packSize && (
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + packSize)}
-                  className="w-full text-[11px] py-1 border border-amber-200 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                >
-                  + упаковка ({packSize} шт)
-                </button>
-              )}
+            <div className="flex items-center justify-between border border-sky-300 rounded-lg overflow-hidden">
+              <button
+                onClick={() => updateQty(item.id, cartItem.qty - 1)}
+                className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+              >−</button>
+              <span className="flex-1 text-center text-sm font-bold text-sky-600">
+                {cartItem.qty}{packSize ? " уп" : " шт"}
+              </span>
+              <button
+                onClick={() => updateQty(item.id, cartItem.qty + 1)}
+                className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
+              >+</button>
             </div>
           ) : (
-            <div className="space-y-1.5">
-              <button
-                onClick={() => addToCart(asCartProduct, individual ? null : packSize)}
-                disabled={!inStock}
-                className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                </svg>
-                {!inStock ? "Нет в наличии" : !individual && packSize ? `В корзину (${packSize} шт)` : "В корзину"}
-              </button>
-              {individual && packSize && inStock && (
-                <button
-                  onClick={() => addToCart(asCartProduct, null, packSize)}
-                  className="w-full text-[11px] py-1 border border-amber-200 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                >
-                  + упаковка ({packSize} шт)
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => addToCart(asCartProduct, packSize ?? null)}
+              disabled={!inStock}
+              className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              {!inStock ? "Нет в наличии" : packSize ? "В корзину (1 уп)" : "В корзину"}
+            </button>
           )}
         </div>
       </div>
@@ -273,14 +246,13 @@ function StockCardList({ item }: { item: StockCard }) {
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
-  const individual = isSoldIndividually(item);
-  const step = individual ? 1 : (packSize ?? 1);
+  const packagePrice = packSize ? item.pricePerPc * packSize : item.pricePerPc;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
     name: displayName,
-    price: item.pricePerPc,
+    price: packagePrice,
     salePrice: null,
     imageUrl: item.imageUrl,
     colorGroup: null,
@@ -315,49 +287,33 @@ function StockCardList({ item }: { item: StockCard }) {
             <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{displayName}</h3>
           </a>
         </div>
-        <div className="flex-shrink-0 text-right min-w-[90px]">
-          <p className="text-lg font-bold text-sky-600">{item.pricePerPc.toLocaleString()} ₸</p>
-          <p className="text-xs text-gray-400">за 1 шт</p>
-          {!individual && packSize && (
-            <p className="text-[10px] text-amber-600 mt-0.5">упак. {packSize} шт</p>
+        <div className="flex-shrink-0 text-right min-w-[100px]">
+          <p className="text-lg font-bold text-sky-600">{packagePrice.toLocaleString()} ₸</p>
+          <p className="text-xs text-gray-400">за 1 {packSize ? "уп" : "шт"}</p>
+          {packSize && (
+            <p className="text-[10px] text-gray-400 mt-0.5">{packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт</p>
           )}
         </div>
         {cartItem ? (
-          <div className="flex-shrink-0 flex flex-col items-end gap-1">
+          <div className="flex-shrink-0">
             <div className="flex items-center border border-sky-300 rounded-lg overflow-hidden">
-              <button onClick={() => updateQty(item.id, cartItem.qty - step)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">−</button>
-              <span className="w-8 text-center text-sm font-bold text-sky-600">{cartItem.qty}</span>
-              <button onClick={() => updateQty(item.id, cartItem.qty + step)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">+</button>
+              <button onClick={() => updateQty(item.id, cartItem.qty - 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">−</button>
+              <span className="w-12 text-center text-sm font-bold text-sky-600">{cartItem.qty}{packSize ? " уп" : ""}</span>
+              <button onClick={() => updateQty(item.id, cartItem.qty + 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">+</button>
             </div>
-            {individual && packSize && (
-              <button
-                onClick={() => updateQty(item.id, cartItem.qty + packSize)}
-                className="text-[11px] px-2 py-0.5 border border-amber-200 text-amber-600 hover:bg-amber-50 rounded transition-colors whitespace-nowrap"
-              >
-                + уп. {packSize} шт
-              </button>
-            )}
           </div>
         ) : (
-          <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
+          <div className="flex-shrink-0">
             <button
-              onClick={() => addToCart(asCartProduct, individual ? null : packSize)}
+              onClick={() => addToCart(asCartProduct, packSize ?? null)}
               disabled={!inStock}
               className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
               </svg>
-              {!individual && packSize ? `В корзину (${packSize} шт)` : "В корзину"}
+              {packSize ? "1 уп" : "В корзину"}
             </button>
-            {individual && packSize && inStock && (
-              <button
-                onClick={() => addToCart(asCartProduct, null, packSize)}
-                className="text-[11px] px-3 py-1 border border-amber-200 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors whitespace-nowrap"
-              >
-                + упаковка ({packSize} шт)
-              </button>
-            )}
           </div>
         )}
       </div>

@@ -29,7 +29,10 @@ function getPackSize(item: StockDetail): number | null {
   }
   if (brand.includes("забав")) { const t: Record<string, number> = { "12": 50, "18": 25, "24": 10 }; return t[size] ?? 50; }
   if (brand.includes("sempertex")) {
-    if (size === "18") return ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром") ? 10 : 25;
+    if (size === "18") {
+      const isChrome = ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром");
+      return isChrome ? 10 : 25;
+    }
     const t: Record<string, number> = { "5": 100, "12": 50, "24": 3, "36": 10 };
     return t[size] ?? 50;
   }
@@ -44,12 +47,6 @@ function getPackSize(item: StockDetail): number | null {
   return item.unitsPerPackage ?? 50;
 }
 
-function isSoldIndividually(item: StockDetail): boolean {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  return isLatex && ["18", "24", "36"].includes(item.sizeInches ?? "");
-}
 
 function Gallery({ images, name }: { images: string[]; name: string }) {
   const [active, setActive] = useState(0);
@@ -138,14 +135,13 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
-  const individual = isSoldIndividually(item);
-  const step = individual ? 1 : (packSize ?? 1);
+  const packagePrice = packSize ? item.pricePerPc * packSize : item.pricePerPc;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
     id: item.id,
     name: displayName,
-    price: item.pricePerPc,
+    price: packagePrice,
     salePrice: null,
     imageUrl: item.imageUrl,
     colorGroup: null,
@@ -186,66 +182,48 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         {/* Price block */}
         <div className="bg-gray-50 rounded-2xl p-4 flex items-end gap-3">
           <span className="text-4xl font-extrabold text-sky-600">
-            {item.pricePerPc.toLocaleString("ru-KZ")} ₸
+            {packagePrice.toLocaleString("ru-KZ")} ₸
           </span>
-          <span className="text-sm text-gray-400 pb-1">/ шт</span>
+          <span className="text-sm text-gray-400 pb-1">/ {packSize ? "уп" : "шт"}</span>
         </div>
 
         {/* Pack info */}
-        {!individual && packSize && (
-          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5">
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {packSize && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+            <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
-            Продаётся упаковками по <strong>{packSize} шт</strong> · {(item.pricePerPc * packSize).toLocaleString("ru-KZ")} ₸ / упак
+            <strong>{packSize} шт</strong> в упаковке · {item.pricePerPc.toLocaleString("ru-KZ")} ₸ / шт
           </div>
         )}
 
         {/* Add to cart */}
         <div className="flex flex-col gap-2">
           {cartItem ? (
-            <>
-              <div className="flex items-center border-2 border-sky-300 rounded-xl overflow-hidden w-full">
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty - step)}
-                  className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
-                >−</button>
-                <span className="flex-1 text-center text-lg font-extrabold text-sky-700">{cartItem.qty} шт</span>
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + step)}
-                  className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
-                >+</button>
-              </div>
-              {individual && packSize && (
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + packSize)}
-                  className="w-full py-2.5 text-sm border border-amber-200 text-amber-600 hover:bg-amber-50 rounded-xl transition-colors font-medium"
-                >
-                  + упаковка ({packSize} шт)
-                </button>
-              )}
-            </>
-          ) : (
-            <>
+            <div className="flex items-center border-2 border-sky-300 rounded-xl overflow-hidden w-full">
               <button
-                onClick={() => addToCart(asCartProduct, individual ? null : packSize)}
-                disabled={!inStock}
-                className="w-full h-14 flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-colors shadow-sm"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {!inStock ? "Нет в наличии" : !individual && packSize ? `В корзину (${packSize} шт)` : "В корзину"}
-              </button>
-              {individual && packSize && inStock && (
-                <button
-                  onClick={() => addToCart(asCartProduct, null, packSize)}
-                  className="w-full py-2.5 text-sm border border-amber-200 text-amber-600 hover:bg-amber-50 rounded-xl transition-colors font-medium"
-                >
-                  + упаковка ({packSize} шт)
-                </button>
-              )}
-            </>
+                onClick={() => updateQty(item.id, cartItem.qty - 1)}
+                className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
+              >−</button>
+              <span className="flex-1 text-center text-lg font-extrabold text-sky-700">
+                {cartItem.qty} {packSize ? "уп" : "шт"}
+              </span>
+              <button
+                onClick={() => updateQty(item.id, cartItem.qty + 1)}
+                className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
+              >+</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => addToCart(asCartProduct, packSize ?? null)}
+              disabled={!inStock}
+              className="w-full h-14 flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-colors shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              {!inStock ? "Нет в наличии" : packSize ? "В корзину (1 уп)" : "В корзину"}
+            </button>
           )}
         </div>
 

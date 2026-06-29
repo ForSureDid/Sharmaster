@@ -18,7 +18,7 @@ type CartContextType = {
   isOpen: boolean;
   openCart: () => void;
   closeCart: () => void;
-  addToCart: (product: ProductCard, packSize?: number | null, initialQty?: number) => void;
+  addToCart: (product: ProductCard, packSize?: number | null) => void;
   removeFromCart: (id: number) => void;
   updateQty: (id: number, qty: number) => void;
   clearCart: () => void;
@@ -41,12 +41,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("sharmaster_cart", JSON.stringify(items));
   }, [items]);
 
-  const addToCart = useCallback((product: ProductCard, packSize: number | null = null, initialQty?: number) => {
+  const addToCart = useCallback((product: ProductCard, packSize: number | null = null) => {
     setItems((prev) => {
       const existing = prev.find((i) => i.id === product.id);
       if (existing) {
-        const step = existing.packSize ?? 1;
-        return prev.map((i) => i.id === product.id ? { ...i, qty: i.qty + step } : i);
+        return prev.map((i) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
       }
       return [...prev, {
         id: product.id,
@@ -54,7 +53,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         price: product.price,
         salePrice: product.salePrice,
         imageUrl: product.imageUrl,
-        qty: initialQty ?? packSize ?? 1,
+        qty: 1,
         packSize,
       }];
     });
