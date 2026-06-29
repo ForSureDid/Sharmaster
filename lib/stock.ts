@@ -38,8 +38,9 @@ export type StockFilters = {
 }
 
 // Latex top-level ID 268 + its children; Foil top-level 275 + children
-const LATEX_IDS = new Set([268, 269, 270, 271, 272, 273])
-const FOIL_IDS  = new Set([275, 276, 277, 278, 279, 280, 281, 282, 283])
+const LATEX_IDS      = new Set([268, 269, 270, 271, 272, 273])
+const FOIL_IDS       = new Set([275, 276, 277, 278, 279, 280, 281, 282, 283])
+const FOIL_DIGIT_IDS = new Set([276]) // Фольгированные цифры
 
 // User-visible size priorities for latex: 12 → 24 → 18 → 5 → 36 → rest
 const LATEX_SIZE_RANK: Record<number, number> = { 12: 1, 24: 2, 18: 3, 5: 4, 36: 5 }
@@ -56,6 +57,20 @@ function extractLatexSize(name: string): number {
 
 function latexSizeOrder(name: string): number {
   return LATEX_SIZE_RANK[extractLatexSize(name)] ?? 6
+}
+
+// For foil number balloons (cat 276): extract [groupKey, digit] so that
+// all items of the same color/style series are sorted together (0→9).
+// Names look like "Brand Цифра 1 Красный", "Brand Цифра 32' 0 Золото", etc.
+// The optional `(?:\d+['"]\s+)?` skips a size marker (e.g. "32' ") that some
+// brands put between "Цифра" and the actual digit.
+function foilDigitGroupKey(name: string): [string, number] {
+  const m = /(цифр[а-я]*[\s,]+)(?:\d+['"]\s+)?(\d{1,2})/i.exec(name)
+  if (!m) return [name.toLowerCase(), 999]
+  const digit = parseInt(m[2])
+  const prefix = name.slice(0, m.index) + m[1]
+  const suffix = name.slice(m.index + m[0].length)
+  return [(prefix + '\x00' + suffix).toLowerCase(), digit]
 }
 
 // Relevance score for a search query against one item.
@@ -211,8 +226,9 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
   // ── Smart sort: two-pass (all IDs → JS sort → paginate → full fetch) ─────────
   if (sort === 'smart') {
-    const isLatex = categoryIds != null && categoryIds.some(id => LATEX_IDS.has(id))
-    const isFoil  = categoryIds != null && categoryIds.some(id => FOIL_IDS.has(id))
+    const isLatex     = categoryIds != null && categoryIds.some(id => LATEX_IDS.has(id))
+    const isFoil      = categoryIds != null && categoryIds.some(id => FOIL_IDS.has(id))
+    const isFoilDigit = categoryIds != null && categoryIds.length > 0 && categoryIds.every(id => FOIL_DIGIT_IDS.has(id))
 
     // Stable cache key: sort category IDs numerically
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
@@ -239,6 +255,12 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
         latexSizeOrder(a.name) - latexSizeOrder(b.name) ||
         a.name.localeCompare(b.name, 'ru')
       )
+    } else if (isFoilDigit) {
+      allRows.sort((a, b) => {
+        const [tagA, digA] = foilDigitGroupKey(a.name)
+        const [tagB, digB] = foilDigitGroupKey(b.name)
+        return tagA.localeCompare(tagB, 'ru') || digA - digB || (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0)
+      })
     } else if (isFoil) {
       allRows.sort((a, b) =>
         (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
