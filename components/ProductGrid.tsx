@@ -23,7 +23,7 @@ export default function ProductGrid({ items }: Props) {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {items.map((item) => {
+          {items.map((item, i) => {
             const cartItem = cartItems.find((i) => i.id === item.id);
             const salePrice = item.salePercent
               ? Math.round(item.pricePerPc * (1 - item.salePercent / 100))
@@ -50,6 +50,7 @@ export default function ProductGrid({ items }: Props) {
                       src={item.imageUrl}
                       alt={item.fullName ?? item.name}
                       fill
+                      priority={i < 4}
                       sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                       className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                     />

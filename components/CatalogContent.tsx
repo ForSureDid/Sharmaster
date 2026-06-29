@@ -16,7 +16,7 @@ type Props = {
 
 type ViewMode = "grid" | "list";
 
-function ProductCardGrid({ product }: { product: ProductCard }) {
+function ProductCardGrid({ product, priority }: { product: ProductCard; priority?: boolean }) {
   const hasImage = !!product.imageUrl;
   const hasSale = product.salePrice !== null && product.salePrice < product.price;
   const { items, addToCart, updateQty } = useCart();
@@ -30,6 +30,7 @@ function ProductCardGrid({ product }: { product: ProductCard }) {
             src={product.imageUrl!}
             alt={product.name}
             fill
+            priority={priority}
             className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
@@ -249,7 +250,7 @@ export default function CatalogContent({ items, total, page, totalPages, per }: 
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-          {items.map((p) => <ProductCardGrid key={p.id} product={p} />)}
+          {items.map((p, i) => <ProductCardGrid key={p.id} product={p} priority={i < 4} />)}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

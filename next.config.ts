@@ -47,7 +47,8 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
-    minimumCacheTTL: 31536000, // cache optimized images for 1 year
+    loaderFile: './supabase-image-loader.ts',
+    minimumCacheTTL: 31536000,
     remotePatterns: [
       {
         protocol: "https",
