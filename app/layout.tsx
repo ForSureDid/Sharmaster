@@ -10,9 +10,6 @@ const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "
 export const metadata: Metadata = {
   title: "Sharmaster — Оптовый магазин воздушных шаров",
   description: "Широкий ассортимент шаров для любого праздника. Качество, доступные цены и быстрая доставка по всему Казахстану.",
-  icons: {
-    icon: "/profile-icon.png",
-  },
 };
 
 export default function RootLayout({
