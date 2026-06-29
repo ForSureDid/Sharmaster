@@ -108,7 +108,7 @@ function getPackSize(item: StockCard): number | null {
 }
 
 
-function ImageCarousel({ images, name, sizes, priority }: { images: string[]; name: string; sizes: string; priority?: boolean }) {
+function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }: { images: string[]; name: string; sizes: string; priority?: boolean; objectFit?: "contain" | "cover" }) {
   const [idx, setIdx] = useState(0);
   const total = images.length;
 
@@ -128,7 +128,7 @@ function ImageCarousel({ images, name, sizes, priority }: { images: string[]; na
         src={images[idx]}
         alt={name}
         fill
-        className="object-contain p-2 transition-opacity duration-200"
+        className={objectFit === "cover" ? "object-cover transition-opacity duration-200" : "object-contain p-2 transition-opacity duration-200"}
         sizes={sizes}
         priority={priority}
       />
@@ -310,9 +310,9 @@ function StockCardList({ item }: { item: StockCard }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex group">
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-gray-50 self-center">
+      <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-gray-50 self-center overflow-hidden">
         {item.images.length > 0 ? (
-          <ImageCarousel images={item.images} name={item.name} sizes="112px" />
+          <ImageCarousel images={item.images} name={item.name} sizes="112px" objectFit="cover" />
         ) : (
           <div className="w-full h-full min-h-[80px] flex items-center justify-center">
             <svg className="w-7 h-7 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
