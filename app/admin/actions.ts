@@ -102,6 +102,60 @@ export async function updateStockQty(id: number, stock: number) {
   revalidatePath('/admin')
 }
 
+export async function getSaleItems(search = '', page = 0) {
+  await requireAdmin()
+  const take = 50
+  const skip = page * take
+  const where = {
+    onSale: true,
+    ...(search ? {
+      OR: [
+        { name:    { contains: search, mode: 'insensitive' as const } },
+        { article: { contains: search, mode: 'insensitive' as const } },
+        { brand:   { contains: search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+  const [items, total] = await Promise.all([
+    db.stockItem.findMany({ where, orderBy: { name: 'asc' }, take, skip }),
+    db.stockItem.count({ where }),
+  ])
+  return {
+    items: items.map(i => ({
+      id: i.id, name: i.name, article: i.article, brand: i.brand,
+      stock: i.stock, pricePerPc: Number(i.pricePerPc),
+      imageUrl: i.imageUrl, onSale: i.onSale, salePercent: i.salePercent,
+    })),
+    total,
+  }
+}
+
+export async function updateSaleStatus(id: number, onSale: boolean, salePercent: number | null) {
+  await requireAdmin()
+  await db.stockItem.update({ where: { id }, data: { onSale, salePercent: onSale ? salePercent : null } })
+  revalidatePath('/admin')
+  revalidatePath('/sale')
+  revalidatePath('/catalog')
+}
+
+export async function searchAllItems(query: string) {
+  await requireAdmin()
+  if (!query.trim()) return []
+  const rows = await db.stockItem.findMany({
+    where: {
+      OR: [
+        { name:    { contains: query, mode: 'insensitive' } },
+        { article: { contains: query, mode: 'insensitive' } },
+        { brand:   { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, name: true, article: true, brand: true, pricePerPc: true, onSale: true, salePercent: true },
+    take: 12,
+    orderBy: { name: 'asc' },
+  })
+  return rows.map(r => ({ ...r, pricePerPc: Number(r.pricePerPc) }))
+}
+
 export async function getAdminMeta() {
   await requireAdmin()
   const [categories, brandRows] = await Promise.all([

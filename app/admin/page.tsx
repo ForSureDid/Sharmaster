@@ -12,6 +12,9 @@ import {
   getStockItems,
   updateStockQty,
   updateSizeInches,
+  getSaleItems,
+  updateSaleStatus,
+  searchAllItems,
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
@@ -616,6 +619,313 @@ function ImportTab() {
   return null;
 }
 
+// ─── Sale tab ─────────────────────────────────────────────────────────────────
+
+type SaleItem = {
+  id: number; name: string; article: string | null; brand: string | null;
+  stock: number; pricePerPc: number; imageUrl: string | null;
+  onSale: boolean; salePercent: number | null;
+};
+type SearchResult = {
+  id: number; name: string; article: string | null; brand: string | null;
+  pricePerPc: number; onSale: boolean; salePercent: number | null;
+};
+
+function SaleTab() {
+  const [search, setSearch]         = useState("");
+  const [debSearch, setDebSearch]   = useState("");
+  const [page, setPage]             = useState(0);
+  const [data, setData]             = useState<{ items: SaleItem[]; total: number } | null>(null);
+  const [loading, setLoading]       = useState(true);
+
+  // Inline percent edit
+  const [editingId, setEditingId]   = useState<number | null>(null);
+  const [editVal, setEditVal]       = useState("");
+  const editRef                     = useRef<HTMLInputElement>(null);
+  const [isPending, startTx]        = useTransition();
+
+  // "Add to sale" panel
+  const [addOpen, setAddOpen]       = useState(false);
+  const [addQuery, setAddQuery]     = useState("");
+  const [addResults, setAddResults] = useState<SearchResult[]>([]);
+  const [addBusy, setAddBusy]       = useState(false);
+  const [addDiscounts, setAddDiscounts] = useState<Record<number, string>>({});
+
+  // Debounce main search
+  useEffect(() => {
+    const t = setTimeout(() => { setDebSearch(search); setPage(0); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Load sale items
+  useEffect(() => {
+    setLoading(true);
+    getSaleItems(debSearch, page).then(setData).finally(() => setLoading(false));
+  }, [debSearch, page]);
+
+  // Debounce add-search
+  useEffect(() => {
+    if (!addQuery.trim()) { setAddResults([]); return; }
+    setAddBusy(true);
+    const t = setTimeout(async () => {
+      const r = await searchAllItems(addQuery);
+      setAddResults(r as SearchResult[]);
+      setAddBusy(false);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [addQuery]);
+
+  function reload() {
+    setLoading(true);
+    getSaleItems(debSearch, page).then(setData).finally(() => setLoading(false));
+  }
+
+  function startEdit(item: SaleItem) {
+    setEditingId(item.id);
+    setEditVal(String(item.salePercent ?? ""));
+    setTimeout(() => editRef.current?.select(), 30);
+  }
+
+  function saveEdit(id: number) {
+    const pct = parseInt(editVal);
+    if (isNaN(pct) || pct < 1 || pct > 99) { setEditingId(null); return; }
+    startTx(async () => {
+      await updateSaleStatus(id, true, pct);
+      setData(prev => prev ? {
+        ...prev,
+        items: prev.items.map(i => i.id === id ? { ...i, salePercent: pct } : i),
+      } : null);
+      setEditingId(null);
+    });
+  }
+
+  function removeFromSale(id: number) {
+    startTx(async () => {
+      await updateSaleStatus(id, false, null);
+      setData(prev => prev ? {
+        ...prev,
+        items: prev.items.filter(i => i.id !== id),
+        total: prev.total - 1,
+      } : null);
+    });
+  }
+
+  function addToSale(item: SearchResult) {
+    const pct = parseInt(addDiscounts[item.id] ?? "10");
+    if (isNaN(pct) || pct < 1 || pct > 99) return;
+    startTx(async () => {
+      await updateSaleStatus(item.id, true, pct);
+      setAddResults(prev => prev.filter(r => r.id !== item.id));
+      reload();
+    });
+  }
+
+  const salePrice = (price: number, pct: number | null) =>
+    pct ? Math.round(price * (1 - pct / 100)) : price;
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div>
+          <h2 className="text-lg font-bold text-gray-800">Управление акциями</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {data ? `${data.total} товаров на акции` : "Загружаем..."}
+          </p>
+        </div>
+        <button
+          onClick={() => { setAddOpen(o => !o); setAddQuery(""); setAddResults([]); }}
+          className="ml-auto px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-xl hover:bg-purple-600 transition-colors"
+        >
+          {addOpen ? "Закрыть" : "+ Добавить в акцию"}
+        </button>
+      </div>
+
+      {/* Add-to-sale panel */}
+      {addOpen && (
+        <div className="bg-white rounded-3xl border border-purple-100 p-5 mb-5">
+          <p className="text-sm font-semibold text-gray-700 mb-3">Найти товар и поставить на акцию</p>
+          <input
+            value={addQuery}
+            onChange={e => setAddQuery(e.target.value)}
+            placeholder="Поиск по названию, артикулу, бренду..."
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 mb-3"
+            autoFocus
+          />
+          {addBusy && <p className="text-xs text-gray-400 mb-2">Ищем...</p>}
+          {addResults.length > 0 && (
+            <div className="divide-y divide-gray-50">
+              {addResults.map(item => (
+                <div key={item.id} className="py-2.5 flex flex-wrap items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-400">
+                      {item.article ? `Арт. ${item.article} · ` : ""}{item.pricePerPc.toLocaleString("ru-RU")} ₸
+                      {item.onSale && <span className="ml-2 text-purple-600 font-medium">Уже на акции ({item.salePercent}%)</span>}
+                    </p>
+                  </div>
+                  {!item.onSale && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          placeholder="10"
+                          value={addDiscounts[item.id] ?? ""}
+                          onChange={e => setAddDiscounts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          className="w-16 text-center px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-400"
+                        />
+                        <span className="text-xs text-gray-500">%</span>
+                      </div>
+                      <button
+                        onClick={() => addToSale(item)}
+                        disabled={isPending}
+                        className="px-3 py-1.5 bg-purple-500 text-white text-xs font-semibold rounded-lg hover:bg-purple-600 transition-colors disabled:opacity-50"
+                      >
+                        Добавить
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {!addBusy && addQuery.trim() && addResults.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-3">Ничего не найдено</p>
+          )}
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Поиск в акциях..."
+          className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-purple-400 w-full sm:w-64"
+        />
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <div className="px-4 py-2.5 bg-purple-50 border-b border-purple-100 text-xs text-purple-700 font-medium">
+          Нажмите на скидку % чтобы изменить · Нажмите × чтобы снять с акции
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 rounded-full border-4 border-purple-400 border-t-transparent animate-spin" />
+          </div>
+        ) : !data || data.items.length === 0 ? (
+          <div className="py-16 text-center text-sm text-gray-400">
+            {search ? "Ничего не найдено" : "Нет товаров на акции — добавьте через кнопку выше"}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[580px]">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Название</th>
+                    <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Цена</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Скидка</th>
+                    <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Со скидкой</th>
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Остаток</th>
+                    <th className="px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {data.items.map(item => {
+                    const sp = salePrice(item.pricePerPc, item.salePercent);
+                    return (
+                      <tr key={item.id} className="hover:bg-purple-50/30 transition-colors">
+                        <td className="px-5 py-3">
+                          <p className="font-medium text-gray-800 truncate max-w-[200px]">{item.name}</p>
+                          {item.brand && <p className="text-xs text-gray-400">{item.brand}</p>}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-400">{item.article ?? "—"}</td>
+                        <td className="px-4 py-3 text-right text-gray-500 whitespace-nowrap">
+                          {item.pricePerPc.toLocaleString("ru-RU")} ₸
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {editingId === item.id ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <input
+                                ref={editRef}
+                                type="number"
+                                min="1"
+                                max="99"
+                                value={editVal}
+                                onChange={e => setEditVal(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") saveEdit(item.id); if (e.key === "Escape") setEditingId(null); }}
+                                onBlur={() => saveEdit(item.id)}
+                                className="w-14 text-center px-1 py-0.5 border-2 border-purple-400 rounded-lg focus:outline-none text-sm font-bold"
+                              />
+                              <span className="text-xs text-gray-500">%</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEdit(item)}
+                              disabled={isPending}
+                              className="px-2.5 py-1 rounded-lg text-sm font-bold text-purple-700 bg-purple-100 hover:bg-purple-200 transition-colors cursor-pointer"
+                            >
+                              {item.salePercent ?? "—"}%
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-purple-700 whitespace-nowrap">
+                          {sp.toLocaleString("ru-RU")} ₸
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            item.stock === 0 ? "bg-red-100 text-red-600" :
+                            item.stock < 10  ? "bg-orange-100 text-orange-600" : "bg-green-100 text-green-600"
+                          }`}>{item.stock} шт</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => removeFromSale(item.id)}
+                            disabled={isPending}
+                            title="Снять с акции"
+                            className="w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500 transition-colors text-sm font-bold flex items-center justify-center disabled:opacity-40"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {data.total > 50 && (
+              <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  Показано {Math.min((page + 1) * 50, data.total)} из {data.total}
+                </span>
+                <div className="flex gap-2">
+                  <button onClick={() => setPage(p => p - 1)} disabled={page === 0}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                    ← Назад
+                  </button>
+                  <button onClick={() => setPage(p => p + 1)} disabled={(page + 1) * 50 >= data.total}
+                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors">
+                    Вперёд →
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Export tab ───────────────────────────────────────────────────────────────
 
 function DownloadCard({
@@ -629,22 +939,26 @@ function DownloadCard({
   description: string;
   period: string;
   href: string;
-  color: "blue" | "green";
+  color: "blue" | "green" | "purple";
 }) {
-  const blue  = color === "blue";
+  const styles = {
+    blue:   { wrap: "border-sky-100 bg-sky-50/40",     badge: "bg-sky-100 text-sky-700",     btn: "bg-sky-500"   },
+    green:  { wrap: "border-green-100 bg-green-50/40", badge: "bg-green-100 text-green-700", btn: "bg-green-600" },
+    purple: { wrap: "border-purple-100 bg-purple-50/40", badge: "bg-purple-100 text-purple-700", btn: "bg-purple-600" },
+  }[color];
   return (
-    <div className={`flex flex-col gap-4 p-6 rounded-2xl border ${blue ? "border-sky-100 bg-sky-50/40" : "border-green-100 bg-green-50/40"}`}>
+    <div className={`flex flex-col gap-4 p-6 rounded-2xl border ${styles.wrap}`}>
       <div>
         <h3 className="font-bold text-gray-800 text-base mb-1">{title}</h3>
         <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
       </div>
-      <div className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${blue ? "bg-sky-100 text-sky-700" : "bg-green-100 text-green-700"}`}>
+      <div className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${styles.badge}`}>
         {period}
       </div>
       <a
         href={href}
         download
-        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 mt-auto ${blue ? "bg-sky-500" : "bg-green-600"}`}
+        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 mt-auto ${styles.btn}`}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -658,34 +972,67 @@ function DownloadCard({
 
 function ExportTab() {
   return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-lg font-bold text-gray-800">Экспорт данных</h2>
-        <p className="text-sm text-gray-400 mt-0.5">Файлы формируются автоматически по актуальным данным из базы</p>
+    <div className="space-y-8">
+      {/* Sales reports */}
+      <div>
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-800">Продажи</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Файлы формируются автоматически по актуальным данным из базы</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <DownloadCard
+            title="Продажи за неделю"
+            description="Все проданные товары за последние 7 дней: артикул, название, количество штук и сумма по каждой позиции."
+            period="Последние 7 дней"
+            href="/api/admin/exports/sales?period=week"
+            color="blue"
+          />
+          <DownloadCard
+            title="Продажи за месяц"
+            description="Все проданные товары за последние 30 дней: артикул, название, количество штук и сумма по каждой позиции."
+            period="Последние 30 дней"
+            href="/api/admin/exports/sales?period=month"
+            color="blue"
+          />
+          <DownloadCard
+            title="Оперативные остатки"
+            description="Текущие остатки всех товаров на складе: артикул, название, бренд, количество и стоимость. Позиции без остатка выделены красным."
+            period="Актуально на сейчас"
+            href="/api/admin/exports/stock"
+            color="green"
+          />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <DownloadCard
-          title="Продажи за неделю"
-          description="Все проданные товары за последние 7 дней: артикул, название, количество штук и сумма по каждой позиции."
-          period="Последние 7 дней"
-          href="/api/admin/exports/sales?period=week"
-          color="blue"
-        />
-        <DownloadCard
-          title="Продажи за месяц"
-          description="Все проданные товары за последние 30 дней: артикул, название, количество штук и сумма по каждой позиции."
-          period="Последние 30 дней"
-          href="/api/admin/exports/sales?period=month"
-          color="blue"
-        />
-        <DownloadCard
-          title="Оперативные остатки"
-          description="Текущие остатки всех товаров на складе: артикул, название, бренд, количество и стоимость. Позиции без остатка выделены красным."
-          period="Актуально на сейчас"
-          href="/api/admin/exports/stock"
-          color="green"
-        />
+      {/* Sale (акции) reports */}
+      <div>
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-gray-800">Акции</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Продажи товаров со скидкой — сколько продано и выручка за период</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <DownloadCard
+            title="Акции за неделю"
+            description="Товары на акции: скидка %, цена до/после, сколько продано и выручка за последние 7 дней."
+            period="Последние 7 дней"
+            href="/api/admin/exports/sale?period=week"
+            color="purple"
+          />
+          <DownloadCard
+            title="Акции за месяц"
+            description="Товары на акции: скидка %, цена до/после, сколько продано и выручка за последние 30 дней."
+            period="Последние 30 дней"
+            href="/api/admin/exports/sale?period=month"
+            color="purple"
+          />
+          <DownloadCard
+            title="Акции за всё время"
+            description="Все продажи акционных товаров за всё время работы магазина — полная история."
+            period="Всё время"
+            href="/api/admin/exports/sale?period=all"
+            color="purple"
+          />
+        </div>
       </div>
     </div>
   );
@@ -1263,7 +1610,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "export" | "import" | "new">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "sale" | "export" | "import" | "new">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -1390,6 +1737,17 @@ export default function AdminPage() {
                 }`}
               >
                 Склад
+              </button>
+            </div>
+
+            <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
+              <button
+                onClick={() => setActiveTab("sale")}
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
+                  activeTab === "sale" ? "bg-purple-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Акции
               </button>
             </div>
 
@@ -1566,6 +1924,9 @@ export default function AdminPage() {
 
           {/* ─── Stock tab ─── */}
           {activeTab === "stock" && <StockTab />}
+
+          {/* ─── Sale tab ─── */}
+          {activeTab === "sale" && <SaleTab />}
 
           {/* ─── Export tab ─── */}
           {activeTab === "export" && <ExportTab />}
