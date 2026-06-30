@@ -3,12 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { useLikes } from "@/context/LikesContext";
 import type { StockCard } from "@/lib/stock";
 
 type Props = { items: StockCard[] };
 
 export default function SaleGrid({ items }: Props) {
   const { items: cartItems, addToCart, updateQty } = useCart();
+  const { isLiked, toggleLike } = useLikes();
 
   if (items.length === 0) {
     return (
@@ -23,6 +25,7 @@ export default function SaleGrid({ items }: Props) {
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
       {items.map((item) => {
         const cartItem = cartItems.find((i) => i.id === item.id);
+        const liked = isLiked(item.id);
         const salePrice = item.salePercent
           ? Math.round(item.pricePerPc * (1 - item.salePercent / 100))
           : null;
@@ -42,22 +45,33 @@ export default function SaleGrid({ items }: Props) {
             key={item.id}
             className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all group flex flex-col"
           >
-            <Link href={`/catalog/${item.id}`} className="block relative h-40 bg-gray-100">
-              {item.imageUrl ? (
-                <Image
-                  src={item.imageUrl}
-                  alt={item.fullName ?? item.name}
-                  fill
-                  sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                  className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl">🎈</div>
-              )}
-              <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+            <div className="block relative h-40 bg-gray-100">
+              <Link href={`/catalog/${item.id}`} className="absolute inset-0">
+                {item.imageUrl ? (
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.fullName ?? item.name}
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-4xl">🎈</div>
+                )}
+              </Link>
+              <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">
                 {item.salePercent ? `-${item.salePercent}%` : 'Акция'}
               </span>
-            </Link>
+              <button
+                onClick={() => toggleLike({ id: item.id, name: item.fullName ?? item.name, price: item.pricePerPc, salePrice, imageUrl: item.imageUrl, manufacturer: item.brand })}
+                className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10"
+                title={liked ? "Убрать из избранного" : "В избранное"}
+              >
+                <svg className={`w-4 h-4 transition-colors ${liked ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-400"}`} viewBox="0 0 24 24" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+              </button>
+            </div>
 
             <div className="p-3 flex flex-col flex-1">
               <Link href={`/catalog/${item.id}`} className="text-xs text-gray-500 leading-snug mb-2 flex-1 hover:text-gray-700 transition-colors">

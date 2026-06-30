@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { ProductCard } from "@/lib/products";
 import { useCart } from "@/context/CartContext";
+import { useLikes } from "@/context/LikesContext";
 
 type Props = {
   items: ProductCard[];
@@ -20,7 +21,9 @@ function ProductCardGrid({ product, priority }: { product: ProductCard; priority
   const hasImage = !!product.imageUrl;
   const hasSale = product.salePrice !== null && product.salePrice < product.price;
   const { items, addToCart, updateQty } = useCart();
+  const { isLiked, toggleLike } = useLikes();
   const cartItem = items.find((i) => i.id === product.id);
+  const liked = isLiked(product.id);
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex flex-col group">
@@ -44,6 +47,15 @@ function ProductCardGrid({ product, priority }: { product: ProductCard; priority
         {hasSale && (
           <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Акция</span>
         )}
+        <button
+          onClick={() => toggleLike({ id: product.id, name: product.name, price: product.price, salePrice: product.salePrice, imageUrl: product.imageUrl, manufacturer: product.manufacturer })}
+          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors"
+          title={liked ? "Убрать из избранного" : "В избранное"}
+        >
+          <svg className={`w-4 h-4 transition-colors ${liked ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-400"}`} viewBox="0 0 24 24" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </button>
       </div>
 
       <div className="p-3 flex flex-col flex-1">
@@ -101,7 +113,9 @@ function ProductCardList({ product }: { product: ProductCard }) {
   const hasImage = !!product.imageUrl;
   const hasSale = product.salePrice !== null && product.salePrice < product.price;
   const { items, addToCart, updateQty } = useCart();
+  const { isLiked, toggleLike } = useLikes();
   const cartItem = items.find((i) => i.id === product.id);
+  const liked = isLiked(product.id);
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex gap-0">
@@ -167,6 +181,15 @@ function ProductCardList({ product }: { product: ProductCard }) {
             В корзину
           </button>
         )}
+        <button
+          onClick={() => toggleLike({ id: product.id, name: product.name, price: product.price, salePrice: product.salePrice, imageUrl: product.imageUrl, manufacturer: product.manufacturer })}
+          className="flex-shrink-0 p-2 rounded-lg hover:bg-red-50 transition-colors"
+          title={liked ? "Убрать из избранного" : "В избранное"}
+        >
+          <svg className={`w-5 h-5 transition-colors ${liked ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-400"}`} viewBox="0 0 24 24" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </button>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { useLikes } from "@/context/LikesContext";
 import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
 
 type SubCategory = { id: number; name: string; slug: string };
@@ -188,6 +189,7 @@ export default function Header() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user, isAdmin, logout } = useAuth();
   const { totalCount, openCart } = useCart();
+  const { likedCount } = useLikes();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -369,9 +371,23 @@ export default function Header() {
 
           {/* Right icons */}
           <div className="flex items-center gap-3 ml-auto">
-            <a href="https://wa.me/77769510282" target="_blank" rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
-              Связаться
+            <a href="/sale"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              Акции
+            </a>
+
+            <a href="/liked" className="relative p-2 text-gray-600 hover:text-red-500 transition-colors" title="Избранное">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              {likedCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {likedCount > 99 ? "99+" : likedCount}
+                </span>
+              )}
             </a>
 
             {/* Account */}
@@ -588,6 +604,25 @@ export default function Header() {
               className="px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors"
               onClick={() => setMenuOpen(false)}>
               Весь каталог
+            </a>
+            <a href="/sale"
+              className="px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 border-b border-gray-100 transition-colors flex items-center gap-2"
+              onClick={() => setMenuOpen(false)}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              Акции
+            </a>
+            <a href="/liked"
+              className="px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors flex items-center gap-2"
+              onClick={() => setMenuOpen(false)}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+              </svg>
+              Избранное
+              {likedCount > 0 && (
+                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{likedCount}</span>
+              )}
             </a>
             {categories.map((cat) => (
               <div key={cat.id}>

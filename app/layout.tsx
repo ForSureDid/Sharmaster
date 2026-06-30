@@ -3,6 +3,7 @@ import { Nunito } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
+import { LikesProvider } from "@/context/LikesContext";
 import CartDrawer from "@/components/CartDrawer";
 
 const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"] });
@@ -26,8 +27,10 @@ export default function RootLayout({
       <body className={`${nunito.className} min-h-full flex flex-col`}>
         <AuthProvider>
           <CartProvider>
-            {children}
-            <CartDrawer />
+            <LikesProvider>
+              {children}
+              <CartDrawer />
+            </LikesProvider>
           </CartProvider>
         </AuthProvider>
       </body>
