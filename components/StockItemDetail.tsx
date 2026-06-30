@@ -131,7 +131,7 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
               onClick={() => setActive(i)}
               className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${i === active ? "border-sky-400" : "border-transparent hover:border-sky-200"}`}
             >
-              <Image src={src} alt={`${name} ${i + 1}`} fill className="object-contain p-1 bg-gray-50" sizes="64px" />
+              <Image src={src} alt={`${name} ${i + 1}`} fill className="object-cover" sizes="64px" />
             </button>
           ))}
         </div>

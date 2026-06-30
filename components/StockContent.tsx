@@ -310,9 +310,9 @@ function StockCardList({ item }: { item: StockCard }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex group">
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0 bg-gray-50 self-center overflow-hidden">
+      <div className="relative w-24 h-32 sm:w-28 sm:h-36 flex-shrink-0 bg-gray-50 self-center overflow-hidden">
         {item.images.length > 0 ? (
-          <ImageCarousel images={item.images} name={item.name} sizes="112px" objectFit="cover" />
+          <ImageCarousel images={item.images} name={item.name} sizes="112px" objectFit="contain" />
         ) : (
           <div className="w-full h-full min-h-[80px] flex items-center justify-center">
             <svg className="w-7 h-7 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
