@@ -172,14 +172,14 @@ function StockTab() {
 
       <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
           <h2 className="font-bold text-gray-800 mr-auto">Склад товаров</h2>
           <input
             type="text"
             placeholder="Название, бренд, артикул..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-300 w-72"
+            className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-300 w-full sm:w-72"
           />
         </div>
 
@@ -194,8 +194,8 @@ function StockTab() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto -mx-px">
+              <table className="w-full text-sm min-w-[640px]">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-100">
                     <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Название</th>
@@ -506,7 +506,7 @@ function ImportTab() {
       {/* Table */}
       <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden mb-5">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[560px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
@@ -998,7 +998,7 @@ function NewItemTab() {
         {/* Additional images */}
         <div>
           <p className="text-xs font-semibold text-gray-500 mb-1.5">Дополнительные фото</p>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {extraImgs.map((url, i) => (
               <div key={url} className="relative h-24 rounded-xl overflow-hidden border border-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1318,12 +1318,12 @@ export default function AdminPage() {
     <>
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 
           {/* Page header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-extrabold text-gray-800">Панель управления</h1>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-800">Панель управления</h1>
               <p className="text-sm text-gray-400 mt-0.5">{user.email}</p>
             </div>
             <span className="px-3 py-1 bg-sky-100 text-sky-700 text-xs font-bold rounded-full uppercase tracking-wide">
@@ -1365,17 +1365,17 @@ export default function AdminPage() {
           </div>
 
           {/* Tab bar */}
-          <div className="flex items-center gap-2 mb-6 w-fit">
+          <div className="flex flex-wrap items-center gap-2 mb-6">
             <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
               <button
                 onClick={() => setActiveTab("orders")}
-                className={`relative px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                className={`relative px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                   activeTab === "orders" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 Заказы
                 {pendingOrders.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 bg-yellow-400 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-yellow-400 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {pendingOrders.length}
                   </span>
                 )}
@@ -1385,7 +1385,7 @@ export default function AdminPage() {
             <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
               <button
                 onClick={() => setActiveTab("stock")}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                   activeTab === "stock" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -1396,7 +1396,7 @@ export default function AdminPage() {
             <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
               <button
                 onClick={() => setActiveTab("export")}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                   activeTab === "export" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -1404,7 +1404,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={() => setActiveTab("import")}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                   activeTab === "import" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -1415,7 +1415,7 @@ export default function AdminPage() {
             <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
               <button
                 onClick={() => setActiveTab("new")}
-                className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
                   activeTab === "new" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -1448,14 +1448,14 @@ export default function AdminPage() {
 
               <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
                 {/* Filters */}
-                <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
-                  <h2 className="font-bold text-gray-800 mr-auto">Заказы</h2>
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap gap-2 sm:gap-3 items-center">
+                  <h2 className="font-bold text-gray-800 w-full sm:w-auto sm:mr-auto">Заказы</h2>
                   <input
                     type="text"
                     placeholder="Имя, телефон, ID..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-300 w-48"
+                    className="px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-300 w-full sm:w-48"
                   />
                   <select
                     value={statusFilter}
@@ -1489,7 +1489,7 @@ export default function AdminPage() {
                     {filtered.map(o => (
                       <div
                         key={o.id}
-                        className={`px-6 py-4 ${o.status === "Принят" ? "bg-yellow-50/40" : ""}`}
+                        className={`px-4 sm:px-6 py-4 ${o.status === "Принят" ? "bg-yellow-50/40" : ""}`}
                       >
                         <div className="flex flex-wrap items-start gap-4">
                           <div className="flex-1 min-w-0">
