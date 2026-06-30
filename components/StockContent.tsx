@@ -310,18 +310,16 @@ function StockCardList({ item }: { item: StockCard }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex group">
-      <div className="flex-shrink-0 self-center p-2 bg-gray-50 rounded-xl">
-        <div className="relative w-20 h-24 sm:w-24 sm:h-28 rounded-lg overflow-hidden bg-white">
-          {item.images.length > 0 ? (
-            <ImageCarousel images={item.images} name={item.name} sizes="96px" objectFit="cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <svg className="w-7 h-7 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-          )}
-        </div>
+      <div className="relative w-20 h-28 sm:w-24 sm:h-32 flex-shrink-0 self-center bg-gray-50 rounded-xl overflow-hidden">
+        {item.images.length > 0 ? (
+          <Image src={item.images[0]} alt={item.name} fill className="object-contain p-2" sizes="96px" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <svg className="w-7 h-7 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+        )}
       </div>
       <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
         <div className="flex-1 min-w-0">
