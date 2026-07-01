@@ -86,7 +86,7 @@ export default function RegisterPage() {
                     required
                     value={form.firstName}
                     onChange={(e) => set("firstName", e.target.value)}
-                    placeholder="Иван"
+                    placeholder="Имя"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sky-300 focus:outline-none text-sm transition-colors"
                   />
                 </div>
@@ -97,7 +97,7 @@ export default function RegisterPage() {
                     required
                     value={form.lastName}
                     onChange={(e) => set("lastName", e.target.value)}
-                    placeholder="Иванов"
+                    placeholder="Фамилия"
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-sky-300 focus:outline-none text-sm transition-colors"
                   />
                 </div>
