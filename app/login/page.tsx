@@ -27,7 +27,7 @@ export default function LoginPage() {
   return (
     <>
       <Header />
-      <main className="flex-1 bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 flex items-center justify-center px-4 py-12">
+      <main className="flex-1 pt-[88px] bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
             <h1 className="text-2xl font-extrabold text-gray-800 mb-1">Войти в аккаунт</h1>
