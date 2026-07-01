@@ -68,8 +68,8 @@ export default function RegisterPage() {
   return (
     <>
       <Header />
-      <main className="flex-1 pt-[88px] bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
+      <main className="flex-1 pt-[88px] bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 px-4 py-12">
+        <div className="max-w-md mx-auto">
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
             <h1 className="text-2xl font-extrabold text-gray-800 mb-1">Создать аккаунт</h1>
             <p className="text-sm text-gray-400 mb-7">
