@@ -188,7 +188,7 @@ export default function Header() {
   const catalogRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { user, isAdmin, logout } = useAuth();
-  const { totalCount, openCart } = useCart();
+  const { totalCount } = useCart();
   const { likedCount } = useLikes();
 
   useEffect(() => {
@@ -441,7 +441,7 @@ export default function Header() {
             </a>
 
             {/* Корзина */}
-            <button onClick={openCart} className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 transition-colors">
+            <a href="/cart" className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 transition-colors">
               <div className="relative">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -454,7 +454,7 @@ export default function Header() {
                 )}
               </div>
               <span className="text-[10px] text-gray-400 leading-none hidden sm:block">Корзина</span>
-            </button>
+            </a>
 
             {/* Mobile search toggle */}
             <button

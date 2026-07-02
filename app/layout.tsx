@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { LikesProvider } from "@/context/LikesContext";
-import CartDrawer from "@/components/CartDrawer";
 
 const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"] });
 
@@ -29,7 +28,6 @@ export default function RootLayout({
           <CartProvider>
             <LikesProvider>
               {children}
-              <CartDrawer />
             </LikesProvider>
           </CartProvider>
         </AuthProvider>
