@@ -20,18 +20,18 @@ const BRANDS: Brand[] = [
 
 function BrandCard({ brand }: { brand: Brand }) {
   return (
-    <div className="relative flex-shrink-0 mx-3 sm:mx-4">
+    <div className="relative flex-shrink-0 mx-2.5 sm:mx-3">
       <div
-        className="absolute inset-x-3 -bottom-1.5 h-4 rounded-full opacity-60 blur-[6px]"
+        className="absolute inset-x-3 -bottom-1 h-3 rounded-full opacity-60 blur-[6px]"
         style={{ backgroundColor: brand.color }}
       />
-      <div className="relative w-40 h-20 sm:w-48 sm:h-24 bg-white rounded-3xl shadow-md border border-gray-100 flex items-center justify-center px-5 py-3">
+      <div className="relative w-28 h-14 sm:w-32 sm:h-16 bg-white rounded-2xl border border-gray-100 flex items-center justify-center px-3 py-2">
         <Image
           src={`/brands/${brand.file}`}
           alt={brand.name}
           width={160}
           height={80}
-          className="max-h-10 sm:max-h-12 w-auto object-contain"
+          className="max-h-6 sm:max-h-7 w-auto object-contain"
         />
       </div>
     </div>
@@ -42,10 +42,10 @@ export default function BrandsMarquee() {
   const track = [...BRANDS, ...BRANDS];
 
   return (
-    <section className="py-10 bg-white border-t border-gray-100 overflow-hidden">
+    <section className="py-8 bg-white border-t border-gray-100 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-          Бренды, с которыми мы работаем
+        <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">
+          Бренды
         </h2>
       </div>
 
