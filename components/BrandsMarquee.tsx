@@ -9,7 +9,7 @@ const BRANDS: Brand[] = [
   { name: "Belbal", file: "belbal.png", color: "#2563EB" },
   { name: "Everts", file: "everts.jpeg", color: "#DC2626" },
   { name: "Falali", file: "falali.jpeg", color: "#991B1B" },
-  { name: "Flexmetal", file: "flexmetal.jpeg", color: "#1E3A8A" },
+  { name: "Flexmetal", file: "flexmetal.png", color: "#1E3A8A" },
   { name: "Grabo", file: "grabo.jpeg", color: "#3B82F6" },
   { name: "Смайл Берри", file: "smail_berri.jpeg", color: "#F59E0B" },
   { name: "Волна Веселья", file: "volna_veselya.jpeg", color: "#65A30D" },
