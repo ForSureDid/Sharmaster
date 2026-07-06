@@ -2,6 +2,7 @@ export const revalidate = 300;
 
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
+import BrandsMarquee from "@/components/BrandsMarquee";
 import Categories from "@/components/Categories";
 import ProductGrid from "@/components/ProductGrid";
 import Benefits from "@/components/Benefits";
@@ -19,6 +20,7 @@ export default async function Home() {
       <Header />
       <main>
         <Hero />
+        <BrandsMarquee />
         <Categories />
         <Benefits />
         <ProductGrid items={saleItems} />

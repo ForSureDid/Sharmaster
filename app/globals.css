@@ -8,6 +8,15 @@ body {
   font-family: 'Inter', Arial, sans-serif;
 }
 
+@keyframes brands-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 .balloon-text {
   font-size: clamp(4rem, 12vw, 9rem);
   font-weight: 900;

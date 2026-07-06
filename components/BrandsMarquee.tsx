@@ -1,0 +1,63 @@
+import Image from "next/image";
+
+type Brand = { name: string; file: string; color: string };
+
+const BRANDS: Brand[] = [
+  { name: "Agura", file: "agura.jpeg", color: "#EC4899" },
+  { name: "Qualatex", file: "qualatex.jpeg", color: "#0EA5E9" },
+  { name: "Sempertex", file: "sempertex.jpeg", color: "#7C3AED" },
+  { name: "Belbal", file: "belbal.jpeg", color: "#2563EB" },
+  { name: "Everts", file: "everts.jpeg", color: "#DC2626" },
+  { name: "Falali", file: "falali.jpeg", color: "#991B1B" },
+  { name: "Flexmetal", file: "flexmetal.jpeg", color: "#1E3A8A" },
+  { name: "Grabo", file: "grabo.jpeg", color: "#3B82F6" },
+  { name: "Смайл Берри", file: "smail_berri.jpeg", color: "#F59E0B" },
+  { name: "Волна Веселья", file: "volna_veselya.jpeg", color: "#65A30D" },
+  { name: "512 Шар", file: "512brand.jpeg", color: "#F97316" },
+  { name: "Дон Баллон", file: "donballon.jpeg", color: "#F43F5E" },
+  { name: "Anagram", file: "anagram.jpeg", color: "#A78BFA" },
+];
+
+function BrandCard({ brand }: { brand: Brand }) {
+  return (
+    <div className="relative flex-shrink-0 mx-3 sm:mx-4">
+      <div
+        className="absolute inset-x-3 -bottom-1.5 h-4 rounded-full opacity-60 blur-[6px]"
+        style={{ backgroundColor: brand.color }}
+      />
+      <div className="relative w-40 h-20 sm:w-48 sm:h-24 bg-white rounded-3xl shadow-md border border-gray-100 flex items-center justify-center px-5 py-3">
+        <Image
+          src={`/brands/${brand.file}`}
+          alt={brand.name}
+          width={160}
+          height={80}
+          className="max-h-10 sm:max-h-12 w-auto object-contain"
+        />
+      </div>
+    </div>
+  );
+}
+
+export default function BrandsMarquee() {
+  const track = [...BRANDS, ...BRANDS];
+
+  return (
+    <section className="py-10 bg-white border-t border-gray-100 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+          Бренды, с которыми мы работаем
+        </h2>
+      </div>
+
+      <div className="group overflow-hidden">
+        <div
+          className="flex w-max animate-[brands-marquee_32s_linear_infinite] group-hover:[animation-play-state:paused]"
+        >
+          {track.map((brand, i) => (
+            <BrandCard key={`${brand.file}-${i}`} brand={brand} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

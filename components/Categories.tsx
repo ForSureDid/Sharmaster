@@ -23,7 +23,7 @@ const CATEGORIES: Entry[] = [
 
 export default function Categories() {
   return (
-    <section id="catalog" className="py-10 bg-white">
+    <section id="catalog" className="py-10 bg-white border-t border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Категории товаров</h2>
