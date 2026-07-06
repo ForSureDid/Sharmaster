@@ -8,7 +8,7 @@ import { LikesProvider } from "@/context/LikesContext";
 const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "Sharmaster — Оптовый магазин воздушных шаров",
+  title: "Sharmaster.kz — оптовый магазин воздушных шаров в Казахстане",
   description: "Широкий ассортимент шаров для любого праздника. Качество, доступные цены и быстрая доставка по всему Казахстану.",
 };
 
