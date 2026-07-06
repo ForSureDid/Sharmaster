@@ -5,8 +5,8 @@ type Brand = { name: string; file: string; color: string };
 const BRANDS: Brand[] = [
   { name: "Agura", file: "agura.jpeg", color: "#EC4899" },
   { name: "Qualatex", file: "qualatex.jpeg", color: "#0EA5E9" },
-  { name: "Sempertex", file: "sempertex.jpeg", color: "#7C3AED" },
-  { name: "Belbal", file: "belbal.jpeg", color: "#2563EB" },
+  { name: "Sempertex", file: "sempertex.png", color: "#7C3AED" },
+  { name: "Belbal", file: "belbal.png", color: "#2563EB" },
   { name: "Everts", file: "everts.jpeg", color: "#DC2626" },
   { name: "Falali", file: "falali.jpeg", color: "#991B1B" },
   { name: "Flexmetal", file: "flexmetal.jpeg", color: "#1E3A8A" },
@@ -42,13 +42,7 @@ export default function BrandsMarquee() {
   const track = [...BRANDS, ...BRANDS];
 
   return (
-    <section className="py-8 bg-white border-t border-gray-100 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h2 className="text-lg font-bold text-gray-800 mb-4 text-center">
-          Бренды
-        </h2>
-      </div>
-
+    <section className="py-3 bg-white border-t border-gray-100 overflow-hidden">
       <div className="group overflow-hidden">
         <div
           className="flex w-max animate-[brands-marquee_32s_linear_infinite] group-hover:[animation-play-state:paused]"
