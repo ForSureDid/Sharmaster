@@ -283,9 +283,16 @@ export default function Header() {
     <header className="fixed top-0 left-0 right-0 z-50" ref={catalogRef}>
       {/* Utility bar */}
       <div className="bg-gray-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-8 text-xs text-gray-500">
-          <span className="hidden sm:block">Оптовый магазин воздушных шаров в Казахстане</span>
-          <div className="flex items-center gap-4 ml-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 items-center h-8 text-xs text-gray-500">
+          <div className="hidden sm:flex items-center gap-4 justify-self-start">
+            <a href="/delivery" className="hover:text-gray-800 transition-colors">Доставка и оплата</a>
+            <a href="/discounts" className="hover:text-gray-800 transition-colors">Скидки</a>
+            <a href="/contacts" className="hover:text-gray-800 transition-colors">Контакты</a>
+          </div>
+          <a href="/helium" className="hidden md:block justify-self-center font-medium hover:text-gray-800 transition-colors">
+            Расход гелия
+          </a>
+          <div className="flex items-center gap-4 justify-self-end col-start-3">
             <a href="tel:+77769510282" className="hover:text-gray-800 font-medium transition-colors">
               +7 776 951 0282
             </a>
