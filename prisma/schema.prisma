@@ -166,6 +166,41 @@ model OrderItem {
   @@index([orderId])
 }
 
+// ─── 1C exchange (isolated — nothing storefront-facing reads from these yet) ──
+
+model OnecStockItem {
+  id              Int      @id @default(autoincrement())
+  onecId          String   @unique // 1C "Ид" — "ТоварGUID#ХарактеристикаGUID" when 1C uses characteristics, else bare GUID
+  article         String?
+  name            String
+  barcode         String?
+  brand           String?          // Изготовитель
+  countryOfOrigin String?
+  description     String?
+  groupName       String?          // raw 1C classifier group name — plain text, not linked to the live Category tree
+  stock           Int      @default(0)
+  pricePerPc      Decimal  @default(0) @db.Decimal(10, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([article])
+  @@index([barcode])
+}
+
+model SyncLog {
+  id        Int      @id @default(autoincrement())
+  source    String   // "1c-catalog" | "1c-offers"
+  status    String   // "success" | "failure"
+  created   Int      @default(0)
+  updated   Int      @default(0)
+  skipped   Int      @default(0)
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@index([source])
+  @@index([createdAt])
+}
+
 // ─── Reviews ──────────────────────────────────────────────────────────────────
 
 model Review {

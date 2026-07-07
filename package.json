@@ -24,6 +24,7 @@
     "@types/bcryptjs": "^2.4.6",
     "bcryptjs": "^3.0.3",
     "exceljs": "^4.4.0",
+    "fast-xml-parser": "^5.9.3",
     "jose": "^6.2.3",
     "next": "16.2.6",
     "pg": "^8.21.0",

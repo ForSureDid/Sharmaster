@@ -18,6 +18,7 @@ import {
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
+  getSyncStatus,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1598,6 +1599,68 @@ function BulkItemImport() {
   )
 }
 
+// ─── 1C sync tab (read-only) ───────────────────────────────────────────────────
+
+type SyncLogRow = {
+  id: number;
+  source: string;
+  status: string;
+  created: number;
+  updated: number;
+  skipped: number;
+  message: string | null;
+  createdAt: Date | string;
+};
+
+function OnecSyncTab() {
+  const [data, setData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getSyncStatus().then(setData).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+        <h2 className="font-bold text-gray-800 mr-auto">Обмен с 1С</h2>
+        <span className="text-xs text-gray-400">
+          Товаров в OnecStockItem: <span className="font-semibold text-gray-600">{data?.onecItemCount ?? "—"}</span>
+        </span>
+      </div>
+      <p className="px-4 sm:px-6 pt-3 text-xs text-gray-400">
+        Данные из 1С пока изолированы от витрины — эта таблица не влияет на каталог сайта.
+      </p>
+
+      {loading ? (
+        <div className="px-6 py-10 text-center text-sm text-gray-400">Загрузка...</div>
+      ) : !data || data.logs.length === 0 ? (
+        <div className="px-6 py-10 text-center text-sm text-gray-400">Синхронизаций пока не было</div>
+      ) : (
+        <div className="divide-y divide-gray-50 mt-3">
+          {data.logs.map(l => (
+            <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
+                l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+              }`}>
+                {l.status === "success" ? "Успешно" : "Ошибка"}
+              </span>
+              <span className="text-xs font-semibold text-gray-600">{l.source}</span>
+              <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
+              <span className="text-xs text-gray-500">
+                создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}
+              </span>
+              {l.message && (
+                <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -1610,7 +1673,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "sale" | "export" | "import" | "new">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "sale" | "export" | "import" | "new" | "onec">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -1780,6 +1843,17 @@ export default function AdminPage() {
                 + Товар
               </button>
             </div>
+
+            <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
+              <button
+                onClick={() => setActiveTab("onec")}
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
+                  activeTab === "onec" ? "bg-sky-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                1С
+              </button>
+            </div>
           </div>
 
           {/* ─── Orders tab ─── */}
@@ -1941,6 +2015,9 @@ export default function AdminPage() {
               <BulkItemImport />
             </div>
           )}
+
+          {/* ─── 1C sync tab ─── */}
+          {activeTab === "onec" && <OnecSyncTab />}
 
         </div>
       </main>

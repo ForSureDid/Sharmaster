@@ -242,6 +242,27 @@ export async function createStockItem(data: {
   return { id: item.id, name: item.name }
 }
 
+export async function getSyncStatus() {
+  await requireAdmin()
+  const [logs, onecItemCount] = await Promise.all([
+    db.syncLog.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
+    db.onecStockItem.count(),
+  ])
+  return {
+    onecItemCount,
+    logs: logs.map(l => ({
+      id: l.id,
+      source: l.source,
+      status: l.status,
+      created: l.created,
+      updated: l.updated,
+      skipped: l.skipped,
+      message: l.message,
+      createdAt: l.createdAt,
+    })),
+  }
+}
+
 export async function bulkCreateItems(rows: Array<{
   article: string; name: string; fullName: string; barcode: string
   brand: string; sizeInches: string; stock: number | null; price: number | null
