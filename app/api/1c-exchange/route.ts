@@ -11,7 +11,7 @@
 
 import { NextRequest } from 'next/server'
 import { checkOnecAuth, onecUnauthorizedResponse } from '@/lib/onecAuth'
-import { uploadOnecFile, downloadOnecFile } from '@/lib/onecStorage'
+import { appendOnecFile, clearOnecFiles, downloadOnecFile } from '@/lib/onecStorage'
 import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml } from '@/lib/onecImport'
 import { db } from '@/lib/db'
 
@@ -37,7 +37,14 @@ export async function GET(req: NextRequest) {
     if (type !== 'catalog') return textResponse('failure\nunsupported type')
 
     if (mode === 'checkauth') return textResponse('success\nsm_1c_session\nok')
-    if (mode === 'init') return textResponse('zip=no\nfile_limit=100000000')
+    if (mode === 'init') {
+      // Vercel enforces a hard ~4.5MB request body limit at the platform level
+      // (rejected before our function even runs) — well under what a real 1C
+      // catalog export needs, so we report a conservative limit here to make
+      // 1C split larger files into multiple "file" POSTs instead.
+      await clearOnecFiles()
+      return textResponse('zip=no\nfile_limit=3000000')
+    }
     if (mode === 'import') {
       if (!filename) return textResponse('failure\nmissing filename')
       return await handleImport(filename)
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
     // Raw bytes, not req.text() — the XML may be windows-1251, and decoding
     // happens later in lib/onecImport once we've sniffed the real encoding.
     const bytes = new Uint8Array(await req.arrayBuffer())
-    await uploadOnecFile(filename, bytes)
+    await appendOnecFile(filename, bytes)
     return textResponse('success')
   } catch (e) {
     return textResponse(`failure\n${e instanceof Error ? e.message : String(e)}`)
