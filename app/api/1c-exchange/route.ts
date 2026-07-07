@@ -16,7 +16,9 @@ import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml } from '
 import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+// Real 1C catalogs run into the thousands of rows — give the import step room
+// even though the bulk-SQL upserts in lib/onecImport are already fast.
+export const maxDuration = 300
 
 function textResponse(body: string, status = 200): Response {
   return new Response(body, {

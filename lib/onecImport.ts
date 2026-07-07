@@ -10,6 +10,7 @@
 // size/color as a separate SKU with its own article/barcode.
 
 import { XMLParser } from 'fast-xml-parser'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 
 const parser = new XMLParser({
@@ -19,7 +20,11 @@ const parser = new XMLParser({
     ['Группа', 'Товар', 'ХарактеристикаТовара', 'Предложение', 'Цена'].includes(name),
 })
 
-const CHUNK_SIZE = 50
+// Real 1C exports run into the thousands of rows (each size/color characteristic is
+// its own row) — one Prisma call per row blew the 60s function budget even with the
+// connection pool maxed out. Batches are applied as a single multi-row SQL statement
+// each, so a whole sync is a handful of round-trips instead of thousands.
+const CHUNK_SIZE = 200
 
 // ─── Encoding ──────────────────────────────────────────────────────────────────
 
@@ -139,6 +144,36 @@ export function parseImportXml(bytes: Uint8Array): OnecProduct[] {
   return products
 }
 
+async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: number; updated: number }> {
+  const rows = chunk.map(
+    (p) => Prisma.sql`(
+      ${p.onecId}, ${p.article || null}, ${p.name}, ${p.barcode || null}, ${p.brand || null},
+      ${p.countryOfOrigin || null}, ${p.description || null}, ${p.groupName || null}, 0, 0, now(), now()
+    )`
+  )
+
+  // The "xmax = 0" check is a standard Postgres idiom to tell apart a freshly
+  // INSERTed row from one that hit the ON CONFLICT UPDATE branch, in one round trip.
+  const result = await db.$queryRaw<{ inserted: boolean }[]>`
+    INSERT INTO "OnecStockItem"
+      ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "stock", "pricePerPc", "createdAt", "updatedAt")
+    VALUES ${Prisma.join(rows)}
+    ON CONFLICT ("onecId") DO UPDATE SET
+      "article" = EXCLUDED."article",
+      "name" = EXCLUDED."name",
+      "barcode" = EXCLUDED."barcode",
+      "brand" = EXCLUDED."brand",
+      "countryOfOrigin" = EXCLUDED."countryOfOrigin",
+      "description" = EXCLUDED."description",
+      "groupName" = EXCLUDED."groupName",
+      "updatedAt" = now()
+    RETURNING (xmax = 0) AS inserted
+  `
+
+  const created = result.filter((r) => r.inserted).length
+  return { created, updated: result.length - created }
+}
+
 export async function applyImportXml(
   products: OnecProduct[]
 ): Promise<{ created: number; updated: number; errors: string[] }> {
@@ -148,44 +183,23 @@ export async function applyImportXml(
 
   for (let i = 0; i < products.length; i += CHUNK_SIZE) {
     const chunk = products.slice(i, i + CHUNK_SIZE)
-    await Promise.all(
-      chunk.map(async (p) => {
+    try {
+      const r = await upsertProductChunk(chunk)
+      created += r.created
+      updated += r.updated
+    } catch (e) {
+      // Fall back to one-row-at-a-time so a single bad row in the batch (e.g. a
+      // "name" unique-constraint collision) doesn't drop the other 199.
+      for (const p of chunk) {
         try {
-          const existing = await db.onecStockItem.findUnique({
-            where: { onecId: p.onecId },
-            select: { id: true },
-          })
-          await db.onecStockItem.upsert({
-            where: { onecId: p.onecId },
-            update: {
-              article: p.article || null,
-              name: p.name,
-              barcode: p.barcode || null,
-              brand: p.brand || null,
-              countryOfOrigin: p.countryOfOrigin || null,
-              description: p.description || null,
-              groupName: p.groupName || null,
-            },
-            create: {
-              onecId: p.onecId,
-              article: p.article || null,
-              name: p.name,
-              barcode: p.barcode || null,
-              brand: p.brand || null,
-              countryOfOrigin: p.countryOfOrigin || null,
-              description: p.description || null,
-              groupName: p.groupName || null,
-              stock: 0,
-              pricePerPc: 0,
-            },
-          })
-          if (existing) updated++
-          else created++
-        } catch (e) {
-          errors.push(`${p.onecId} (${p.name}): ${e instanceof Error ? e.message : String(e)}`)
+          const r = await upsertProductChunk([p])
+          created += r.created
+          updated += r.updated
+        } catch (rowErr) {
+          errors.push(`${p.onecId} (${p.name}): ${rowErr instanceof Error ? rowErr.message : String(rowErr)}`)
         }
-      })
-    )
+      }
+    }
   }
 
   return { created, updated, errors }
@@ -221,6 +235,26 @@ export function parseOffersXml(bytes: Uint8Array): OnecOffer[] {
   return offers
 }
 
+async function updateOfferChunk(chunk: OnecOffer[]): Promise<number> {
+  // Explicit casts are required on every column of the row constructor — Postgres
+  // can't infer types for a derived VALUES table the way it can for a plain INSERT,
+  // and silently defaults untyped literals to text, which then fails to unify with
+  // the real integer/decimal columns on assignment.
+  const rows = chunk.map(
+    (o) => Prisma.sql`(${o.onecId}::text, ${o.stock}::int, ${o.price}::decimal)`
+  )
+
+  // COALESCE keeps the existing price when 1C didn't send one for this offer,
+  // instead of clobbering it with NULL/0.
+  const result = await db.$executeRaw`
+    UPDATE "OnecStockItem" AS t
+    SET "stock" = v.stock, "pricePerPc" = COALESCE(v.price, t."pricePerPc"), "updatedAt" = now()
+    FROM (VALUES ${Prisma.join(rows)}) AS v("onecId", "stock", "price")
+    WHERE t."onecId" = v."onecId"
+  `
+  return result
+}
+
 export async function applyOffersXml(
   offers: OnecOffer[]
 ): Promise<{ updated: number; skipped: number; errors: string[] }> {
@@ -230,30 +264,21 @@ export async function applyOffersXml(
 
   for (let i = 0; i < offers.length; i += CHUNK_SIZE) {
     const chunk = offers.slice(i, i + CHUNK_SIZE)
-    await Promise.all(
-      chunk.map(async (o) => {
+    try {
+      const matched = await updateOfferChunk(chunk)
+      updated += matched
+      skipped += chunk.length - matched
+    } catch (e) {
+      for (const o of chunk) {
         try {
-          const existing = await db.onecStockItem.findUnique({
-            where: { onecId: o.onecId },
-            select: { id: true },
-          })
-          if (!existing) {
-            skipped++
-            return
-          }
-          await db.onecStockItem.update({
-            where: { onecId: o.onecId },
-            data: {
-              stock: o.stock,
-              ...(o.price !== null ? { pricePerPc: o.price } : {}),
-            },
-          })
-          updated++
-        } catch (e) {
-          errors.push(`${o.onecId}: ${e instanceof Error ? e.message : String(e)}`)
+          const matched = await updateOfferChunk([o])
+          updated += matched
+          skipped += 1 - matched
+        } catch (rowErr) {
+          errors.push(`${o.onecId}: ${rowErr instanceof Error ? rowErr.message : String(rowErr)}`)
         }
-      })
-    )
+      }
+    }
   }
 
   return { updated, skipped, errors }
