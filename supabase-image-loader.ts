@@ -11,17 +11,13 @@ export default function supabaseImageLoader({
   width: number
   quality?: number
 }) {
-  if (src.includes(SUPABASE_HOST)) {
-    const url = new URL(src)
-    url.pathname = url.pathname.replace(
-      '/storage/v1/object/public/',
-      '/storage/v1/render/image/public/'
-    )
-    url.searchParams.set('width', String(width))
-    url.searchParams.set('quality', String(quality ?? 75))
-    url.searchParams.set('format', 'webp')
-    return url.toString()
-  }
-  // Non-Supabase images (e.g. donballon.ru) — serve directly without Vercel optimization
+  // Supabase render endpoint (/storage/v1/render/image/public/...) produces broken output
+  // at small widths (e.g. 445×445 source → 64×500 at width=128). Always serve originals
+  // via /storage/v1/object/public/ — sources are ≤445px, browser handles the downscale.
+  if (!src.includes(SUPABASE_HOST)) return src
+
+  // Convert render URL → object URL and strip any ?width/quality query params
   return src
+    .replace('/storage/v1/render/image/', '/storage/v1/object/')
+    .split('?')[0]
 }
