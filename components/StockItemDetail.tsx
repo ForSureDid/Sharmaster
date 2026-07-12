@@ -78,13 +78,13 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
   return (
     <div className="flex flex-col gap-3">
       {/* Main image */}
-      <div className="relative w-full aspect-square rounded-2xl bg-gray-50 overflow-hidden group">
+      <div className="relative w-full aspect-square rounded-2xl bg-white overflow-hidden group">
         <Image
           key={images[active]}
           src={images[active]}
           alt={name}
           fill
-          className="object-contain p-4"
+          style={{ objectFit: 'contain', padding: '12px' }}
           sizes="(max-width: 768px) 100vw, 50vw"
           priority
         />
@@ -129,9 +129,9 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
             <button
               key={i}
               onClick={() => setActive(i)}
-              className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all ${i === active ? "border-sky-400" : "border-transparent hover:border-sky-200"}`}
+              className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white border-2 transition-all ${i === active ? "border-sky-400" : "border-transparent hover:border-sky-200"}`}
             >
-              <Image src={src} alt={`${name} ${i + 1}`} fill className="object-cover" sizes="64px" />
+              <Image src={src} alt={`${name} ${i + 1}`} fill style={{ objectFit: 'contain', padding: '4px' }} sizes="64px" />
             </button>
           ))}
         </div>

@@ -128,7 +128,8 @@ function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }:
         src={images[idx]}
         alt={name}
         fill
-        className={objectFit === "cover" ? "object-cover transition-opacity duration-200" : "object-contain p-2 transition-opacity duration-200"}
+        className="transition-opacity duration-200"
+        style={{ objectFit: objectFit === "cover" ? "cover" : "contain", padding: objectFit === "cover" ? 0 : "8px" }}
         sizes={sizes}
         priority={priority}
       />
