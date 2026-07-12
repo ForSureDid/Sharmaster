@@ -6,6 +6,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart, type CartItem } from "@/context/CartContext";
+import { nextOneTimeTier } from "@/lib/discounts";
 
 function ItemImage({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
@@ -55,7 +56,8 @@ function QtyStepper({ item, onChange }: { item: CartItem; onChange: (qty: number
 }
 
 export default function CartPage() {
-  const { items, removeFromCart, updateQty, clearCart, totalCount, totalPrice } = useCart();
+  const { items, removeFromCart, updateQty, clearCart, totalCount, totalPrice, discountPercent, discountAmount, finalTotal } = useCart();
+  const nextTier = nextOneTimeTier(totalPrice);
 
   return (
     <>
@@ -95,6 +97,23 @@ export default function CartPage() {
             </div>
           ) : (
             <>
+              {/* Progressive discount status */}
+              <div className="mb-4 flex items-center gap-2.5 bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 text-sm text-sky-700">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {discountPercent > 0 ? (
+                  <span>
+                    Применена скидка <b>{discountPercent}%</b> (−{discountAmount.toLocaleString()} ₸)
+                    {nextTier && <> · добавьте товаров ещё на <b>{(nextTier.amount - totalPrice).toLocaleString()} ₸</b>, чтобы получить <b>{nextTier.percent}%</b></>}
+                  </span>
+                ) : nextTier ? (
+                  <span>
+                    Добавьте товаров ещё на <b>{(nextTier.amount - totalPrice).toLocaleString()} ₸</b>, чтобы получить скидку <b>{nextTier.percent}%</b>
+                  </span>
+                ) : null}
+              </div>
+
               {/* Desktop table */}
               <div className="hidden md:block bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <table className="w-full">
@@ -211,8 +230,19 @@ export default function CartPage() {
               </div>
               <div>
                 <p className="text-[11px] text-gray-400 leading-none mb-0.5">Итого</p>
-                <p className="text-lg font-bold text-gray-800 whitespace-nowrap">{totalPrice.toLocaleString()} ₸</p>
+                <div className="flex items-baseline gap-1.5">
+                  <p className="text-lg font-bold text-gray-800 whitespace-nowrap">{finalTotal.toLocaleString()} ₸</p>
+                  {discountPercent > 0 && (
+                    <p className="text-xs text-gray-400 line-through whitespace-nowrap">{totalPrice.toLocaleString()} ₸</p>
+                  )}
+                </div>
               </div>
+              {discountPercent > 0 && (
+                <div className="hidden sm:block">
+                  <p className="text-[11px] text-gray-400 leading-none mb-0.5">Скидка</p>
+                  <p className="text-sm font-semibold text-green-600 whitespace-nowrap">−{discountPercent}%</p>
+                </div>
+              )}
             </div>
             <Link
               href="/order"

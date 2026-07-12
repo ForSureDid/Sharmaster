@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import type { ProductCard } from "@/lib/products";
+import { getOneTimeDiscountPercent } from "@/lib/discounts";
 
 export type CartItem = {
   id: number;
@@ -21,6 +22,9 @@ type CartContextType = {
   clearCart: () => void;
   totalCount: number;
   totalPrice: number;
+  discountPercent: number;
+  discountAmount: number;
+  finalTotal: number;
 };
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -71,12 +75,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const totalCount = items.reduce((s, i) => s + i.qty, 0);
   const totalPrice = items.reduce((s, i) => s + (i.salePrice ?? i.price) * i.qty, 0);
+  // "Прогрессивная скидка (разовая)" — see /discounts. Tier is picked off the
+  // cart subtotal, server re-verifies the same calc from stock prices at checkout.
+  const discountPercent = getOneTimeDiscountPercent(totalPrice);
+  const discountAmount = Math.round(totalPrice * discountPercent / 100);
+  const finalTotal = totalPrice - discountAmount;
 
   return (
     <CartContext.Provider value={{
       items,
       addToCart, removeFromCart, updateQty, clearCart,
-      totalCount, totalPrice,
+      totalCount, totalPrice, discountPercent, discountAmount, finalTotal,
     }}>
       {children}
     </CartContext.Provider>

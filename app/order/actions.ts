@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import ExcelJS from 'exceljs'
 import path from 'path'
 import { amountInWords } from '@/lib/numberToWords'
+import { getOneTimeDiscountPercent } from '@/lib/discounts'
 
 class StockError extends Error {
   constructor(msg: string) { super(msg); this.name = 'StockError' }
@@ -78,10 +79,16 @@ export async function placeOrder(input: {
   const toDecrement = resolved.filter(r => r.stockRow !== null)
 
   // ── Use server-side prices — never trust client-supplied price ────────────
-  const total = resolved.reduce((sum, { item, stockRow }) => {
+  const subtotal = resolved.reduce((sum, { item, stockRow }) => {
     const unitPrice = stockRow ? Number(stockRow.pricePerPc) : 0
     return sum + unitPrice * item.qty
   }, 0)
+
+  // "Прогрессивная скидка (разовая)" — see lib/discounts.ts / app/discounts.
+  // Recomputed here from server-verified prices, never trusted from the client.
+  const discountPercent = getOneTimeDiscountPercent(subtotal)
+  const discountAmount = Math.round(subtotal * discountPercent / 100)
+  const total = subtotal - discountAmount
 
   const session = await getSession()
 
@@ -134,7 +141,7 @@ export async function placeOrder(input: {
   notifyTelegram(order.id, name, ph, addr, resolved.map(({ item, stockRow }) => ({
     item,
     stockRow: stockRow ? { name: stockRow.name, pricePerPc: Number(stockRow.pricePerPc) } : null,
-  })), total).catch(() => {})
+  })), subtotal, discountPercent, discountAmount, total).catch(() => {})
 
   return { ok: true, orderId: order.id }
 }
@@ -152,6 +159,9 @@ async function notifyTelegram(
   phone: string,
   address: string,
   resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number } | null }[],
+  subtotal: number,
+  discountPercent: number,
+  discountAmount: number,
   total: number,
 ) {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -169,6 +179,7 @@ async function notifyTelegram(
     `🛒 Новый заказ #${orderId}`,
     `📞 ${phone}`,
     `📍 ${address}`,
+    ...(discountPercent > 0 ? [`🏷️ Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг): итого ${total.toLocaleString('ru-RU')} тг`] : []),
   ].join('\n')
 
   // Build Excel
@@ -201,9 +212,10 @@ async function notifyTelegram(
   })
 
   const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
-  sheet.getCell(`G${TOTAL_ROW + shift}`).value = total
-  sheet.getCell(`A${SUMMARY_ROW + shift}`).value =
-    `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
+  sheet.getCell(`G${TOTAL_ROW + shift}`).value = subtotal
+  sheet.getCell(`A${SUMMARY_ROW + shift}`).value = discountPercent > 0
+    ? `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг. Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг). Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`
+    : `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
   const words = amountInWords(total)
   sheet.getCell(`A${WORDS_ROW + shift}`).value = words.charAt(0).toUpperCase() + words.slice(1)
 

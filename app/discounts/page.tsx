@@ -1,28 +1,9 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
+import { CUMULATIVE_DISCOUNT_TIERS, ONE_TIME_DISCOUNT_TIERS, type DiscountTier } from "@/lib/discounts";
 
-type Tier = { percent: number; amount: string };
-
-const cumulativeTiers: Tier[] = [
-  { percent: 5, amount: "10 000" },
-  { percent: 10, amount: "20 000" },
-  { percent: 12, amount: "60 000" },
-  { percent: 14, amount: "100 000" },
-  { percent: 16, amount: "150 000" },
-  { percent: 17, amount: "200 000" },
-  { percent: 18, amount: "300 000" },
-  { percent: 20, amount: "400 000" },
-];
-
-const oneTimeTiers: Tier[] = [
-  { percent: 10, amount: "30 000" },
-  { percent: 14, amount: "100 000" },
-  { percent: 17, amount: "200 000" },
-  { percent: 20, amount: "400 000" },
-];
-
-function TierScale({ tiers }: { tiers: Tier[] }) {
+function TierScale({ tiers }: { tiers: DiscountTier[] }) {
   return (
     <div className="bg-gray-50 rounded-2xl border border-gray-100 p-5 sm:p-6 overflow-x-auto">
       <div className="min-w-max">
@@ -55,7 +36,7 @@ function TierScale({ tiers }: { tiers: Tier[] }) {
         <div className="flex items-center gap-8 sm:gap-12">
           {tiers.map((t, i) => (
             <div key={i} className="w-20 text-center text-xs sm:text-sm text-gray-500 whitespace-nowrap">
-              от {t.amount} ₸
+              от {t.amount.toLocaleString("ru-RU")} ₸
             </div>
           ))}
         </div>
@@ -115,7 +96,7 @@ export default function DiscountsPage() {
                 текущей даты. Сумма чека на момент покупки не учитывается.
               </p>
 
-              <TierScale tiers={cumulativeTiers} />
+              <TierScale tiers={CUMULATIVE_DISCOUNT_TIERS} />
 
               <div className="mt-6">
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Условия получения скидки</h3>
@@ -136,16 +117,17 @@ export default function DiscountsPage() {
               <p className="text-sm text-gray-500 mb-6 max-w-2xl">
                 Размер скидки зависит от общей суммы заказа в момент оформления покупки. Скидка
                 действует единожды — на тот заказ, с которым была достигнута итоговая сумма.
+                Применяется автоматически в корзине.
               </p>
 
-              <TierScale tiers={oneTimeTiers} />
+              <TierScale tiers={ONE_TIME_DISCOUNT_TIERS} />
 
               <div className="mt-6">
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Условия получения скидки</h3>
                 <ConditionsList
                   items={[
                     "Осуществление закупки на соответствующую сумму.",
-                    "Информирование продавца о предоставлении разовой скидки.",
+                    "Скидка рассчитывается и применяется автоматически при оформлении заказа.",
                   ]}
                 />
               </div>

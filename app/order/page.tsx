@@ -8,7 +8,7 @@ import { useCart } from "@/context/CartContext";
 import { placeOrder } from "./actions";
 
 export default function OrderPage() {
-  const { items, totalCount, totalPrice, clearCart } = useCart();
+  const { items, totalCount, totalPrice, discountPercent, discountAmount, finalTotal, clearCart } = useCart();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -94,17 +94,31 @@ export default function OrderPage() {
               <h1 className="text-xl font-bold text-gray-800 mb-4">Оформление заказа</h1>
 
               {/* Compact order summary */}
-              <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 mb-4 flex items-center justify-between">
-                <div>
+              <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 mb-4">
+                <div className="flex items-center justify-between">
                   <p className="text-sm text-gray-500">{totalCount} {totalCount === 1 ? "товар" : "товара"} в заказе</p>
-                  <p className="text-xl font-bold text-gray-800">{totalPrice.toLocaleString()} ₸</p>
+                  <Link
+                    href="/cart"
+                    className="text-xs font-semibold text-sky-500 hover:text-sky-600 transition-colors"
+                  >
+                    Изменить
+                  </Link>
                 </div>
-                <Link
-                  href="/cart"
-                  className="text-xs font-semibold text-sky-500 hover:text-sky-600 transition-colors"
-                >
-                  Изменить
-                </Link>
+                {discountPercent > 0 && (
+                  <div className="flex items-center justify-between text-sm text-gray-400 mt-2">
+                    <span>Скидка {discountPercent}%</span>
+                    <span>−{discountAmount.toLocaleString()} ₸</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm text-gray-500">Итого</span>
+                  <div className="flex items-baseline gap-1.5">
+                    {discountPercent > 0 && (
+                      <span className="text-sm text-gray-400 line-through">{totalPrice.toLocaleString()} ₸</span>
+                    )}
+                    <span className="text-xl font-bold text-gray-800">{finalTotal.toLocaleString()} ₸</span>
+                  </div>
+                </div>
               </div>
 
               <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
