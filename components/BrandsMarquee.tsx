@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-type Brand = { name: string; file: string; color: string };
+type Brand = { name: string; file: string; color: string; logoMaxHeight?: number };
 
 const BRANDS: Brand[] = [
   { name: "Agura", file: "agura.jpeg", color: "#EC4899" },
@@ -14,7 +14,7 @@ const BRANDS: Brand[] = [
   { name: "Смайл Берри", file: "smail_berri.jpeg", color: "#F59E0B" },
   { name: "Волна Веселья", file: "volna_veselya.jpeg", color: "#65A30D" },
   { name: "512 Шар", file: "512brand.jpeg", color: "#F97316" },
-  { name: "Дон Баллон", file: "donballon.png", color: "#F43F5E" },
+  { name: "Дон Баллон", file: "donballon.png", color: "#F43F5E", logoMaxHeight: 35 },
   { name: "Anagram", file: "anagram.svg", color: "#A78BFA" },
 ];
 
@@ -32,6 +32,7 @@ function BrandCard({ brand }: { brand: Brand }) {
           width={160}
           height={80}
           className="max-h-6 sm:max-h-7 w-auto object-contain"
+          style={brand.logoMaxHeight ? { maxHeight: brand.logoMaxHeight } : undefined}
         />
       </div>
     </div>
