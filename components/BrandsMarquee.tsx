@@ -14,7 +14,7 @@ const BRANDS: Brand[] = [
   { name: "Смайл Берри", file: "smail_berri.jpeg", color: "#F59E0B" },
   { name: "Волна Веселья", file: "volna_veselya.jpeg", color: "#65A30D" },
   { name: "512 Шар", file: "512brand.jpeg", color: "#F97316" },
-  { name: "Дон Баллон", file: "donballon.svg", color: "#F43F5E" },
+  { name: "Дон Баллон", file: "donballon.png", color: "#F43F5E" },
   { name: "Anagram", file: "anagram.svg", color: "#A78BFA" },
 ];
 
