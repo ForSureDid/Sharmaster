@@ -148,15 +148,17 @@ async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: numb
   const rows = chunk.map(
     (p) => Prisma.sql`(
       ${p.onecId}, ${p.article || null}, ${p.name}, ${p.barcode || null}, ${p.brand || null},
-      ${p.countryOfOrigin || null}, ${p.description || null}, ${p.groupName || null}, 0, 0, now(), now()
+      ${p.countryOfOrigin || null}, ${p.description || null}, ${p.groupName || null}, 0, 0, true, now(), now()
     )`
   )
 
   // The "xmax = 0" check is a standard Postgres idiom to tell apart a freshly
   // INSERTed row from one that hit the ON CONFLICT UPDATE branch, in one round trip.
+  // isNew is intentionally NOT in the DO UPDATE SET — new items keep isNew=true until
+  // admin reviews them; updates to existing items leave their isNew flag untouched.
   const result = await db.$queryRaw<{ inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
-      ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "stock", "pricePerPc", "createdAt", "updatedAt")
+      ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
     VALUES ${Prisma.join(rows)}
     ON CONFLICT ("onecId") DO UPDATE SET
       "article" = EXCLUDED."article",

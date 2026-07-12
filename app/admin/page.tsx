@@ -15,6 +15,11 @@ import {
   getSaleItems,
   updateSaleStatus,
   searchAllItems,
+  getNewArrivals,
+  getOnecNewItems,
+  toggleNewArrival,
+  dismissOnecNewItem,
+  markStockItemNewFromOnec,
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
@@ -1599,6 +1604,291 @@ function BulkItemImport() {
   )
 }
 
+// ─── New arrivals tab ─────────────────────────────────────────────────────────
+
+type OnecNewItem = {
+  id: number; onecId: string; name: string;
+  article: string | null; barcode: string | null; brand: string | null;
+  stock: number; pricePerPc: number; groupName: string | null;
+  createdAt: Date | string;
+  stockItemId: number | null; stockItemIsNew: boolean | null; inCatalog: boolean;
+};
+type NewArrivalItem = {
+  id: number; name: string; article: string | null; brand: string | null;
+  stock: number; pricePerPc: number; imageUrl: string | null;
+  isNew: boolean; createdAt: Date | string;
+};
+
+function NewArrivalsTab() {
+  const [onecItems, setOnecItems]       = useState<OnecNewItem[]>([]);
+  const [onecTotal, setOnecTotal]       = useState(0);
+  const [onecPage, setOnecPage]         = useState(0);
+  const [onecSearch, setOnecSearch]     = useState("");
+  const [onecDebSearch, setOnecDebSearch] = useState("");
+  const [onecLoading, setOnecLoading]   = useState(true);
+
+  const [siteItems, setSiteItems]       = useState<NewArrivalItem[]>([]);
+  const [siteTotal, setSiteTotal]       = useState(0);
+  const [sitePage, setSitePage]         = useState(0);
+  const [siteSearch, setSiteSearch]     = useState("");
+  const [siteDebSearch, setSiteDebSearch] = useState("");
+  const [siteLoading, setSiteLoading]   = useState(true);
+
+  const [isPending, startTx]            = useTransition();
+  const [actionError, setActionError]   = useState<string | null>(null);
+  const [actionOk, setActionOk]         = useState<string | null>(null);
+
+  // Debounce searches
+  useEffect(() => {
+    const t = setTimeout(() => { setOnecDebSearch(onecSearch); setOnecPage(0); }, 400);
+    return () => clearTimeout(t);
+  }, [onecSearch]);
+  useEffect(() => {
+    const t = setTimeout(() => { setSiteDebSearch(siteSearch); setSitePage(0); }, 400);
+    return () => clearTimeout(t);
+  }, [siteSearch]);
+
+  // Load 1C new items
+  useEffect(() => {
+    setOnecLoading(true);
+    getOnecNewItems(onecDebSearch, onecPage)
+      .then(r => { setOnecItems(r.items as OnecNewItem[]); setOnecTotal(r.total); })
+      .finally(() => setOnecLoading(false));
+  }, [onecDebSearch, onecPage]);
+
+  // Load site новинки
+  useEffect(() => {
+    setSiteLoading(true);
+    getNewArrivals(siteDebSearch, sitePage)
+      .then(r => { setSiteItems(r.items as NewArrivalItem[]); setSiteTotal(r.total); })
+      .finally(() => setSiteLoading(false));
+  }, [siteDebSearch, sitePage]);
+
+  function reloadOnec() {
+    setOnecLoading(true);
+    getOnecNewItems(onecDebSearch, onecPage)
+      .then(r => { setOnecItems(r.items as OnecNewItem[]); setOnecTotal(r.total); })
+      .finally(() => setOnecLoading(false));
+  }
+  function reloadSite() {
+    setSiteLoading(true);
+    getNewArrivals(siteDebSearch, sitePage)
+      .then(r => { setSiteItems(r.items as NewArrivalItem[]); setSiteTotal(r.total); })
+      .finally(() => setSiteLoading(false));
+  }
+
+  function flash(ok?: string, err?: string) {
+    setActionOk(ok ?? null);
+    setActionError(err ?? null);
+    setTimeout(() => { setActionOk(null); setActionError(null); }, 3000);
+  }
+
+  function handleMarkNew(item: OnecNewItem) {
+    startTx(async () => {
+      try {
+        await markStockItemNewFromOnec(item.id);
+        flash("Товар отмечен как новинка на сайте");
+        reloadOnec(); reloadSite();
+      } catch (e) {
+        flash(undefined, e instanceof Error ? e.message : "Ошибка");
+      }
+    });
+  }
+
+  function handleDismiss(item: OnecNewItem) {
+    startTx(async () => {
+      await dismissOnecNewItem(item.id);
+      setOnecItems(prev => prev.filter(i => i.id !== item.id));
+      setOnecTotal(t => t - 1);
+    });
+  }
+
+  function handleRemoveFromSite(item: NewArrivalItem) {
+    startTx(async () => {
+      await toggleNewArrival(item.id, false);
+      setSiteItems(prev => prev.filter(i => i.id !== item.id));
+      setSiteTotal(t => t - 1);
+    });
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-gray-800">Новинки</h2>
+        <p className="text-sm text-gray-400 mt-0.5">
+          Слева — новые товары из синхронизации 1С · Справа — новинки которые видны на сайте
+        </p>
+      </div>
+
+      {/* Flash messages */}
+      {actionError && (
+        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{actionError}</div>
+      )}
+      {actionOk && (
+        <div className="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">{actionOk}</div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+
+        {/* ── LEFT: 1C new items ── */}
+        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex flex-wrap items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-amber-800 text-sm">Новые из 1С</p>
+              <p className="text-xs text-amber-600 mt-0.5">{onecTotal} товаров появились в синхронизации впервые</p>
+            </div>
+          </div>
+
+          <div className="px-4 py-3 border-b border-gray-50">
+            <input
+              value={onecSearch}
+              onChange={e => setOnecSearch(e.target.value)}
+              placeholder="Поиск..."
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          {onecLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-7 h-7 rounded-full border-3 border-amber-400 border-t-transparent animate-spin" />
+            </div>
+          ) : onecItems.length === 0 ? (
+            <div className="py-12 text-center text-sm text-gray-400">
+              {onecSearch ? "Ничего не найдено" : "Новых товаров из 1С нет — все проверены"}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
+              {onecItems.map(item => (
+                <div key={item.id} className="px-4 py-3 hover:bg-amber-50/30 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        {item.article && <span className="text-xs text-gray-400 font-mono">Арт. {item.article}</span>}
+                        {item.brand   && <span className="text-xs text-gray-400">{item.brand}</span>}
+                        {item.groupName && <span className="text-xs text-gray-400">{item.groupName}</span>}
+                        <span className="text-xs text-gray-500 font-medium">{item.pricePerPc.toLocaleString("ru-RU")} ₸</span>
+                        <span className="text-xs text-gray-400">{item.stock} шт</span>
+                      </div>
+                      {item.inCatalog ? (
+                        <span className={`inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${
+                          item.stockItemIsNew ? "bg-green-100 text-green-700" : "bg-sky-100 text-sky-700"
+                        }`}>
+                          {item.stockItemIsNew ? "Уже в новинках сайта" : "Есть в каталоге"}
+                        </span>
+                      ) : (
+                        <span className="inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 text-gray-500">
+                          Нет в каталоге сайта
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      {item.inCatalog && !item.stockItemIsNew && (
+                        <button
+                          onClick={() => handleMarkNew(item)}
+                          disabled={isPending}
+                          className="px-2.5 py-1 bg-amber-500 text-white text-xs font-semibold rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 whitespace-nowrap"
+                        >
+                          → Новинка
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDismiss(item)}
+                        disabled={isPending}
+                        title="Видел, убрать из списка"
+                        className="px-2.5 py-1 bg-gray-100 text-gray-500 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                      >
+                        Убрать
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {onecTotal > 50 && (
+            <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between">
+              <span className="text-xs text-gray-400">Показано {Math.min((onecPage+1)*50, onecTotal)} из {onecTotal}</span>
+              <div className="flex gap-1.5">
+                <button onClick={() => setOnecPage(p => p-1)} disabled={onecPage === 0}
+                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Назад</button>
+                <button onClick={() => setOnecPage(p => p+1)} disabled={(onecPage+1)*50 >= onecTotal}
+                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Вперёд →</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── RIGHT: site новинки ── */}
+        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 bg-green-50 border-b border-green-100">
+            <p className="font-semibold text-green-800 text-sm">Новинки на сайте</p>
+            <p className="text-xs text-green-600 mt-0.5">{siteTotal} товаров отображаются как новинки</p>
+          </div>
+
+          <div className="px-4 py-3 border-b border-gray-50">
+            <input
+              value={siteSearch}
+              onChange={e => setSiteSearch(e.target.value)}
+              placeholder="Поиск..."
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-green-400"
+            />
+          </div>
+
+          {siteLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-7 h-7 rounded-full border-3 border-green-400 border-t-transparent animate-spin" />
+            </div>
+          ) : siteItems.length === 0 ? (
+            <div className="py-12 text-center text-sm text-gray-400">
+              {siteSearch ? "Ничего не найдено" : "Нет товаров-новинок — добавьте из 1С слева"}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
+              {siteItems.map(item => (
+                <div key={item.id} className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/30 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                    <div className="flex flex-wrap gap-x-3 mt-0.5">
+                      {item.article && <span className="text-xs text-gray-400 font-mono">Арт. {item.article}</span>}
+                      {item.brand   && <span className="text-xs text-gray-400">{item.brand}</span>}
+                      <span className="text-xs font-medium text-gray-600">{item.pricePerPc.toLocaleString("ru-RU")} ₸</span>
+                      <span className={`text-xs font-medium ${item.stock === 0 ? "text-red-500" : "text-gray-400"}`}>{item.stock} шт</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFromSite(item)}
+                    disabled={isPending}
+                    title="Убрать из новинок"
+                    className="w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500 transition-colors text-sm font-bold flex items-center justify-center flex-shrink-0 disabled:opacity-40"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {siteTotal > 50 && (
+            <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between">
+              <span className="text-xs text-gray-400">Показано {Math.min((sitePage+1)*50, siteTotal)} из {siteTotal}</span>
+              <div className="flex gap-1.5">
+                <button onClick={() => setSitePage(p => p-1)} disabled={sitePage === 0}
+                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Назад</button>
+                <button onClick={() => setSitePage(p => p+1)} disabled={(sitePage+1)*50 >= siteTotal}
+                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Вперёд →</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ─── 1C sync tab (read-only) ───────────────────────────────────────────────────
 
 type SyncLogRow = {
@@ -1673,7 +1963,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "sale" | "export" | "import" | "new" | "onec">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "import" | "new" | "onec">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -1800,6 +2090,17 @@ export default function AdminPage() {
                 }`}
               >
                 Склад
+              </button>
+            </div>
+
+            <div className="flex gap-1 bg-white rounded-2xl border border-gray-100 p-1">
+              <button
+                onClick={() => setActiveTab("arrivals")}
+                className={`px-3 sm:px-5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors ${
+                  activeTab === "arrivals" ? "bg-amber-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Новинки
               </button>
             </div>
 
@@ -1998,6 +2299,9 @@ export default function AdminPage() {
 
           {/* ─── Stock tab ─── */}
           {activeTab === "stock" && <StockTab />}
+
+          {/* ─── New arrivals tab ─── */}
+          {activeTab === "arrivals" && <NewArrivalsTab />}
 
           {/* ─── Sale tab ─── */}
           {activeTab === "sale" && <SaleTab />}

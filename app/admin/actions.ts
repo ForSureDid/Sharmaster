@@ -242,6 +242,124 @@ export async function createStockItem(data: {
   return { id: item.id, name: item.name }
 }
 
+export async function getNewArrivals(search = '', page = 0) {
+  await requireAdmin()
+  const take = 50
+  const skip = page * take
+  const where = {
+    isNew: true,
+    ...(search ? {
+      OR: [
+        { name:    { contains: search, mode: 'insensitive' as const } },
+        { article: { contains: search, mode: 'insensitive' as const } },
+        { brand:   { contains: search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+  const [items, total] = await Promise.all([
+    db.stockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+    db.stockItem.count({ where }),
+  ])
+  return {
+    items: items.map(i => ({
+      id: i.id, name: i.name, article: i.article, brand: i.brand,
+      stock: i.stock, pricePerPc: Number(i.pricePerPc),
+      imageUrl: i.imageUrl, isNew: i.isNew, createdAt: i.createdAt,
+    })),
+    total,
+  }
+}
+
+export async function toggleNewArrival(stockItemId: number, isNew: boolean) {
+  await requireAdmin()
+  await db.stockItem.update({ where: { id: stockItemId }, data: { isNew } })
+  revalidatePath('/admin')
+  revalidatePath('/')
+}
+
+// 1C items that are marked isNew (appeared in a sync for the first time)
+export async function getOnecNewItems(search = '', page = 0) {
+  await requireAdmin()
+  const take = 50
+  const skip = page * take
+  const where = {
+    isNew: true,
+    ...(search ? {
+      OR: [
+        { name:    { contains: search, mode: 'insensitive' as const } },
+        { article: { contains: search, mode: 'insensitive' as const } },
+        { brand:   { contains: search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+  const [rows, total] = await Promise.all([
+    db.onecStockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+    db.onecStockItem.count({ where }),
+  ])
+
+  // Try to find matching StockItem for each (by article or barcode)
+  const articles = rows.filter(r => r.article).map(r => r.article!)
+  const barcodes = rows.filter(r => r.barcode).map(r => r.barcode!)
+  const matched = await db.stockItem.findMany({
+    where: {
+      OR: [
+        ...(articles.length ? [{ article: { in: articles } }] : []),
+        ...(barcodes.length ? [{ barcode: { in: barcodes } }]  : []),
+      ],
+    },
+    select: { id: true, article: true, barcode: true, isNew: true },
+  })
+  const byArticle = new Map(matched.filter(m => m.article).map(m => [m.article!, m]))
+  const byBarcode = new Map(matched.filter(m => m.barcode).map(m => [m.barcode!, m]))
+
+  return {
+    items: rows.map(r => {
+      const si = (r.article ? byArticle.get(r.article) : undefined)
+                ?? (r.barcode ? byBarcode.get(r.barcode) : undefined)
+      return {
+        id: r.id, onecId: r.onecId, name: r.name,
+        article: r.article, barcode: r.barcode, brand: r.brand,
+        stock: r.stock, pricePerPc: Number(r.pricePerPc),
+        groupName: r.groupName, createdAt: r.createdAt,
+        stockItemId:    si?.id     ?? null,
+        stockItemIsNew: si?.isNew  ?? null,
+        inCatalog:      !!si,
+      }
+    }),
+    total,
+  }
+}
+
+export async function dismissOnecNewItem(onecId: number) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
+}
+
+export async function markStockItemNewFromOnec(onecId: number) {
+  await requireAdmin()
+  const onecItem = await db.onecStockItem.findUnique({ where: { id: onecId } })
+  if (!onecItem) throw new Error('1С товар не найден')
+
+  // Find matching StockItem
+  const stockItem = await db.stockItem.findFirst({
+    where: {
+      OR: [
+        ...(onecItem.article ? [{ article: onecItem.article }] : []),
+        ...(onecItem.barcode ? [{ barcode: onecItem.barcode }] : []),
+      ],
+    },
+    select: { id: true },
+  })
+
+  if (!stockItem) throw new Error('Товар не найден в каталоге сайта (нет совпадения по артикулу/штрихкоду)')
+
+  await db.stockItem.update({ where: { id: stockItem.id }, data: { isNew: true } })
+  await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
+  revalidatePath('/admin')
+  revalidatePath('/')
+  return { stockItemId: stockItem.id }
+}
+
 export async function getSyncStatus() {
   await requireAdmin()
   const [logs, onecItemCount] = await Promise.all([

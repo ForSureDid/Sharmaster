@@ -3,7 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Categories (3-level tree) ────────────────────────────────────────────────
@@ -96,6 +98,8 @@ model StockItem {
   categoryId Int?
   category   Category? @relation("StockItemCategory", fields: [categoryId], references: [id])
 
+  isNew      Boolean  @default(false)
+  createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@index([stock])
@@ -104,6 +108,8 @@ model StockItem {
   @@index([article])
   @@index([categoryId])
   @@index([onSale])
+  @@index([isNew])
+  @@index([createdAt])
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -180,11 +186,13 @@ model OnecStockItem {
   groupName       String?          // raw 1C classifier group name — plain text, not linked to the live Category tree
   stock           Int      @default(0)
   pricePerPc      Decimal  @default(0) @db.Decimal(10, 2)
+  isNew           Boolean  @default(false) // true when first inserted by sync; admin clears after review
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([article])
   @@index([barcode])
+  @@index([isNew])
 }
 
 model SyncLog {
