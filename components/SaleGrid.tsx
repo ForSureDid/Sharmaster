@@ -53,8 +53,7 @@ export default function SaleGrid({ items }: Props) {
                     alt={item.fullName ?? item.name}
                     fill
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    className="group-hover:scale-105 transition-transform duration-300"
-                    style={{ objectFit: 'contain', padding: '8px' }}
+                    className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-4xl">🎈</div>

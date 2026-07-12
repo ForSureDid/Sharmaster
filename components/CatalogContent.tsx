@@ -34,8 +34,7 @@ function ProductCardGrid({ product, priority }: { product: ProductCard; priority
             alt={product.name}
             fill
             priority={priority}
-            className="group-hover:scale-105 transition-transform duration-300"
-            style={{ objectFit: 'contain', padding: '8px' }}
+            className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
         ) : (
@@ -126,7 +125,7 @@ function ProductCardList({ product }: { product: ProductCard }) {
             src={product.imageUrl!}
             alt={product.name}
             fill
-            style={{ objectFit: 'contain', padding: '8px' }}
+            className="object-contain p-2"
             sizes="112px"
           />
         ) : (

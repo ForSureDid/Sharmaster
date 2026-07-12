@@ -84,7 +84,7 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
           src={images[active]}
           alt={name}
           fill
-          style={{ objectFit: 'contain', padding: '12px' }}
+          className="object-contain p-3"
           sizes="(max-width: 768px) 100vw, 50vw"
           priority
         />
@@ -131,7 +131,7 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
               onClick={() => setActive(i)}
               className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white border-2 transition-all ${i === active ? "border-sky-400" : "border-transparent hover:border-sky-200"}`}
             >
-              <Image src={src} alt={`${name} ${i + 1}`} fill style={{ objectFit: 'contain', padding: '4px' }} sizes="64px" />
+              <Image src={src} alt={`${name} ${i + 1}`} fill className="object-contain p-1" sizes="64px" />
             </button>
           ))}
         </div>
