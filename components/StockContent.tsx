@@ -189,7 +189,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
 
   return (
     <div className={`bg-white border rounded-xl overflow-hidden transition-all flex flex-col group ${inStock ? "border-gray-100 hover:border-sky-200 hover:shadow-md" : "border-gray-100 opacity-60"}`}>
-      <div className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="relative aspect-square bg-white flex items-center justify-center overflow-hidden">
         {item.images.length > 0 ? (
           <ImageCarousel
             images={item.images}

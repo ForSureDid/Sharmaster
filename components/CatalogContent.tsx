@@ -27,7 +27,7 @@ function ProductCardGrid({ product, priority }: { product: ProductCard; priority
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex flex-col group">
-      <div className="relative h-44 bg-gray-50 flex items-center justify-center overflow-hidden">
+      <div className="relative h-44 bg-white flex items-center justify-center overflow-hidden">
         {hasImage ? (
           <Image
             src={product.imageUrl!}
@@ -119,7 +119,7 @@ function ProductCardList({ product }: { product: ProductCard }) {
 
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex gap-0">
-      <div className="relative w-28 flex-shrink-0 bg-gray-50">
+      <div className="relative w-28 flex-shrink-0 bg-white">
         {hasImage ? (
           <Image
             src={product.imageUrl!}

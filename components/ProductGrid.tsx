@@ -48,7 +48,7 @@ export default function ProductGrid({ items }: Props) {
                   key={item.id}
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all group flex flex-col"
                 >
-                  <div className="relative aspect-square bg-gray-100">
+                  <div className="relative aspect-square bg-white">
                     <Link href={`/catalog/${item.id}`} className="absolute inset-0">
                       {item.imageUrl ? (
                         <Image
