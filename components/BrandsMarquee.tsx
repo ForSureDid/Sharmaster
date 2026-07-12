@@ -14,24 +14,24 @@ const BRANDS: Brand[] = [
   { name: "Смайл Берри", file: "smail_berri.jpeg", color: "#F59E0B" },
   { name: "Волна Веселья", file: "volna_veselya.jpeg", color: "#65A30D" },
   { name: "512 Шар", file: "512brand.jpeg", color: "#F97316" },
-  { name: "Дон Баллон", file: "donballon.jpeg", color: "#F43F5E" },
-  { name: "Anagram", file: "anagram.jpeg", color: "#A78BFA" },
+  { name: "Дон Баллон", file: "donballon.svg", color: "#F43F5E" },
+  { name: "Anagram", file: "anagram.svg", color: "#A78BFA" },
 ];
 
 function BrandCard({ brand }: { brand: Brand }) {
   return (
-    <div className="relative flex-shrink-0 mx-2.5 sm:mx-3">
+    <div className="relative flex-shrink-0 mx-3 sm:mx-4">
       <div
-        className="absolute inset-x-3 -bottom-1 h-3 rounded-full opacity-60 blur-[6px]"
+        className="absolute inset-x-4 -bottom-1 h-3 rounded-full opacity-60 blur-[6px]"
         style={{ backgroundColor: brand.color }}
       />
-      <div className="relative w-28 h-14 sm:w-32 sm:h-16 bg-white rounded-2xl border border-gray-100 flex items-center justify-center px-3 py-2">
+      <div className="relative w-36 h-20 sm:w-44 sm:h-24 bg-white rounded-2xl border border-gray-100 flex items-center justify-center px-4 py-3">
         <Image
           src={`/brands/${brand.file}`}
           alt={brand.name}
-          width={160}
-          height={80}
-          className="max-h-6 sm:max-h-7 w-auto object-contain"
+          width={220}
+          height={140}
+          className="max-h-12 sm:max-h-16 w-auto max-w-full object-contain"
         />
       </div>
     </div>
