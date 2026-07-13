@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
 BASE_URL = "https://new.starparty.kz"
-CATEGORY_URL = f"{BASE_URL}/index.php?route=product/category&path=119&page={{page}}"
+CATEGORY_URL = f"{BASE_URL}/index.php?route=product/category&path=118&page={{page}}"
 OUT_DIR = os.path.join(os.path.dirname(__file__), "../scraped-starparty")
 
 HEADERS = {

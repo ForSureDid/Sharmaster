@@ -52,3 +52,7 @@ All the Files with material here/~$*.xlsx
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 2gis parsing
+/venv/
+/data/
