@@ -1640,6 +1640,7 @@ function NewArrivalsTab() {
   const [isPending, startTx]            = useTransition();
   const [actionError, setActionError]   = useState<string | null>(null);
   const [actionOk, setActionOk]         = useState<string | null>(null);
+  const [confirmPending, setConfirmPending] = useState<{ id: number; action: "new" | "pending" } | null>(null);
 
   // Debounce searches
   useEffect(() => {
@@ -1710,6 +1711,7 @@ function NewArrivalsTab() {
     startTx(async () => {
       await toggleNewArrival(item.id, true);
       setSiteItems(prev => prev.map(i => i.id === item.id ? { ...i, isNew: true, isNewPending: false } : i));
+      setConfirmPending(null);
     });
   }
 
@@ -1717,6 +1719,7 @@ function NewArrivalsTab() {
     startTx(async () => {
       await setNewArrivalPending(item.id, true);
       setSiteItems(prev => prev.map(i => i.id === item.id ? { ...i, isNewPending: true, isNew: false } : i));
+      setConfirmPending(null);
     });
   }
 
@@ -1726,6 +1729,12 @@ function NewArrivalsTab() {
       setSiteItems(prev => prev.filter(i => i.id !== item.id));
       setSiteTotal(t => t - 1);
     });
+  }
+
+  function confirmAction(item: NewArrivalItem) {
+    if (!confirmPending || confirmPending.id !== item.id) return;
+    if (confirmPending.action === "new") handleActivateNew(item);
+    else handleSetPending(item);
   }
 
   return (
@@ -1885,34 +1894,54 @@ function NewArrivalsTab() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-1 flex-shrink-0">
-                      {!item.isNew && (
-                        <button
-                          onClick={() => handleActivateNew(item)}
-                          disabled={isPending}
-                          title="Вывести как активную новинку на сайте"
-                          className="px-2 py-1 bg-green-500 text-white text-[11px] font-semibold rounded-lg hover:bg-green-600 transition-colors disabled:opacity-40 whitespace-nowrap"
-                        >
-                          Новинка
-                        </button>
+                      {confirmPending?.id === item.id ? (
+                        <>
+                          <button
+                            onClick={() => confirmAction(item)}
+                            disabled={isPending}
+                            className="px-2 py-1 bg-emerald-600 text-white text-[11px] font-bold rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-40 whitespace-nowrap"
+                          >
+                            Подтвердить
+                          </button>
+                          <button
+                            onClick={() => setConfirmPending(null)}
+                            className="px-2 py-1 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            Отмена
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {!item.isNew && (
+                            <button
+                              onClick={() => setConfirmPending({ id: item.id, action: "new" })}
+                              disabled={isPending}
+                              title="Вывести как активную новинку на сайте"
+                              className="px-2 py-1 bg-green-500 text-white text-[11px] font-semibold rounded-lg hover:bg-green-600 transition-colors disabled:opacity-40 whitespace-nowrap"
+                            >
+                              Новинка
+                            </button>
+                          )}
+                          {!item.isNewPending && (
+                            <button
+                              onClick={() => setConfirmPending({ id: item.id, action: "pending" })}
+                              disabled={isPending}
+                              title="Предварительная — Ожидайте поступления"
+                              className="px-2 py-1 bg-amber-400 text-white text-[11px] font-semibold rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-40 whitespace-nowrap"
+                            >
+                              Предварит.
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemoveFromSite(item)}
+                            disabled={isPending}
+                            title="Убрать из новинок"
+                            className="px-2 py-1 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-lg hover:bg-red-100 hover:text-red-500 transition-colors disabled:opacity-40"
+                          >
+                            Убрать
+                          </button>
+                        </>
                       )}
-                      {!item.isNewPending && (
-                        <button
-                          onClick={() => handleSetPending(item)}
-                          disabled={isPending}
-                          title="Предварительная — Ожидайте поступления"
-                          className="px-2 py-1 bg-amber-400 text-white text-[11px] font-semibold rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-40 whitespace-nowrap"
-                        >
-                          Предварит.
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleRemoveFromSite(item)}
-                        disabled={isPending}
-                        title="Убрать из новинок"
-                        className="px-2 py-1 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-lg hover:bg-red-100 hover:text-red-500 transition-colors disabled:opacity-40"
-                      >
-                        Убрать
-                      </button>
                     </div>
                   </div>
                 </div>

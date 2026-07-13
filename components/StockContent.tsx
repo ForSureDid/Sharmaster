@@ -6,6 +6,23 @@ import { useState, useCallback, useEffect } from "react";
 import type { StockCard } from "@/lib/stock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
+import { useLikes } from "@/context/LikesContext";
+
+function LikeButton({ id, className }: { id: number; className?: string }) {
+  const { isLiked, toggleLike } = useLikes();
+  const liked = isLiked(id);
+  return (
+    <button
+      onClick={() => toggleLike(id)}
+      className={className ?? "absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10"}
+      title={liked ? "Убрать из избранного" : "В избранное"}
+    >
+      <svg className={`w-4 h-4 transition-colors ${liked ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-400 hover:stroke-red-400"}`} viewBox="0 0 24 24" strokeWidth={1.8}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+      </svg>
+    </button>
+  );
+}
 
 type Props = {
   items: StockCard[];
@@ -96,9 +113,15 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
     manufacturer: item.brand,
   };
 
+  const isPending = item.isNewPending && !inStock;
+
   return (
-    <div className={`bg-white border rounded-xl overflow-hidden transition-all flex flex-col group ${inStock ? "border-gray-100 hover:border-sky-200 hover:shadow-md" : "border-gray-100 opacity-60"}`}>
-      <div className="relative aspect-square bg-white flex items-center justify-center overflow-hidden">
+    <div className={`border rounded-xl overflow-hidden transition-all flex flex-col group ${
+      isPending
+        ? "bg-gray-50 border-gray-200"
+        : inStock ? "bg-white border-gray-100 hover:border-sky-200 hover:shadow-md" : "bg-white border-gray-100 opacity-60"
+    }`}>
+      <div className="relative aspect-square flex items-center justify-center overflow-hidden bg-white">
         {item.images.length > 0 ? (
           <ImageCarousel
             images={item.images}
@@ -113,15 +136,16 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             </svg>
           </div>
         )}
-        {inStock ? (
-          <span className="absolute top-2 right-2 bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide z-10">
-            В наличии
+        {isPending ? (
+          <span className="absolute top-2 left-2 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide z-10">
+            Ожидайте
           </span>
-        ) : (
-          <span className="absolute top-2 right-2 bg-gray-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide z-10">
-            Нет
+        ) : item.isNew ? (
+          <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide z-10">
+            New
           </span>
-        )}
+        ) : null}
+        <LikeButton id={item.id} />
       </div>
 
       <div className="p-3 flex flex-col flex-1">
@@ -145,7 +169,14 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             </div>
           )}
 
-          {cartItem ? (
+          {!inStock ? (
+            <button
+              disabled
+              className="w-full flex items-center justify-center gap-1.5 py-2 bg-emerald-500 text-white text-xs font-semibold rounded-lg cursor-default"
+            >
+              Ожидайте поступления
+            </button>
+          ) : cartItem ? (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between border border-sky-300 rounded-lg overflow-hidden">
                 <button
@@ -160,7 +191,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
                   className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
                 >+</button>
               </div>
-              {byPiece && packSize && inStock && (
+              {byPiece && packSize && (
                 <button
                   onClick={() => updateQty(item.id, cartItem.qty + packSize)}
                   className="w-full text-[11px] py-1 border border-sky-200 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
@@ -173,15 +204,14 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             <div className="space-y-1.5">
               <button
                 onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
-                disabled={!inStock}
-                className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                 </svg>
-                {!inStock ? "Нет в наличии" : byPiece ? "В корзину (1 шт)" : packSize ? "В корзину (1 уп)" : "В корзину"}
+                {byPiece ? "В корзину (1 шт)" : packSize ? "В корзину (1 уп)" : "В корзину"}
               </button>
-              {byPiece && packSize && inStock && (
+              {byPiece && packSize && (
                 <button
                   onClick={() => addToCart(asCartProduct, null, packSize)}
                   className="w-full text-[11px] py-1 border border-sky-200 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors"
@@ -229,15 +259,14 @@ function StockCardList({ item }: { item: StockCard }) {
             </svg>
           </div>
         )}
+        <LikeButton id={item.id} className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10" />
       </div>
       <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
             {item.brand && <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded font-medium">{item.brand}</span>}
-            {inStock ? (
-              <span className="text-[10px] text-green-600 font-medium">В наличии</span>
-            ) : (
-              <span className="text-[10px] text-gray-400">Нет в наличии</span>
+            {!inStock && item.isNewPending && (
+              <span className="text-[10px] text-amber-600 font-medium">Ожидайте поступления</span>
             )}
           </div>
           <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
@@ -251,14 +280,18 @@ function StockCardList({ item }: { item: StockCard }) {
             <p className="text-[10px] text-gray-400 mt-0.5">{packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт</p>
           )}
         </div>
-        {cartItem ? (
+        {!inStock ? (
+          <button disabled className="flex-shrink-0 px-3 py-2 bg-emerald-500 text-white text-xs font-semibold rounded-lg cursor-default whitespace-nowrap">
+            Ожидайте поступления
+          </button>
+        ) : cartItem ? (
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
             <div className="flex items-center border border-sky-300 rounded-lg overflow-hidden">
               <button onClick={() => updateQty(item.id, cartItem.qty - 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">−</button>
               <span className="w-12 text-center text-sm font-bold text-sky-600">{cartItem.qty}{byPiece || !packSize ? " шт" : " уп"}</span>
               <button onClick={() => updateQty(item.id, cartItem.qty + 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">+</button>
             </div>
-            {byPiece && packSize && inStock && (
+            {byPiece && packSize && (
               <button
                 onClick={() => updateQty(item.id, cartItem.qty + packSize)}
                 className="text-[11px] px-2 py-0.5 border border-sky-200 text-sky-600 hover:bg-sky-50 rounded transition-colors whitespace-nowrap"
@@ -271,15 +304,14 @@ function StockCardList({ item }: { item: StockCard }) {
           <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
             <button
               onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
-              disabled={!inStock}
-              className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
               </svg>
               {byPiece ? "1 шт" : packSize ? "1 уп" : "В корзину"}
             </button>
-            {byPiece && packSize && inStock && (
+            {byPiece && packSize && (
               <button
                 onClick={() => addToCart(asCartProduct, null, packSize)}
                 className="text-[11px] px-3 py-1 border border-sky-200 text-sky-600 hover:bg-sky-50 rounded-lg transition-colors whitespace-nowrap"

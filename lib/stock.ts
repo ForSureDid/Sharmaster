@@ -18,6 +18,8 @@ export type StockCard = {
   packQty: number | null
   onSale: boolean
   salePercent: number | null
+  isNew: boolean
+  isNewPending: boolean
 }
 
 export type StockDetail = StockCard & {
@@ -291,7 +293,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
     const rawItems = await db.stockItem.findMany({
       where: { id: { in: pageIds } },
-      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true, isNew: true, isNewPending: true },
     })
     const itemMap = new Map(rawItems.map(i => [i.id, i]))
     const orderedRaw = pageIds.map(id => itemMap.get(id)!).filter(Boolean)
@@ -318,7 +320,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
           imageUrl: headUrl, images: allImages,
           material: prod?.material ?? null, sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
           model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
-          onSale: i.onSale, salePercent: i.salePercent,
+          onSale: i.onSale, salePercent: i.salePercent, isNew: i.isNew, isNewPending: i.isNewPending,
         }
       }),
     }
@@ -333,7 +335,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   const [rawItems, total] = await Promise.all([
     db.stockItem.findMany({
       where,
-      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true, isNew: true, isNewPending: true },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -372,6 +374,8 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
         unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
         onSale: i.onSale,
         salePercent: i.salePercent,
+        isNew: i.isNew,
+        isNewPending: i.isNewPending,
       }
     }),
     total,
@@ -396,7 +400,7 @@ function buildImages(
 async function _getStockItemById(id: number): Promise<StockDetail | null> {
   const item = await db.stockItem.findUnique({
     where: { id },
-    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true, onSale: true, salePercent: true },
+    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true, onSale: true, salePercent: true, isNew: true, isNewPending: true },
   })
   if (!item) return null
 
@@ -425,6 +429,8 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     packQty: item.packQty,
     onSale: item.onSale,
     salePercent: item.salePercent,
+    isNew: item.isNew,
+    isNewPending: item.isNewPending,
     article: item.article,
     barcode: item.barcode,
   }
@@ -439,7 +445,7 @@ export const getStockItemById = unstable_cache(
 async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   const rawItems = await db.stockItem.findMany({
     where: { onSale: true },
-    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true, isNew: true, isNewPending: true },
     orderBy: { pricePerPc: 'asc' },
     ...(limit != null ? { take: limit } : {}),
   })
@@ -473,6 +479,8 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
       unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
       onSale: i.onSale,
       salePercent: i.salePercent,
+      isNew: i.isNew,
+      isNewPending: i.isNewPending,
     }
   })
 }
@@ -533,3 +541,41 @@ export const getNovinkaItems = unstable_cache(
   ['novinkaItems'],
   { revalidate: 60, tags: ['stockItems'] }
 )
+
+// Fresh card data for an explicit list of item IDs (страница «Избранное»).
+// Not cached — избранное персонально и должно показывать актуальные цены/наличие.
+// Preserves the input order.
+export async function getStockCardsByIds(ids: number[]): Promise<StockCard[]> {
+  if (ids.length === 0) return []
+  const rawItems = await db.stockItem.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true, isNew: true, isNewPending: true },
+  })
+
+  const linkedProductIds = rawItems.filter(i => i.productId != null).map(i => i.productId!)
+  type ProductMeta = { imageUrl: string | null; images: string[]; material: string | null; sizeInches: string | null; model: string | null; unitsPerPackage: number | null }
+  const productMetaMap = new Map<number, ProductMeta>()
+  if (linkedProductIds.length > 0) {
+    const products = await db.product.findMany({
+      where: { id: { in: linkedProductIds } },
+      select: { id: true, imageUrl: true, images: true, material: true, sizeInches: true, model: true, unitsPerPackage: true },
+    })
+    for (const p of products) productMetaMap.set(p.id, p)
+  }
+
+  const cards = rawItems.map(i => {
+    const prod = i.productId != null ? productMetaMap.get(i.productId!) : undefined
+    const { headUrl, allImages } = buildImages(i, prod)
+    return {
+      id: i.id, name: i.name, fullName: i.fullName, brand: i.brand,
+      stock: i.stock, pricePerPc: Number(i.pricePerPc),
+      imageUrl: headUrl, images: allImages,
+      material: prod?.material ?? null, sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
+      model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
+      onSale: i.onSale, salePercent: i.salePercent,
+      isNew: i.isNew, isNewPending: i.isNewPending,
+    }
+  })
+  const byId = new Map(cards.map(c => [c.id, c]))
+  return ids.map(id => byId.get(id)).filter((c): c is StockCard => Boolean(c))
+}

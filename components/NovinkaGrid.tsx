@@ -69,13 +69,13 @@ export default function NovinkaGrid({ items, gridClassName }: Props) {
                   Ожидайте
                 </span>
               ) : (
-                <span className="absolute top-2 left-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">
+                <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none">
                   New
                 </span>
               )}
 
               <button
-                onClick={() => toggleLike({ id: item.id, name: item.fullName ?? item.name, price: basePrice, salePrice, imageUrl: item.imageUrl, manufacturer: item.brand })}
+                onClick={() => toggleLike(item.id)}
                 className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10"
                 title={liked ? "Убрать из избранного" : "В избранное"}
               >
@@ -124,7 +124,9 @@ export default function NovinkaGrid({ items, gridClassName }: Props) {
                 </div>
 
                 {item.stock === 0 ? (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">Нет в наличии</span>
+                  <button disabled className="flex-shrink-0 px-2 py-1 bg-emerald-500 text-white text-[10px] font-semibold rounded-lg cursor-default whitespace-nowrap leading-tight text-center">
+                    Ожидайте<br/>поступления
+                  </button>
                 ) : cartItem ? (
                   <div className="flex items-center border border-sky-300 rounded-lg overflow-hidden flex-shrink-0">
                     <button

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import Header from "@/components/Header";
@@ -7,10 +8,23 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import { useLikes } from "@/context/LikesContext";
 import { useCart } from "@/context/CartContext";
+import type { StockCard } from "@/lib/stock";
 
 export default function LikedPage() {
-  const { likedItems, removeLike, likedCount } = useLikes();
+  const { likedIds, removeLike, likedCount, ready } = useLikes();
   const { items: cartItems, addToCart, updateQty } = useCart();
+  const [likedItems, setLikedItems] = useState<StockCard[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ready) return;
+    if (likedIds.length === 0) { setLikedItems([]); setLoading(false); return; }
+    setLoading(true);
+    fetch(`/api/stock/cards?ids=${likedIds.join(",")}`)
+      .then(r => r.json())
+      .then(d => setLikedItems(d.items ?? []))
+      .finally(() => setLoading(false));
+  }, [likedIds, ready]);
 
   return (
     <>
@@ -36,7 +50,11 @@ export default function LikedPage() {
             )}
           </div>
 
-          {likedItems.length === 0 ? (
+          {loading ? (
+            <div className="py-24 flex justify-center">
+              <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+            </div>
+          ) : likedItems.length === 0 ? (
             <div className="py-24 text-center">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 mb-4">
                 <svg className="w-10 h-10 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -53,16 +71,18 @@ export default function LikedPage() {
             <div className="flex flex-col gap-3">
               {likedItems.map((item) => {
                 const cartItem = cartItems.find((i) => i.id === item.id);
-                const hasSale = item.salePrice !== null && item.salePrice < item.price;
+                const price = item.pricePerPc;
+                const salePrice = item.salePercent ? Math.round(price * (1 - item.salePercent / 100)) : null;
+                const displayPrice = salePrice ?? price;
                 const asCartProduct = {
                   id: item.id,
-                  name: item.name,
-                  price: hasSale ? item.salePrice! : item.price,
-                  salePrice: hasSale ? item.salePrice : null,
+                  name: item.fullName ?? item.name,
+                  price: displayPrice,
+                  salePrice: null,
                   imageUrl: item.imageUrl,
                   colorGroup: null,
                   sizeInches: null,
-                  manufacturer: item.manufacturer,
+                  manufacturer: item.brand,
                 };
 
                 return (
@@ -74,7 +94,7 @@ export default function LikedPage() {
                       {item.imageUrl ? (
                         <Image
                           src={item.imageUrl}
-                          alt={item.name}
+                          alt={item.fullName ?? item.name}
                           fill
                           className="object-contain p-2"
                           sizes="112px"
@@ -91,21 +111,21 @@ export default function LikedPage() {
                     <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
                       <div className="flex-1 min-w-0">
                         <Link href={`/catalog/${item.id}`} className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 hover:text-sky-600 transition-colors">
-                          {item.name}
+                          {item.fullName ?? item.name}
                         </Link>
-                        {item.manufacturer && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">{item.manufacturer}</p>
+                        {item.brand && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">{item.brand}</p>
                         )}
                       </div>
 
                       <div className="flex-shrink-0 text-right">
-                        {hasSale ? (
+                        {salePrice ? (
                           <>
-                            <p className="text-lg font-bold text-red-500">{Number(item.salePrice).toLocaleString()} ₸</p>
-                            <p className="text-xs text-gray-400 line-through">{Number(item.price).toLocaleString()} ₸</p>
+                            <p className="text-lg font-bold text-red-500">{salePrice.toLocaleString()} ₸</p>
+                            <p className="text-xs text-gray-400 line-through">{price.toLocaleString()} ₸</p>
                           </>
                         ) : (
-                          <p className="text-lg font-bold text-sky-600">{Number(item.price).toLocaleString()} ₸</p>
+                          <p className="text-lg font-bold text-sky-600">{price.toLocaleString()} ₸</p>
                         )}
                       </div>
 
