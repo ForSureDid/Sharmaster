@@ -88,7 +88,8 @@ type SuggestItem = {
   name: string;
   brand: string | null;
   stock: number;
-  pricePerPc: number;
+  price: number;
+  packSize: number | null;
   imageUrl: string | null;
 };
 
@@ -152,7 +153,9 @@ function SearchDropdown({
             {item.brand && <p className="text-xs text-gray-400 truncate">{item.brand}</p>}
           </div>
           <div className="flex-shrink-0 text-right">
-            <p className="text-sm font-semibold text-sky-600">{item.pricePerPc.toLocaleString("ru-RU")} ₸</p>
+            <p className="text-sm font-semibold text-sky-600">
+              {item.price.toLocaleString("ru-RU")} ₸{item.packSize ? <span className="text-xs font-normal text-gray-400"> / уп</span> : null}
+            </p>
             <p className={`text-xs ${item.stock > 0 ? "text-green-500" : "text-red-400"}`}>
               {isAdmin ? (item.stock > 0 ? `${item.stock} шт` : "нет") : (item.stock > 0 ? "есть" : "нет")}
             </p>

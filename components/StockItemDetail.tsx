@@ -5,69 +5,7 @@ import { useState, useCallback } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import type { StockDetail } from "@/lib/stock";
-
-const LATEX_BRANDS = ["512", "забав", "sempertex", "белбал", "belbal", "эвертс", "everts", "shai", "yuhang", "юханг"];
-
-function parsePackFromName(name: string): number | null {
-  const m = name.match(/\b(\d+)\s*шт\b/i);
-  const n = m ? parseInt(m[1]) : null;
-  return n && n > 1 ? n : null;
-}
-
-function parseSizeFromName(name: string): string {
-  const r = /^R(\d+)\s/.exec(name);
-  if (r) return r[1];
-  const inch = /\((\d+)''/.exec(name);
-  if (inch) return inch[1];
-  return "";
-}
-
-function getPackSize(item: StockDetail): number | null {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  if (!isLatex) return null;
-  const brand = (item.brand ?? "").toLowerCase();
-  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  if (brand.includes("512")) {
-    if (size === "36") return null;
-    const t: Record<string, number> = { "5": 100, "12": 100, "18": 10, "24": 3 };
-    if (size in t) return t[size];
-    return parsePackFromName(item.name) ?? 100;
-  }
-  if (brand.includes("забав")) { const t: Record<string, number> = { "12": 50, "18": 25, "24": 10 }; return t[size] ?? 50; }
-  if (brand.includes("sempertex")) {
-    if (size === "18") {
-      const isChrome = ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром");
-      return isChrome ? 10 : 25;
-    }
-    const t: Record<string, number> = {
-      "1/3": 50, "2/5": 50, "2/6": 50, "3/8": 50,
-      "5": 100, "6": 100, "10": 100,
-      "12": 50, "16": 25, "116": 50,
-      "24": 3, "36": 10,
-    };
-    return t[size] ?? 50;
-  }
-  if (brand.includes("белбал") || brand.includes("belbal")) {
-    if (size === "12") return 50;
-    if (size === "24") return null;
-    return item.unitsPerPackage ?? 50;
-  }
-  if (brand.includes("эвертс") || brand.includes("everts")) { const t: Record<string, number> = { "5": 100, "12": 50 }; return t[size] ?? 50; }
-  if (brand.includes("shai")) return 50;
-  if (brand.includes("yuhang") || brand.includes("юханг")) return 100;
-  return item.unitsPerPackage ?? 50;
-}
-
-function isSoldByPiece(item: StockDetail): boolean {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  if (!isLatex) return false;
-  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  return size === "24" || size === "36";
-}
+import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
 function Gallery({ images, name }: { images: string[]; name: string }) {
   const [active, setActive] = useState(0);
@@ -270,7 +208,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         </div>
 
         {/* Details table */}
-        {(item.article || item.barcode || item.material || item.sizeInches || item.model) && (
+        {(item.article || item.barcode || item.material || item.sizeInches || item.model || packSize) && (
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-600">Характеристики</h2>
@@ -298,6 +236,12 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                 <div className="flex px-4 py-2.5 gap-4">
                   <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Модель</dt>
                   <dd className="text-sm font-medium text-gray-700">{item.model}</dd>
+                </div>
+              )}
+              {packSize && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">В упаковке</dt>
+                  <dd className="text-sm font-medium text-gray-700">{packSize} шт</dd>
                 </div>
               )}
               {item.barcode && (

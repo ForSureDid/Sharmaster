@@ -15,6 +15,7 @@ export type StockCard = {
   sizeInches: string | null
   model: string | null
   unitsPerPackage: number | null
+  packQty: number | null
   onSale: boolean
   salePercent: number | null
 }
@@ -290,7 +291,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
 
     const rawItems = await db.stockItem.findMany({
       where: { id: { in: pageIds } },
-      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
     })
     const itemMap = new Map(rawItems.map(i => [i.id, i]))
     const orderedRaw = pageIds.map(id => itemMap.get(id)!).filter(Boolean)
@@ -316,7 +317,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
           stock: i.stock, pricePerPc: Number(i.pricePerPc),
           imageUrl: headUrl, images: allImages,
           material: prod?.material ?? null, sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
-          model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null,
+          model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
           onSale: i.onSale, salePercent: i.salePercent,
         }
       }),
@@ -332,7 +333,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
   const [rawItems, total] = await Promise.all([
     db.stockItem.findMany({
       where,
-      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+      select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -368,7 +369,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{
         material: prod?.material ?? null,
         sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
         model: prod?.model ?? null,
-        unitsPerPackage: prod?.unitsPerPackage ?? null,
+        unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
         onSale: i.onSale,
         salePercent: i.salePercent,
       }
@@ -395,7 +396,7 @@ function buildImages(
 async function _getStockItemById(id: number): Promise<StockDetail | null> {
   const item = await db.stockItem.findUnique({
     where: { id },
-    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true, onSale: true, salePercent: true },
+    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, article: true, barcode: true, productId: true, onSale: true, salePercent: true },
   })
   if (!item) return null
 
@@ -421,6 +422,7 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     sizeInches: item.sizeInches ?? prod?.sizeInches ?? null,
     model: prod?.model ?? null,
     unitsPerPackage: prod?.unitsPerPackage ?? null,
+    packQty: item.packQty,
     onSale: item.onSale,
     salePercent: item.salePercent,
     article: item.article,
@@ -437,7 +439,7 @@ export const getStockItemById = unstable_cache(
 async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   const rawItems = await db.stockItem.findMany({
     where: { onSale: true },
-    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
+    select: { id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true, stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true, onSale: true, salePercent: true },
     orderBy: { pricePerPc: 'asc' },
     ...(limit != null ? { take: limit } : {}),
   })
@@ -468,7 +470,7 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
       material: prod?.material ?? null,
       sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
       model: prod?.model ?? null,
-      unitsPerPackage: prod?.unitsPerPackage ?? null,
+      unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
       onSale: i.onSale,
       salePercent: i.salePercent,
     }

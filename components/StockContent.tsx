@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import type { StockCard } from "@/lib/stock";
+import { getPackSize, isSoldByPiece } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
 
 type Props = {
@@ -15,98 +16,6 @@ type Props = {
 };
 
 type ViewMode = "grid" | "list";
-
-// Brands that are always latex — used as fallback when material field is missing.
-const LATEX_BRANDS = ["512", "забав", "sempertex", "белбал", "belbal", "эвертс", "everts", "shai", "yuhang", "юханг"];
-
-// Some 512 non-standard products encode the pack count in the name (e.g. "100шт").
-function parsePackFromName(name: string): number | null {
-  const m = name.match(/\b(\d+)\s*шт\b/i);
-  const n = m ? parseInt(m[1]) : null;
-  return n && n > 1 ? n : null;
-}
-
-// Extract inch size from name when sizeInches DB field is not populated.
-// Handles "(18''/46 см)" and Sempertex "R18 ..." patterns.
-function parseSizeFromName(name: string): string {
-  const r = /^R(\d+)\s/.exec(name);
-  if (r) return r[1];
-  const inch = /\((\d+)''/.exec(name);
-  if (inch) return inch[1];
-  return "";
-}
-
-// 24" and 36" latex: sold per piece (customer can quick-add a full package via secondary button).
-function isSoldByPiece(item: StockCard): boolean {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  if (!isLatex) return false;
-  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  return size === "24" || size === "36";
-}
-
-// Returns the required pack size, or null if the item is sold individually.
-function getPackSize(item: StockCard): number | null {
-  const isLatex =
-    (item.material ?? "").toLowerCase().includes("латекс") ||
-    LATEX_BRANDS.some((kw) => (item.brand ?? "").toLowerCase().includes(kw));
-  if (!isLatex) return null;
-
-  const brand = (item.brand ?? "").toLowerCase();
-  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-
-  // ── 512 ────────────────────────────────────────────────────────────────────
-  if (brand.includes("512")) {
-    if (size === "36") return null; // pack of 1 = individual
-    const t: Record<string, number> = { "5": 100, "12": 100, "18": 10, "24": 3 };
-    if (size in t) return t[size];
-    // Other 512 products: pack count is stated in the name
-    return parsePackFromName(item.name) ?? 100;
-  }
-
-  // ── Забава ─────────────────────────────────────────────────────────────────
-  if (brand.includes("забав")) {
-    const t: Record<string, number> = { "12": 50, "18": 25, "24": 10 };
-    return t[size] ?? 50;
-  }
-
-  // ── Sempertex ──────────────────────────────────────────────────────────────
-  if (brand.includes("sempertex")) {
-    if (size === "18") {
-      const isChrome = ((item.model ?? "") + " " + item.name).toLowerCase().includes("хром");
-      return isChrome ? 10 : 25;
-    }
-    const t: Record<string, number> = {
-      "1/3": 50, "2/5": 50, "2/6": 50, "3/8": 50,
-      "5": 100, "6": 100, "10": 100,
-      "12": 50, "16": 25, "116": 50,
-      "24": 3, "36": 10,
-    };
-    return t[size] ?? 50;
-  }
-
-  // ── Белбал / Belbal ────────────────────────────────────────────────────────
-  if (brand.includes("белбал") || brand.includes("belbal")) {
-    if (size === "12") return 50;
-    if (size === "24") return null; // pack of 1 = individual
-    return item.unitsPerPackage ?? 50;
-  }
-
-  // ── Эвертс / Everts ───────────────────────────────────────────────────────
-  if (brand.includes("эвертс") || brand.includes("everts")) {
-    const t: Record<string, number> = { "5": 100, "12": 50 };
-    return t[size] ?? 50;
-  }
-
-  // ── Chinese brands ─────────────────────────────────────────────────────────
-  if (brand.includes("shai")) return 50;
-  if (brand.includes("yuhang") || brand.includes("юханг")) return 100;
-
-  // ── Unknown latex brand — fall back to DB value ────────────────────────────
-  return item.unitsPerPackage ?? 50;
-}
-
 
 function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }: { images: string[]; name: string; sizes: string; priority?: boolean; objectFit?: "contain" | "cover" }) {
   const [idx, setIdx] = useState(0);

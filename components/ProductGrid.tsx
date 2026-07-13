@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import type { StockCard } from "@/lib/stock";
+import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
 type Props = { items: StockCard[] };
 
@@ -29,13 +30,15 @@ export default function ProductGrid({ items }: Props) {
             {items.map((item, i) => {
               const cartItem = cartItems.find((i) => i.id === item.id);
               const liked = isLiked(item.id);
+              const packSize = isSoldByPiece(item) ? null : getPackSize(item);
+              const basePrice = item.pricePerPc * (packSize ?? 1);
               const salePrice = item.salePercent
-                ? Math.round(item.pricePerPc * (1 - item.salePercent / 100))
+                ? Math.round(basePrice * (1 - item.salePercent / 100))
                 : null;
               const asCartProduct = {
                 id: item.id,
                 name: item.fullName ?? item.name,
-                price: salePrice ?? item.pricePerPc,
+                price: salePrice ?? basePrice,
                 salePrice: null,
                 imageUrl: item.imageUrl,
                 colorGroup: null,
@@ -67,7 +70,7 @@ export default function ProductGrid({ items }: Props) {
                       {item.salePercent ? `-${item.salePercent}%` : 'Акция'}
                     </span>
                     <button
-                      onClick={() => toggleLike({ id: item.id, name: item.fullName ?? item.name, price: item.pricePerPc, salePrice, imageUrl: item.imageUrl, manufacturer: item.brand })}
+                      onClick={() => toggleLike({ id: item.id, name: item.fullName ?? item.name, price: basePrice, salePrice, imageUrl: item.imageUrl, manufacturer: item.brand })}
                       className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10"
                       title={liked ? "Убрать из избранного" : "В избранное"}
                     >
@@ -84,15 +87,20 @@ export default function ProductGrid({ items }: Props) {
 
                     <div className="flex items-end justify-between gap-2 mt-auto">
                       <div>
-                        {item.salePercent ? (
+                        {salePrice ? (
                           <>
                             <span className="text-lg font-bold text-red-600">
-                              {Math.round(item.pricePerPc * (1 - item.salePercent / 100))} ₸
+                              {salePrice.toLocaleString()} ₸{packSize ? <span className="text-xs font-normal text-gray-400"> / уп</span> : null}
                             </span>
-                            <p className="text-xs text-gray-400 line-through">{item.pricePerPc} ₸</p>
+                            <p className="text-xs text-gray-400 line-through">{basePrice.toLocaleString()} ₸</p>
                           </>
                         ) : (
-                          <span className="text-lg font-bold text-red-600">{item.pricePerPc} ₸</span>
+                          <span className="text-lg font-bold text-red-600">
+                            {basePrice.toLocaleString()} ₸{packSize ? <span className="text-xs font-normal text-gray-400"> / уп</span> : null}
+                          </span>
+                        )}
+                        {packSize && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">{packSize} шт в упаковке</p>
                         )}
                         {item.brand && (
                           <p className="text-[10px] text-gray-400 mt-0.5">{item.brand}</p>
@@ -117,7 +125,7 @@ export default function ProductGrid({ items }: Props) {
                         </div>
                       ) : (
                         <button
-                          onClick={() => addToCart(asCartProduct)}
+                          onClick={() => addToCart(asCartProduct, packSize)}
                           className="flex-shrink-0 w-8 h-8 bg-sky-400 hover:bg-sky-500 text-white rounded-lg flex items-center justify-center transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

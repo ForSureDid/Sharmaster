@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { scoreRelevance, getFuzzyItemIds } from "@/lib/stock";
+import { getPackSize, isSoldByPiece } from "@/lib/pack";
 import { WORD_SYNONYMS } from "@/lib/search-hints";
 
 export async function GET(req: NextRequest) {
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
     },
     select: {
       id: true, name: true, fullName: true, brand: true,
-      stock: true, pricePerPc: true,
+      stock: true, pricePerPc: true, sizeInches: true, packQty: true,
       imageUrl: true, images: true, productId: true,
     },
     take: 24,
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
         where: { id: { in: newIds } },
         select: {
           id: true, name: true, fullName: true, brand: true,
-          stock: true, pricePerPc: true,
+          stock: true, pricePerPc: true, sizeInches: true, packQty: true,
           imageUrl: true, images: true, productId: true,
         },
       });
@@ -79,17 +80,22 @@ export async function GET(req: NextRequest) {
     for (const p of prods) productImgMap[p.id] = p.imageUrl;
   }
 
-  const items = scored.map((r) => ({
-    id: r.id,
-    name: r.name,
-    brand: r.brand,
-    stock: r.stock,
-    pricePerPc: Number(r.pricePerPc),
-    imageUrl:
-      r.imageUrl ??
-      r.images[0] ??
-      (r.productId != null ? (productImgMap[r.productId] ?? null) : null),
-  }));
+  const items = scored.map((r) => {
+    // Show the same price the catalog card shows: per pack when sold by pack
+    const packSize = isSoldByPiece(r) ? null : getPackSize(r);
+    return {
+      id: r.id,
+      name: r.name,
+      brand: r.brand,
+      stock: r.stock,
+      price: Number(r.pricePerPc) * (packSize ?? 1),
+      packSize,
+      imageUrl:
+        r.imageUrl ??
+        r.images[0] ??
+        (r.productId != null ? (productImgMap[r.productId] ?? null) : null),
+    };
+  });
 
   return NextResponse.json({ items });
 }
