@@ -70,7 +70,7 @@ export default function ProductGrid({ items }: Props) {
                       {item.salePercent ? `-${item.salePercent}%` : 'Акция'}
                     </span>
                     <button
-                      onClick={() => toggleLike({ id: item.id, name: item.fullName ?? item.name, price: basePrice, salePrice, imageUrl: item.imageUrl, manufacturer: item.brand })}
+                      onClick={() => toggleLike(item.id)}
                       className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10"
                       title={liked ? "Убрать из избранного" : "В избранное"}
                     >

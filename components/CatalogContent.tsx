@@ -48,7 +48,7 @@ function ProductCardGrid({ product, priority }: { product: ProductCard; priority
           <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase">Акция</span>
         )}
         <button
-          onClick={() => toggleLike({ id: product.id, name: product.name, price: product.price, salePrice: product.salePrice, imageUrl: product.imageUrl, manufacturer: product.manufacturer })}
+          onClick={() => toggleLike(product.id)}
           className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors"
           title={liked ? "Убрать из избранного" : "В избранное"}
         >
@@ -182,7 +182,7 @@ function ProductCardList({ product }: { product: ProductCard }) {
           </button>
         )}
         <button
-          onClick={() => toggleLike({ id: product.id, name: product.name, price: product.price, salePrice: product.salePrice, imageUrl: product.imageUrl, manufacturer: product.manufacturer })}
+          onClick={() => toggleLike(product.id)}
           className="flex-shrink-0 p-2 rounded-lg hover:bg-red-50 transition-colors"
           title={liked ? "Убрать из избранного" : "В избранное"}
         >

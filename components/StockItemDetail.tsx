@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState, useCallback } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { useLikes } from "@/context/LikesContext";
 import type { StockDetail } from "@/lib/stock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
@@ -91,6 +92,8 @@ function NoImage() {
 export default function StockItemDetail({ item }: { item: StockDetail }) {
   const { items, addToCart, updateQty } = useCart();
   const { isAdmin } = useAuth();
+  const { isLiked, toggleLike } = useLikes();
+  const liked = isLiked(item.id);
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
@@ -145,6 +148,15 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             {displayPrice.toLocaleString("ru-KZ")} ₸
           </span>
           <span className="text-sm text-gray-400 pb-1">/ {byPiece ? "шт" : packSize ? "уп" : "шт"}</span>
+          <button
+            onClick={() => toggleLike(item.id)}
+            className={`ml-auto w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-xl border-2 transition-colors ${liked ? "bg-red-50 border-red-200" : "bg-white border-gray-200 hover:border-red-200"}`}
+            title={liked ? "Убрать из избранного" : "В избранное"}
+          >
+            <svg className={`w-6 h-6 transition-colors ${liked ? "fill-red-500 stroke-red-500" : "fill-none stroke-gray-400"}`} viewBox="0 0 24 24" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </button>
         </div>
 
         {/* Pack info */}

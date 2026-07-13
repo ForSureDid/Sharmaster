@@ -101,6 +101,7 @@ model StockItem {
   isNewPending Boolean  @default(false) // "Ожидайте поступления" — pre-arrival новинка
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  likes        Like[]
 
   @@index([stock])
   @@index([brand])
@@ -125,8 +126,22 @@ model User {
   createdAt DateTime @default(now())
   orders    Order[]
   sessions  Session[]
+  likes     Like[]
 
   @@index([email])
+}
+
+// Избранное залогиненного пользователя. Гости хранят лайки в localStorage
+// (только ID) и сливают их сюда при входе — см. context/LikesContext.tsx.
+model Like {
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stockItemId Int
+  stockItem   StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, stockItemId])
+  @@index([stockItemId])
 }
 
 // Server-side session record. The JWT's `jti` claim references the id here —
