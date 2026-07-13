@@ -282,6 +282,27 @@ export async function setNewArrivalPending(stockItemId: number, pending: boolean
   revalidatePath('/novinka')
 }
 
+// Search any StockItem for adding to novinka (excludes already-marked ones)
+export async function searchStockForNovinka(query: string) {
+  await requireAdmin()
+  if (!query.trim()) return []
+  const rows = await db.stockItem.findMany({
+    where: {
+      isNew: false,
+      isNewPending: false,
+      OR: [
+        { name:    { contains: query, mode: 'insensitive' } },
+        { article: { contains: query, mode: 'insensitive' } },
+        { brand:   { contains: query, mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true, name: true, article: true, brand: true, stock: true, pricePerPc: true },
+    take: 8,
+    orderBy: { name: 'asc' },
+  })
+  return rows.map(r => ({ ...r, pricePerPc: Number(r.pricePerPc) }))
+}
+
 // 1C items that are marked isNew (appeared in a sync for the first time)
 export async function getOnecNewItems(search = '', page = 0) {
   await requireAdmin()

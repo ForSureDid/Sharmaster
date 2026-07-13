@@ -21,6 +21,7 @@ import {
   setNewArrivalPending,
   dismissOnecNewItem,
   markStockItemNewFromOnec,
+  searchStockForNovinka,
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
@@ -1642,6 +1643,13 @@ function NewArrivalsTab() {
   const [actionOk, setActionOk]         = useState<string | null>(null);
   const [confirmPending, setConfirmPending] = useState<{ id: number; action: "new" | "pending" } | null>(null);
 
+  // Add-any-item search
+  type SearchResult = { id: number; name: string; article: string | null; brand: string | null; stock: number; pricePerPc: number };
+  const [addSearch, setAddSearch]       = useState("");
+  const [addResults, setAddResults]     = useState<SearchResult[]>([]);
+  const [addLoading, setAddLoading]     = useState(false);
+  const [addConfirm, setAddConfirm]     = useState<{ item: SearchResult; action: "new" | "pending" } | null>(null);
+
   // Debounce searches
   useEffect(() => {
     const t = setTimeout(() => { setOnecDebSearch(onecSearch); setOnecPage(0); }, 400);
@@ -1735,6 +1743,35 @@ function NewArrivalsTab() {
     if (!confirmPending || confirmPending.id !== item.id) return;
     if (confirmPending.action === "new") handleActivateNew(item);
     else handleSetPending(item);
+  }
+
+  // Debounced search for add-any-item
+  useEffect(() => {
+    if (!addSearch.trim()) { setAddResults([]); return; }
+    const t = setTimeout(() => {
+      setAddLoading(true);
+      searchStockForNovinka(addSearch)
+        .then(setAddResults)
+        .finally(() => setAddLoading(false));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [addSearch]);
+
+  function handleAddConfirm() {
+    if (!addConfirm) return;
+    startTx(async () => {
+      if (addConfirm.action === "new") {
+        await toggleNewArrival(addConfirm.item.id, true);
+      } else {
+        await setNewArrivalPending(addConfirm.item.id, true);
+      }
+      // Refresh the site items list
+      getNewArrivals(siteDebSearch, sitePage)
+        .then(r => { setSiteItems(r.items as NewArrivalItem[]); setSiteTotal(r.total); });
+      setAddSearch("");
+      setAddResults([]);
+      setAddConfirm(null);
+    });
   }
 
   return (
@@ -1854,11 +1891,83 @@ function NewArrivalsTab() {
             <p className="text-xs text-green-600 mt-0.5">{siteTotal} товаров · <span className="font-medium">New</span> = активные · <span className="font-medium">Ожидайте</span> = предварительные</p>
           </div>
 
+          {/* Add any item section */}
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Добавить любой товар</p>
+            <div className="relative">
+              <input
+                value={addSearch}
+                onChange={e => { setAddSearch(e.target.value); setAddConfirm(null); }}
+                placeholder="Название, бренд, артикул..."
+                className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-emerald-400 bg-white"
+              />
+              {addLoading && (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+              )}
+            </div>
+            {addSearch.trim() && addResults.length > 0 && (
+              <div className="mt-1.5 border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                {addResults.map(r => (
+                  <div key={r.id} className="px-3 py-2 border-b border-gray-50 last:border-0">
+                    {addConfirm?.item.id === r.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 text-xs text-gray-600 truncate">
+                          {addConfirm.action === "new" ? "Добавить как Новинку?" : "Добавить как Ожидайте?"}
+                        </span>
+                        <button
+                          onClick={handleAddConfirm}
+                          disabled={isPending}
+                          className="px-2 py-0.5 bg-emerald-600 text-white text-[11px] font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-40"
+                        >
+                          Подтвердить
+                        </button>
+                        <button
+                          onClick={() => setAddConfirm(null)}
+                          className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[11px] rounded-lg hover:bg-gray-200"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-800 truncate">{r.name}</p>
+                          <div className="flex gap-2 text-[10px] text-gray-400 mt-0.5">
+                            {r.article && <span>Арт. {r.article}</span>}
+                            {r.brand && <span>{r.brand}</span>}
+                            <span className={r.stock === 0 ? "text-red-400" : "text-gray-400"}>{r.stock} шт</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => setAddConfirm({ item: r, action: "new" })}
+                            className="px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded hover:bg-green-600"
+                          >
+                            New
+                          </button>
+                          <button
+                            onClick={() => setAddConfirm({ item: r, action: "pending" })}
+                            className="px-1.5 py-0.5 bg-amber-400 text-white text-[10px] font-semibold rounded hover:bg-amber-500"
+                          >
+                            Ожидайте
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {addSearch.trim() && !addLoading && addResults.length === 0 && (
+              <p className="mt-1.5 text-xs text-gray-400 pl-1">Ничего не найдено (или уже в новинках)</p>
+            )}
+          </div>
+
           <div className="px-4 py-3 border-b border-gray-50">
             <input
               value={siteSearch}
               onChange={e => setSiteSearch(e.target.value)}
-              placeholder="Поиск..."
+              placeholder="Поиск по новинкам..."
               className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-green-400"
             />
           </div>
