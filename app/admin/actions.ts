@@ -360,6 +360,93 @@ export async function markStockItemNewFromOnec(onecId: number) {
   return { stockItemId: stockItem.id }
 }
 
+export type OnecSyncRow = {
+  onecId: number
+  name: string
+  article: string | null
+  barcode: string | null
+  stockItemId: number
+  stockItemName: string
+  oldStock: number
+  newStock: number
+  oldPrice: number
+  newPrice: number
+}
+
+export async function previewOnecStockSync(): Promise<{ rows: OnecSyncRow[]; unmatched: number }> {
+  await requireAdmin()
+
+  const [onecItems, stockItems] = await Promise.all([
+    db.onecStockItem.findMany({ select: { id: true, onecId: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true } }),
+    db.stockItem.findMany({ select: { id: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true } }),
+  ])
+
+  const byArticle = new Map(stockItems.filter(s => s.article).map(s => [s.article!, s]))
+  const byBarcode = new Map(stockItems.filter(s => s.barcode).map(s => [s.barcode!, s]))
+
+  const rows: OnecSyncRow[] = []
+  let unmatched = 0
+
+  for (const o of onecItems) {
+    const match = (o.article && byArticle.get(o.article)) || (o.barcode && byBarcode.get(o.barcode)) || null
+    if (!match) { unmatched++; continue }
+
+    const newPrice = Number(o.pricePerPc)
+    const oldPrice = Number(match.pricePerPc)
+    if (o.stock === match.stock && Math.abs(newPrice - oldPrice) < 0.01) continue
+
+    rows.push({
+      onecId: o.id,
+      name: o.name,
+      article: o.article,
+      barcode: o.barcode,
+      stockItemId: match.id,
+      stockItemName: match.name,
+      oldStock: match.stock,
+      newStock: o.stock,
+      oldPrice,
+      newPrice,
+    })
+  }
+
+  return { rows, unmatched }
+}
+
+export async function applyOnecStockSync(rowIds: number[]): Promise<{ updated: number; errors: string[] }> {
+  await requireAdmin()
+  if (!rowIds.length) throw new Error('Нет строк для применения')
+
+  const onecItems = await db.onecStockItem.findMany({
+    where: { id: { in: rowIds } },
+    select: { id: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true },
+  })
+
+  const stockItems = await db.stockItem.findMany({
+    select: { id: true, article: true, barcode: true },
+  })
+  const byArticle = new Map(stockItems.filter(s => s.article).map(s => [s.article!, s]))
+  const byBarcode = new Map(stockItems.filter(s => s.barcode).map(s => [s.barcode!, s]))
+
+  const errors: string[] = []
+  let updated = 0
+
+  await Promise.all(onecItems.map(async o => {
+    const match = (o.article && byArticle.get(o.article)) || (o.barcode && byBarcode.get(o.barcode)) || null
+    if (!match) { errors.push(`Не найден на сайте: "${o.name}"`); return }
+    try {
+      await db.stockItem.update({
+        where: { id: match.id },
+        data: { stock: o.stock, pricePerPc: Number(o.pricePerPc) },
+      })
+      updated++
+    } catch {
+      errors.push(`Ошибка обновления: "${o.name}"`)
+    }
+  }))
+
+  return { updated, errors }
+}
+
 export async function getSyncStatus() {
   await requireAdmin()
   const [logs, onecItemCount] = await Promise.all([

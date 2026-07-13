@@ -24,6 +24,8 @@ import {
   createStockItem,
   bulkCreateItems,
   getSyncStatus,
+  previewOnecStockSync,
+  applyOnecStockSync,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1889,7 +1891,7 @@ function NewArrivalsTab() {
   );
 }
 
-// ─── 1C sync tab (read-only) ───────────────────────────────────────────────────
+// ─── 1C sync tab ──────────────────────────────────────────────────────────────
 
 type SyncLogRow = {
   id: number;
@@ -1905,48 +1907,137 @@ type SyncLogRow = {
 function OnecSyncTab() {
   const [data, setData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [preview, setPreview] = useState<{ rows: import("@/app/admin/actions").OnecSyncRow[]; unmatched: number } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [result, setResult] = useState<{ updated: number; errors: string[] } | null>(null);
 
   useEffect(() => {
     getSyncStatus().then(setData).finally(() => setLoading(false));
   }, []);
 
-  return (
-    <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-      <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-        <h2 className="font-bold text-gray-800 mr-auto">Обмен с 1С</h2>
-        <span className="text-xs text-gray-400">
-          Товаров в OnecStockItem: <span className="font-semibold text-gray-600">{data?.onecItemCount ?? "—"}</span>
-        </span>
-      </div>
-      <p className="px-4 sm:px-6 pt-3 text-xs text-gray-400">
-        Данные из 1С пока изолированы от витрины — эта таблица не влияет на каталог сайта.
-      </p>
+  async function handlePreview() {
+    setPreviewLoading(true);
+    setPreview(null);
+    setResult(null);
+    try {
+      const p = await previewOnecStockSync();
+      setPreview(p);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
-      {loading ? (
-        <div className="px-6 py-10 text-center text-sm text-gray-400">Загрузка...</div>
-      ) : !data || data.logs.length === 0 ? (
-        <div className="px-6 py-10 text-center text-sm text-gray-400">Синхронизаций пока не было</div>
-      ) : (
-        <div className="divide-y divide-gray-50 mt-3">
-          {data.logs.map(l => (
-            <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
-              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-              }`}>
-                {l.status === "success" ? "Успешно" : "Ошибка"}
+  async function handleApply() {
+    if (!preview?.rows.length) return;
+    setApplying(true);
+    try {
+      const r = await applyOnecStockSync(preview.rows.map(r => r.onecId));
+      setResult(r);
+      setPreview(null);
+      getSyncStatus().then(setData);
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Log */}
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+          <h2 className="font-bold text-gray-800 mr-auto">Обмен с 1С</h2>
+          <span className="text-xs text-gray-400">
+            Товаров в буфере: <span className="font-semibold text-gray-600">{data?.onecItemCount ?? "—"}</span>
+          </span>
+        </div>
+        {loading ? (
+          <div className="px-6 py-8 text-center text-sm text-gray-400">Загрузка...</div>
+        ) : !data || data.logs.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-gray-400">Синхронизаций пока не было</div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {data.logs.map(l => (
+              <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                  {l.status === "success" ? "Успешно" : "Ошибка"}
+                </span>
+                <span className="text-xs font-semibold text-gray-600">{l.source}</span>
+                <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
+                <span className="text-xs text-gray-500">создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}</span>
+                {l.message && <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Apply to storefront */}
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+          <h2 className="font-bold text-gray-800 mr-auto">Применить на сайт</h2>
+          <button
+            onClick={handlePreview}
+            disabled={previewLoading || applying}
+            className="text-xs bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl font-medium transition-colors"
+          >
+            {previewLoading ? "Проверяю..." : "Предпросмотр изменений"}
+          </button>
+        </div>
+
+        {result && (
+          <div className={`mx-4 sm:mx-6 my-4 px-4 py-3 rounded-xl text-sm ${result.errors.length ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
+            Обновлено {result.updated} позиций{result.errors.length ? `. Ошибки: ${result.errors.slice(0, 3).join("; ")}` : ""}
+          </div>
+        )}
+
+        {preview && (
+          <div className="px-4 sm:px-6 pb-4">
+            <div className="flex items-center gap-3 my-3 flex-wrap">
+              <span className="text-sm text-gray-600">
+                Изменится <span className="font-bold text-gray-800">{preview.rows.length}</span> позиций
+                {preview.unmatched > 0 && <span className="text-gray-400"> · {preview.unmatched} не найдено на сайте</span>}
               </span>
-              <span className="text-xs font-semibold text-gray-600">{l.source}</span>
-              <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
-              <span className="text-xs text-gray-500">
-                создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}
-              </span>
-              {l.message && (
-                <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>
+              {preview.rows.length > 0 && (
+                <button
+                  onClick={handleApply}
+                  disabled={applying}
+                  className="ml-auto text-xs bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl font-medium transition-colors"
+                >
+                  {applying ? "Применяю..." : `Применить ${preview.rows.length} позиций`}
+                </button>
               )}
             </div>
-          ))}
-        </div>
-      )}
+            {preview.rows.length > 0 && (
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto_auto] text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 bg-gray-50 gap-4">
+                  <span>Товар</span><span>Остаток</span><span>Цена</span>
+                </div>
+                <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+                  {preview.rows.map(r => (
+                    <div key={r.onecId} className="grid grid-cols-[1fr_auto_auto] px-3 py-2 gap-4 items-center">
+                      <span className="text-xs text-gray-700 truncate" title={r.stockItemName}>{r.stockItemName}</span>
+                      <span className="text-xs whitespace-nowrap">
+                        {r.oldStock !== r.newStock
+                          ? <><span className="text-gray-400 line-through">{r.oldStock}</span> → <span className="font-medium text-gray-800">{r.newStock}</span></>
+                          : <span className="text-gray-400">{r.oldStock}</span>}
+                      </span>
+                      <span className="text-xs whitespace-nowrap">
+                        {Math.abs(r.oldPrice - r.newPrice) >= 0.01
+                          ? <><span className="text-gray-400 line-through">{r.oldPrice}₸</span> → <span className="font-medium text-gray-800">{r.newPrice}₸</span></>
+                          : <span className="text-gray-400">{r.oldPrice}₸</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {preview.rows.length === 0 && (
+              <p className="text-sm text-gray-400 py-4 text-center">Всё актуально — изменений нет</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
