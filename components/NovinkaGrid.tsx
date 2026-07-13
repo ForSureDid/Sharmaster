@@ -7,9 +7,9 @@ import { useLikes } from "@/context/LikesContext";
 import type { NovinkaCard } from "@/lib/stock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
-type Props = { items: NovinkaCard[] };
+type Props = { items: NovinkaCard[]; gridClassName?: string };
 
-export default function NovinkaGrid({ items }: Props) {
+export default function NovinkaGrid({ items, gridClassName }: Props) {
   const { items: cartItems, addToCart, updateQty } = useCart();
   const { isLiked, toggleLike } = useLikes();
 
@@ -23,7 +23,7 @@ export default function NovinkaGrid({ items }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+    <div className={gridClassName ?? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4"}>
       {items.map((item) => {
         const cartItem = cartItems.find((i) => i.id === item.id);
         const liked = isLiked(item.id);
