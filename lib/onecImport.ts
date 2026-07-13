@@ -204,6 +204,24 @@ export async function applyImportXml(
     }
   }
 
+  // Clear isNew on 1C items that already have a matching StockItem (article / barcode / name).
+  // Only truly NEW items (no match in the site catalog) should stay marked as новинка.
+  await db.$executeRaw`
+    UPDATE "OnecStockItem" o SET "isNew" = false
+    WHERE o."isNew" = true
+    AND (
+      (o."article" IS NOT NULL AND EXISTS (
+        SELECT 1 FROM "StockItem" s WHERE s."article" = o."article"
+      ))
+      OR (o."barcode" IS NOT NULL AND EXISTS (
+        SELECT 1 FROM "StockItem" s WHERE s."barcode" = o."barcode"
+      ))
+      OR EXISTS (
+        SELECT 1 FROM "StockItem" s WHERE s."name" = o."name"
+      )
+    )
+  `
+
   return { created, updated, errors }
 }
 

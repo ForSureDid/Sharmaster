@@ -488,3 +488,48 @@ export const getAllSaleItems = unstable_cache(
   ['allSaleItems'],
   { revalidate: 300, tags: ['stockItems'] }
 )
+
+export type NovinkaCard = StockCard & { isNew: boolean; isNewPending: boolean }
+
+async function _getNovinkaItems(): Promise<NovinkaCard[]> {
+  const rawItems = await db.stockItem.findMany({
+    where: { OR: [{ isNew: true }, { isNewPending: true }] },
+    select: {
+      id: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true,
+      stock: true, pricePerPc: true, imageUrl: true, images: true, productId: true,
+      onSale: true, salePercent: true, isNew: true, isNewPending: true,
+    },
+    orderBy: [{ isNew: 'desc' }, { createdAt: 'desc' }],
+  })
+
+  const linkedProductIds = rawItems.filter(i => i.productId != null).map(i => i.productId!)
+  type ProductMeta = { imageUrl: string | null; images: string[]; material: string | null; sizeInches: string | null; model: string | null; unitsPerPackage: number | null }
+  const productMetaMap = new Map<number, ProductMeta>()
+  if (linkedProductIds.length > 0) {
+    const products = await db.product.findMany({
+      where: { id: { in: linkedProductIds } },
+      select: { id: true, imageUrl: true, images: true, material: true, sizeInches: true, model: true, unitsPerPackage: true },
+    })
+    for (const p of products) productMetaMap.set(p.id, p)
+  }
+
+  return rawItems.map(i => {
+    const prod = i.productId != null ? productMetaMap.get(i.productId!) : undefined
+    const { headUrl, allImages } = buildImages(i, prod)
+    return {
+      id: i.id, name: i.name, fullName: i.fullName, brand: i.brand,
+      stock: i.stock, pricePerPc: Number(i.pricePerPc),
+      imageUrl: headUrl, images: allImages,
+      material: prod?.material ?? null, sizeInches: i.sizeInches ?? prod?.sizeInches ?? null,
+      model: prod?.model ?? null, unitsPerPackage: prod?.unitsPerPackage ?? null, packQty: i.packQty,
+      onSale: i.onSale, salePercent: i.salePercent,
+      isNew: i.isNew, isNewPending: i.isNewPending,
+    }
+  })
+}
+
+export const getNovinkaItems = unstable_cache(
+  _getNovinkaItems,
+  ['novinkaItems'],
+  { revalidate: 60, tags: ['stockItems'] }
+)

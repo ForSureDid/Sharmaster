@@ -246,16 +246,14 @@ export async function getNewArrivals(search = '', page = 0) {
   await requireAdmin()
   const take = 50
   const skip = page * take
-  const where = {
-    isNew: true,
-    ...(search ? {
-      OR: [
-        { name:    { contains: search, mode: 'insensitive' as const } },
-        { article: { contains: search, mode: 'insensitive' as const } },
-        { brand:   { contains: search, mode: 'insensitive' as const } },
-      ],
-    } : {}),
-  }
+  const baseWhere = search ? {
+    OR: [
+      { name:    { contains: search, mode: 'insensitive' as const } },
+      { article: { contains: search, mode: 'insensitive' as const } },
+      { brand:   { contains: search, mode: 'insensitive' as const } },
+    ],
+  } : {}
+  const where = { OR: [{ isNew: true }, { isNewPending: true }], ...baseWhere }
   const [items, total] = await Promise.all([
     db.stockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
     db.stockItem.count({ where }),
@@ -264,7 +262,7 @@ export async function getNewArrivals(search = '', page = 0) {
     items: items.map(i => ({
       id: i.id, name: i.name, article: i.article, brand: i.brand,
       stock: i.stock, pricePerPc: Number(i.pricePerPc),
-      imageUrl: i.imageUrl, isNew: i.isNew, createdAt: i.createdAt,
+      imageUrl: i.imageUrl, isNew: i.isNew, isNewPending: i.isNewPending, createdAt: i.createdAt,
     })),
     total,
   }
@@ -272,9 +270,16 @@ export async function getNewArrivals(search = '', page = 0) {
 
 export async function toggleNewArrival(stockItemId: number, isNew: boolean) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id: stockItemId }, data: { isNew } })
+  await db.stockItem.update({ where: { id: stockItemId }, data: { isNew, ...(isNew ? {} : { isNewPending: false }) } })
   revalidatePath('/admin')
-  revalidatePath('/')
+  revalidatePath('/novinka')
+}
+
+export async function setNewArrivalPending(stockItemId: number, pending: boolean) {
+  await requireAdmin()
+  await db.stockItem.update({ where: { id: stockItemId }, data: { isNewPending: pending, ...(pending ? { isNew: false } : {}) } })
+  revalidatePath('/admin')
+  revalidatePath('/novinka')
 }
 
 // 1C items that are marked isNew (appeared in a sync for the first time)
@@ -353,7 +358,7 @@ export async function markStockItemNewFromOnec(onecId: number) {
 
   if (!stockItem) throw new Error('Товар не найден в каталоге сайта (нет совпадения по артикулу/штрихкоду)')
 
-  await db.stockItem.update({ where: { id: stockItem.id }, data: { isNew: true } })
+  await db.stockItem.update({ where: { id: stockItem.id }, data: { isNew: true, isNewPending: false } })
   await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
   revalidatePath('/admin')
   revalidatePath('/')

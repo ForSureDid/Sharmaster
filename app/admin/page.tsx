@@ -18,6 +18,7 @@ import {
   getNewArrivals,
   getOnecNewItems,
   toggleNewArrival,
+  setNewArrivalPending,
   dismissOnecNewItem,
   markStockItemNewFromOnec,
   getAdminMeta,
@@ -1618,7 +1619,7 @@ type OnecNewItem = {
 type NewArrivalItem = {
   id: number; name: string; article: string | null; brand: string | null;
   stock: number; pricePerPc: number; imageUrl: string | null;
-  isNew: boolean; createdAt: Date | string;
+  isNew: boolean; isNewPending: boolean; createdAt: Date | string;
 };
 
 function NewArrivalsTab() {
@@ -1702,6 +1703,20 @@ function NewArrivalsTab() {
       await dismissOnecNewItem(item.id);
       setOnecItems(prev => prev.filter(i => i.id !== item.id));
       setOnecTotal(t => t - 1);
+    });
+  }
+
+  function handleActivateNew(item: NewArrivalItem) {
+    startTx(async () => {
+      await toggleNewArrival(item.id, true);
+      setSiteItems(prev => prev.map(i => i.id === item.id ? { ...i, isNew: true, isNewPending: false } : i));
+    });
+  }
+
+  function handleSetPending(item: NewArrivalItem) {
+    startTx(async () => {
+      await setNewArrivalPending(item.id, true);
+      setSiteItems(prev => prev.map(i => i.id === item.id ? { ...i, isNewPending: true, isNew: false } : i));
     });
   }
 
@@ -1827,7 +1842,7 @@ function NewArrivalsTab() {
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-100">
             <p className="font-semibold text-green-800 text-sm">Новинки на сайте</p>
-            <p className="text-xs text-green-600 mt-0.5">{siteTotal} товаров отображаются как новинки</p>
+            <p className="text-xs text-green-600 mt-0.5">{siteTotal} товаров · <span className="font-medium">New</span> = активные · <span className="font-medium">Ожидайте</span> = предварительные</p>
           </div>
 
           <div className="px-4 py-3 border-b border-gray-50">
@@ -1850,24 +1865,56 @@ function NewArrivalsTab() {
           ) : (
             <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
               {siteItems.map(item => (
-                <div key={item.id} className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/30 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                    <div className="flex flex-wrap gap-x-3 mt-0.5">
-                      {item.article && <span className="text-xs text-gray-400 font-mono">Арт. {item.article}</span>}
-                      {item.brand   && <span className="text-xs text-gray-400">{item.brand}</span>}
-                      <span className="text-xs font-medium text-gray-600">{item.pricePerPc.toLocaleString("ru-RU")} ₸</span>
-                      <span className={`text-xs font-medium ${item.stock === 0 ? "text-red-500" : "text-gray-400"}`}>{item.stock} шт</span>
+                <div key={item.id} className="px-4 py-3 hover:bg-green-50/20 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                        {item.isNew && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full uppercase tracking-wide flex-shrink-0">New</span>
+                        )}
+                        {item.isNewPending && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-700 rounded-full flex-shrink-0">Ожидайте</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 mt-0.5">
+                        {item.article && <span className="text-xs text-gray-400 font-mono">Арт. {item.article}</span>}
+                        {item.brand   && <span className="text-xs text-gray-400">{item.brand}</span>}
+                        <span className="text-xs font-medium text-gray-600">{item.pricePerPc.toLocaleString("ru-RU")} ₸</span>
+                        <span className={`text-xs font-medium ${item.stock === 0 ? "text-red-500" : "text-gray-400"}`}>{item.stock} шт</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 flex-shrink-0">
+                      {!item.isNew && (
+                        <button
+                          onClick={() => handleActivateNew(item)}
+                          disabled={isPending}
+                          title="Вывести как активную новинку на сайте"
+                          className="px-2 py-1 bg-green-500 text-white text-[11px] font-semibold rounded-lg hover:bg-green-600 transition-colors disabled:opacity-40 whitespace-nowrap"
+                        >
+                          Новинка
+                        </button>
+                      )}
+                      {!item.isNewPending && (
+                        <button
+                          onClick={() => handleSetPending(item)}
+                          disabled={isPending}
+                          title="Предварительная — Ожидайте поступления"
+                          className="px-2 py-1 bg-amber-400 text-white text-[11px] font-semibold rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-40 whitespace-nowrap"
+                        >
+                          Предварит.
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleRemoveFromSite(item)}
+                        disabled={isPending}
+                        title="Убрать из новинок"
+                        className="px-2 py-1 bg-gray-100 text-gray-500 text-[11px] font-semibold rounded-lg hover:bg-red-100 hover:text-red-500 transition-colors disabled:opacity-40"
+                      >
+                        Убрать
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleRemoveFromSite(item)}
-                    disabled={isPending}
-                    title="Убрать из новинок"
-                    className="w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-500 transition-colors text-sm font-bold flex items-center justify-center flex-shrink-0 disabled:opacity-40"
-                  >
-                    ×
-                  </button>
                 </div>
               ))}
             </div>

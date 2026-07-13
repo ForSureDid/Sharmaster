@@ -97,9 +97,10 @@ model StockItem {
   categoryId Int?
   category   Category? @relation("StockItemCategory", fields: [categoryId], references: [id])
 
-  isNew      Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isNew        Boolean  @default(false)
+  isNewPending Boolean  @default(false) // "Ожидайте поступления" — pre-arrival новинка
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([stock])
   @@index([brand])
@@ -108,6 +109,7 @@ model StockItem {
   @@index([categoryId])
   @@index([onSale])
   @@index([isNew])
+  @@index([isNewPending])
   @@index([createdAt])
 }
 
