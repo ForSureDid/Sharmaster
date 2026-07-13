@@ -45,12 +45,8 @@ function parseSizeFromName(name: string): string {
   return "";
 }
 
-// Legacy heuristic: 24" and 36" latex sold per piece.
-function legacyByPiece(item: PackItem): boolean {
-  if (!isLatex(item)) return false;
-  const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
-  return size === "24" || size === "36";
-}
+// Latex "giants" — sold per piece, with a quick-add button for a full pack.
+const BY_PIECE_SIZES = new Set(["18", "24", "36"]);
 
 // Legacy heuristic pack tables per brand.
 function legacyPackSize(item: PackItem): number | null {
@@ -102,14 +98,21 @@ function legacyPackSize(item: PackItem): number | null {
   return item.unitsPerPackage ?? 50;
 }
 
-// Returns the pack size (>= 2), or null if the item is sold individually.
+// Returns the pack size (>= 2), or null when no pack is known.
+// For by-piece items this is the size of the optional "+ упаковка" quick-add.
 export function getPackSize(item: PackItem): number | null {
   if (item.packQty != null) return item.packQty > 1 ? item.packQty : null;
   return legacyPackSize(item);
 }
 
 // True when the item is sold per piece (price shown as ₸/шт).
+// Latex 18"/24"/36" are always by piece — the customer can still add
+// a full pack of packQty via the secondary button.
 export function isSoldByPiece(item: PackItem): boolean {
+  if (isLatex(item)) {
+    const size = item.sizeInches ?? parseSizeFromName(item.fullName ?? item.name);
+    if (BY_PIECE_SIZES.has(size)) return true;
+  }
   if (item.packQty != null) return item.packQty <= 1;
-  return legacyByPiece(item);
+  return false;
 }
