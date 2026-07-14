@@ -171,9 +171,16 @@ model Order {
   createdAt    DateTime    @default(now())
   items        OrderItem[]
 
+  // 1C sale exchange: query stamps onecQueuedAt when the order is handed to 1C,
+  // the follow-up mode=success stamps onecExportedAt. Orders with a NULL
+  // onecExportedAt are (re)sent on the next exchange, so a failed cycle retries.
+  onecQueuedAt   DateTime?
+  onecExportedAt DateTime?
+
   @@index([userId])
   @@index([phone])
   @@index([createdAt])
+  @@index([onecExportedAt])
 }
 
 model OrderItem {
