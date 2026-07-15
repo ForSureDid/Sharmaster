@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, updateTag } from 'next/cache'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -273,6 +273,8 @@ export async function toggleNewArrival(stockItemId: number, isNew: boolean) {
   await db.stockItem.update({ where: { id: stockItemId }, data: { isNew, ...(isNew ? {} : { isNewPending: false }) } })
   revalidatePath('/admin')
   revalidatePath('/novinka')
+  revalidatePath('/')
+  updateTag('stockItems')
 }
 
 export async function setNewArrivalPending(stockItemId: number, pending: boolean) {
@@ -280,6 +282,8 @@ export async function setNewArrivalPending(stockItemId: number, pending: boolean
   await db.stockItem.update({ where: { id: stockItemId }, data: { isNewPending: pending, ...(pending ? { isNew: false } : {}) } })
   revalidatePath('/admin')
   revalidatePath('/novinka')
+  revalidatePath('/')
+  updateTag('stockItems')
 }
 
 // Search any StockItem for adding to novinka (excludes already-marked ones)
@@ -383,6 +387,8 @@ export async function markStockItemNewFromOnec(onecId: number) {
   await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
   revalidatePath('/admin')
   revalidatePath('/')
+  revalidatePath('/novinka')
+  updateTag('stockItems')
   return { stockItemId: stockItem.id }
 }
 
