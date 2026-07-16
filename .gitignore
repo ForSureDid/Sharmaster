@@ -56,3 +56,4 @@ next-env.d.ts
 # 2gis parsing
 /venv/
 /data/
+logs/
