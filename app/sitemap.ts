@@ -11,6 +11,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: BASE_URL,           lastModified: new Date(), changeFrequency: "daily",   priority: 1.0 },
     { url: `${BASE_URL}/catalog`, lastModified: new Date(), changeFrequency: "hourly",  priority: 0.9 },
     { url: `${BASE_URL}/sale`,    lastModified: new Date(), changeFrequency: "daily",   priority: 0.8 },
+    { url: `${BASE_URL}/privacy-policy`, lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/oferta`,         lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/delivery`,       lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/returns`,        lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
+    { url: `${BASE_URL}/cookie-policy`,  lastModified: new Date(), changeFrequency: "yearly", priority: 0.3 },
   ];
 
   // All stock item pages

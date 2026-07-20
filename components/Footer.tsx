@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import FooterLegalBlock from "@/components/FooterLegalBlock";
 
 export default function Footer() {
   return (
@@ -75,13 +76,7 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-600">
-          <p>© 2025 Sharmaster.kz — Оптовый магазин воздушных шаров</p>
-          <p>Казахстан</p>
-        </div>
-      </div>
+      <FooterLegalBlock />
     </footer>
   );
 }

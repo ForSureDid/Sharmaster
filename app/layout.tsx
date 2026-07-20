@@ -4,6 +4,10 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { LikesProvider } from "@/context/LikesContext";
+import { CookieConsentProvider } from "@/context/CookieConsentContext";
+import { LocaleProvider } from "@/context/LocaleContext";
+import CookieBanner from "@/components/CookieBanner";
+import AnalyticsScripts from "@/components/AnalyticsScripts";
 
 const nunito = Nunito({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700", "800"] });
 
@@ -24,13 +28,19 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://tjoreojidkjhfksspbwe.supabase.co" />
       </head>
       <body className={`${nunito.className} min-h-full flex flex-col`}>
-        <AuthProvider>
-          <CartProvider>
-            <LikesProvider>
-              {children}
-            </LikesProvider>
-          </CartProvider>
-        </AuthProvider>
+        <LocaleProvider>
+          <CookieConsentProvider>
+            <AuthProvider>
+              <CartProvider>
+                <LikesProvider>
+                  {children}
+                </LikesProvider>
+              </CartProvider>
+            </AuthProvider>
+            <CookieBanner />
+            <AnalyticsScripts />
+          </CookieConsentProvider>
+        </LocaleProvider>
       </body>
     </html>
   );
