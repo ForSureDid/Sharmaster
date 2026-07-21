@@ -14,7 +14,7 @@ export const dictionaries = {
         cookiePolicy: "Cookie",
         cookieSettings: "Настройки cookie",
       },
-      copyrightHolder: "SHARMASTER",
+      copyrightHolder: "SHARMASTER.KZ",
       copyrightRights: "Все права защищены.",
     },
     cookieBanner: {
@@ -61,7 +61,7 @@ export const dictionaries = {
         cookiePolicy: "Cookie",
         cookieSettings: "Cookie баптаулары",
       },
-      copyrightHolder: "SHARMASTER",
+      copyrightHolder: "SHARMASTER.KZ",
       copyrightRights: "Барлық құқықтар қорғалған.",
     },
     // Cookie-banner UI copy — a working translation, not yet reviewed by a
