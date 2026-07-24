@@ -62,13 +62,22 @@ type RawItem = {
   imageUrl: string | null; images: string[]; onSale: boolean; salePercent: number | null; isNew: boolean
 }
 
+// OnecStockItem.images[] holds only the *extra* photos (scripts/link-onec-images.ts
+// numbers them _1, _2, ...) — the head photo lives solely in imageUrl and is never
+// duplicated into images[]. Card components render `images` as an ordered carousel
+// and expect the head shot first, so it has to be prepended here.
+function buildImages(imageUrl: string | null, images: string[]): string[] {
+  if (!imageUrl) return images
+  return [imageUrl, ...images.filter((u) => u !== imageUrl)]
+}
+
 // OnecStockItem has no isNewPending column (that's a StockItem-only pre-arrival
 // concept from the donballon novelties workflow) — always false here.
 function toCard(i: RawItem): StockCard {
   return {
     id: i.id, slug: i.slug, name: i.name, fullName: null, brand: i.brand,
     stock: i.stock, pricePerPc: Number(i.pricePerPc),
-    imageUrl: i.imageUrl, images: i.images,
+    imageUrl: i.imageUrl, images: buildImages(i.imageUrl, i.images),
     material: null, sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
     isNew: i.isNew, isNewPending: false,
