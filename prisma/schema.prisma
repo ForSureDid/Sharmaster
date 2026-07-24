@@ -206,9 +206,13 @@ model OnecStockItem {
   brand           String?          // Изготовитель
   countryOfOrigin String?
   description     String?
-  groupName       String?          // raw 1C classifier group name — plain text, not linked to the live Category tree
+  groupName       String?          // raw 1C classifier leaf group name — plain text, quick display only; real hierarchy is OnecCategory via categoryId
+  categoryId      Int?
+  category        OnecCategory? @relation(fields: [categoryId], references: [id])
   stock           Int      @default(0)
   pricePerPc      Decimal  @default(0) @db.Decimal(10, 2)
+  imageUrl        String?          // linked post-sync by scripts/link-onec-images.ts, matched by article to Supabase Storage
+  images          String[]
   isNew           Boolean  @default(false) // true when first inserted by sync; admin clears after review
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -216,6 +220,23 @@ model OnecStockItem {
   @@index([article])
   @@index([barcode])
   @@index([isNew])
+  @@index([categoryId])
+}
+
+// Mirrors 1C's Классификатор group tree (arbitrary depth) — isolated from the
+// live storefront Category model; feeds only the admin "Дерево 1С" browse view.
+model OnecCategory {
+  id        Int             @id @default(autoincrement())
+  onecId    String          @unique // 1C "Группа" Ид (GUID), any depth
+  name      String
+  parentId  Int?
+  parent    OnecCategory?   @relation("OnecCategoryTree", fields: [parentId], references: [id])
+  children  OnecCategory[]  @relation("OnecCategoryTree")
+  items     OnecStockItem[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([parentId])
 }
 
 model SyncLog {

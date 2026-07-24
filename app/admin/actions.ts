@@ -500,6 +500,68 @@ export async function getSyncStatus() {
   }
 }
 
+export type OnecCategoryNode = {
+  id: number
+  name: string
+  itemCount: number
+  children: OnecCategoryNode[]
+}
+
+export async function getOnecCategoryTree(): Promise<{ tree: OnecCategoryNode[]; uncategorizedCount: number }> {
+  await requireAdmin()
+  const [categories, counts, uncategorizedCount] = await Promise.all([
+    db.onecCategory.findMany({ select: { id: true, name: true, parentId: true }, orderBy: { name: 'asc' } }),
+    db.onecStockItem.groupBy({ by: ['categoryId'], _count: true, where: { categoryId: { not: null } } }),
+    db.onecStockItem.count({ where: { categoryId: null } }),
+  ])
+
+  const countByCategoryId = new Map(counts.map(c => [c.categoryId, c._count]))
+  const nodeById = new Map<number, OnecCategoryNode>()
+  for (const c of categories) {
+    nodeById.set(c.id, { id: c.id, name: c.name, itemCount: countByCategoryId.get(c.id) ?? 0, children: [] })
+  }
+
+  const tree: OnecCategoryNode[] = []
+  for (const c of categories) {
+    const node = nodeById.get(c.id)!
+    if (c.parentId && nodeById.has(c.parentId)) {
+      nodeById.get(c.parentId)!.children.push(node)
+    } else {
+      tree.push(node)
+    }
+  }
+
+  return { tree, uncategorizedCount }
+}
+
+export async function getOnecItemsByCategory(categoryId: number | null, search = '', page = 0) {
+  await requireAdmin()
+  const take = 50
+  const skip = page * take
+  const where = {
+    categoryId,
+    ...(search ? {
+      OR: [
+        { name:    { contains: search, mode: 'insensitive' as const } },
+        { article: { contains: search, mode: 'insensitive' as const } },
+        { brand:   { contains: search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+  const [rows, total] = await Promise.all([
+    db.onecStockItem.findMany({ where, orderBy: { name: 'asc' }, take, skip }),
+    db.onecStockItem.count({ where }),
+  ])
+
+  return {
+    items: rows.map(r => ({
+      id: r.id, name: r.name, article: r.article, brand: r.brand,
+      stock: r.stock, pricePerPc: Number(r.pricePerPc),
+    })),
+    total,
+  }
+}
+
 export async function bulkCreateItems(rows: Array<{
   article: string; name: string; fullName: string; barcode: string
   brand: string; sizeInches: string; stock: number | null; price: number | null
