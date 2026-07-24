@@ -28,6 +28,8 @@ import {
   getSyncStatus,
   previewOnecStockSync,
   applyOnecStockSync,
+  getOnecCategoryTree,
+  getOnecItemsByCategory,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -2227,6 +2229,181 @@ function OnecSyncTab() {
   );
 }
 
+// ─── 1С category tree tab ──────────────────────────────────────────────────────
+
+type OnecCategoryNode = { id: number; name: string; itemCount: number; children: OnecCategoryNode[] };
+type OnecTreeItem = { id: number; name: string; article: string | null; brand: string | null; stock: number; pricePerPc: number };
+
+function OnecCategoryTreeNode({ node, depth, selectedId, onSelect }: {
+  node: OnecCategoryNode; depth: number;
+  selectedId: number | null | undefined;
+  onSelect: (id: number, name: string) => void;
+}) {
+  const [open, setOpen] = useState(depth < 1);
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-1 rounded-lg px-1.5 py-1 cursor-pointer text-xs transition-colors ${
+          selectedId === node.id ? "bg-sky-50 text-sky-700 font-semibold" : "text-gray-600 hover:bg-gray-50"
+        }`}
+        style={{ paddingLeft: `${depth * 14 + 6}px` }}
+        onClick={() => onSelect(node.id, node.name)}
+      >
+        {hasChildren ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+            className="w-4 h-4 flex-shrink-0 flex items-center justify-center text-gray-400"
+          >
+            <svg className={`w-3 h-3 transition-transform ${open ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        ) : (
+          <span className="w-4 h-4 flex-shrink-0" />
+        )}
+        <span className="truncate flex-1">{node.name || "(без имени)"}</span>
+        <span className="text-[10px] text-gray-400 flex-shrink-0">{node.itemCount}</span>
+      </div>
+      {hasChildren && open && (
+        <div>
+          {node.children.map((c) => (
+            <OnecCategoryTreeNode key={c.id} node={c} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OnecCategoryTreeTab() {
+  const [tree, setTree] = useState<OnecCategoryNode[]>([]);
+  const [uncategorizedCount, setUncategorizedCount] = useState(0);
+  const [treeLoading, setTreeLoading] = useState(true);
+
+  const [selected, setSelected] = useState<{ id: number | null; name: string } | null>(null);
+  const [items, setItems] = useState<OnecTreeItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [debSearch, setDebSearch] = useState("");
+  const [itemsLoading, setItemsLoading] = useState(false);
+
+  useEffect(() => {
+    getOnecCategoryTree()
+      .then((r) => { setTree(r.tree); setUncategorizedCount(r.uncategorizedCount); })
+      .finally(() => setTreeLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebSearch(search); setPage(0); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    if (selected === null) return;
+    setItemsLoading(true);
+    getOnecItemsByCategory(selected.id, debSearch, page)
+      .then((r) => { setItems(r.items); setTotal(r.total); })
+      .finally(() => setItemsLoading(false));
+  }, [selected, debSearch, page]);
+
+  function handleSelect(id: number | null, name: string) {
+    setSelected({ id, name });
+    setPage(0);
+    setSearch("");
+    setDebSearch("");
+  }
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-4 items-start">
+      {/* Tree */}
+      <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <div className="px-4 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-800">Дерево 1С</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Категории из классификатора 1С</p>
+        </div>
+        <div className="p-2 max-h-[70vh] overflow-y-auto">
+          {treeLoading ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-400">Загрузка...</div>
+          ) : tree.length === 0 && uncategorizedCount === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-gray-400">Категорий пока нет</div>
+          ) : (
+            <>
+              {tree.map((node) => (
+                <OnecCategoryTreeNode key={node.id} node={node} depth={0} selectedId={selected?.id} onSelect={handleSelect} />
+              ))}
+              {uncategorizedCount > 0 && (
+                <div
+                  className={`flex items-center gap-1 rounded-lg px-1.5 py-1 cursor-pointer text-xs transition-colors mt-1 border-t border-gray-50 pt-2 ${
+                    selected?.id === null && selected !== null ? "bg-sky-50 text-sky-700 font-semibold" : "text-gray-500 hover:bg-gray-50"
+                  }`}
+                  onClick={() => handleSelect(null, "Без категории")}
+                >
+                  <span className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate flex-1">Без категории</span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">{uncategorizedCount}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Items */}
+      <div className="flex-1 min-w-0 bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        {selected === null ? (
+          <div className="px-6 py-16 text-center text-sm text-gray-400">Выберите категорию слева</div>
+        ) : (
+          <>
+            <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+              <h2 className="font-bold text-gray-800 mr-auto truncate">{selected.name}</h2>
+              <input
+                type="text"
+                placeholder="Поиск..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="text-xs border border-gray-200 rounded-xl px-3 py-1.5 outline-none focus:border-sky-300 transition-colors w-40"
+              />
+            </div>
+            {itemsLoading ? (
+              <div className="px-6 py-8 text-center text-sm text-gray-400">Загрузка...</div>
+            ) : items.length === 0 ? (
+              <div className="px-6 py-8 text-center text-sm text-gray-400">
+                {search ? "Ничего не найдено" : "В этой категории нет товаров"}
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {items.map((item) => (
+                  <div key={item.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+                    <span className="text-sm text-gray-700 flex-1 min-w-[160px] truncate">{item.name}</span>
+                    {item.article && <span className="text-xs text-gray-400">{item.article}</span>}
+                    {item.brand && <span className="text-xs text-gray-500">{item.brand}</span>}
+                    <span className="text-xs text-gray-500 whitespace-nowrap">{item.stock} шт</span>
+                    <span className="text-xs font-medium text-gray-700 whitespace-nowrap">{item.pricePerPc}₸</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {total > 50 && (
+              <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between">
+                <span className="text-xs text-gray-400">Показано {Math.min((page + 1) * 50, total)} из {total}</span>
+                <div className="flex gap-2">
+                  <button onClick={() => setPage((p) => p - 1)} disabled={page === 0}
+                    className="text-xs px-3 py-1 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors">Назад</button>
+                  <button onClick={() => setPage((p) => p + 1)} disabled={(page + 1) * 50 >= total}
+                    className="text-xs px-3 py-1 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors">Далее</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminPage() {
@@ -2239,7 +2416,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "import" | "new" | "onec">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "import" | "new" | "onec" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2350,7 +2527,7 @@ export default function AdminPage() {
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
                 {([ ["orders","Заказы","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
                     ["sale","Акции","purple"], ["export","Экспорт","sky"], ["import","Импорт","sky"],
-                    ["new","+ Товар","sky"], ["onec","1С","sky"] ] as const).map(([tab, label, color]) => (
+                    ["new","+ Товар","sky"], ["onec","1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -2535,6 +2712,7 @@ export default function AdminPage() {
 
           {/* ─── 1C sync tab ─── */}
           {activeTab === "onec" && <OnecSyncTab />}
+          {activeTab === "onecTree" && <OnecCategoryTreeTab />}
 
             </div>{/* /content area */}
 
@@ -2596,6 +2774,11 @@ export default function AdminPage() {
                 <button onClick={() => setActiveTab("onec")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onec" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                   Синхр. 1С
+                </button>
+
+                <button onClick={() => setActiveTab("onecTree")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onecTree" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v18M4 8h5m-5 4h5m-5 4h5M14 6h6M14 10h6M14 14h6M14 18h6" /></svg>
+                  Дерево 1С
                 </button>
 
               </div>

@@ -13,7 +13,7 @@
 import { NextRequest } from 'next/server'
 import { checkOnecAuth, onecUnauthorizedResponse } from '@/lib/onecAuth'
 import { appendOnecFile, clearOnecFiles, downloadOnecFile } from '@/lib/onecStorage'
-import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml } from '@/lib/onecImport'
+import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml, upsertOnecCategories } from '@/lib/onecImport'
 import { buildSaleQueryXml, confirmSaleExport } from '@/lib/onecOrders'
 import { db } from '@/lib/db'
 
@@ -149,8 +149,9 @@ async function handleImport(filename: string): Promise<Response> {
     const bytes = await downloadOnecFile(filename)
 
     if (/import.*\.xml$/i.test(filename)) {
-      const products = parseImportXml(bytes)
-      const { created, updated, errors } = await applyImportXml(products)
+      const { products, groups } = parseImportXml(bytes)
+      const categoryIdByOnecId = await upsertOnecCategories(groups)
+      const { created, updated, errors } = await applyImportXml(products, categoryIdByOnecId)
       await db.syncLog.create({
         data: {
           source: '1c-catalog',

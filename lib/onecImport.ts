@@ -72,24 +72,39 @@ export type OnecProduct = {
   countryOfOrigin: string
   description: string
   groupName: string
+  groupOnecId: string | null
+}
+
+export type OnecGroup = {
+  onecId: string
+  name: string
+  parentOnecId: string | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type XmlNode = any
 
-export function parseImportXml(bytes: Uint8Array): OnecProduct[] {
+// Recursively walks nested Группы/Группа (1C classifier groups can nest to any
+// depth) into a flat parent-linked list, in parent-before-child order.
+function walkGroups(nodes: XmlNode[], parentOnecId: string | null, out: OnecGroup[]) {
+  for (const g of nodes) {
+    const onecId = text(g?.Ид)
+    if (!onecId) continue
+    out.push({ onecId, name: text(g?.Наименование), parentOnecId })
+    const children = asArray<XmlNode>(g?.Группы?.Группа)
+    if (children.length) walkGroups(children, onecId, out)
+  }
+}
+
+export function parseImportXml(bytes: Uint8Array): { products: OnecProduct[]; groups: OnecGroup[] } {
   const xml = decodeXml(bytes)
   const doc: XmlNode = parser.parse(xml)
   const root = doc?.КоммерческаяИнформация ?? {}
 
-  // Top-level classifier groups only (flatten — no nested depth for this pass).
-  const groupNameById = new Map<string, string>()
+  const groups: OnecGroup[] = []
   const topGroups = asArray<XmlNode>(root?.Классификатор?.Группы?.Группа)
-  for (const g of topGroups) {
-    const id = text(g?.Ид)
-    const name = text(g?.Наименование)
-    if (id) groupNameById.set(id, name)
-  }
+  walkGroups(topGroups, null, groups)
+  const groupNameById = new Map(groups.map((g) => [g.onecId, g.name]))
 
   const products: OnecProduct[] = []
   const tovары = asArray<XmlNode>(root?.Каталог?.Товары?.Товар)
@@ -106,7 +121,8 @@ export function parseImportXml(bytes: Uint8Array): OnecProduct[] {
     const description = text(t?.Описание)
 
     const groupIds = asArray<XmlNode>(t?.Группы?.Ид).map(text)
-    const groupName = groupIds.map((id) => groupNameById.get(id)).find(Boolean) ?? ''
+    const groupOnecId = groupIds.find((id) => groupNameById.has(id)) ?? null
+    const groupName = groupOnecId ? groupNameById.get(groupOnecId)! : ''
 
     const characteristics = asArray<XmlNode>(t?.ХарактеристикиТовара?.ХарактеристикаТовара)
 
@@ -120,6 +136,7 @@ export function parseImportXml(bytes: Uint8Array): OnecProduct[] {
         countryOfOrigin,
         description,
         groupName,
+        groupOnecId,
       })
       continue
     }
@@ -137,18 +154,61 @@ export function parseImportXml(bytes: Uint8Array): OnecProduct[] {
         countryOfOrigin,
         description,
         groupName,
+        groupOnecId,
       })
     }
   }
 
-  return products
+  return { products, groups }
 }
 
-async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: number; updated: number }> {
+// Upserts the full 1C classifier tree and returns onecId → DB id, so products
+// can resolve their categoryId. Two passes because a child group's DB row must
+// exist before we can look up its parent's DB id.
+export async function upsertOnecCategories(groups: OnecGroup[]): Promise<Map<string, number>> {
+  const idByOnecId = new Map<string, number>()
+  if (groups.length === 0) return idByOnecId
+
+  for (let i = 0; i < groups.length; i += CHUNK_SIZE) {
+    const chunk = groups.slice(i, i + CHUNK_SIZE)
+    const rows = chunk.map((g) => Prisma.sql`(${g.onecId}, ${g.name}, now(), now())`)
+    const result = await db.$queryRaw<{ id: number; onecId: string }[]>`
+      INSERT INTO "OnecCategory" ("onecId", "name", "createdAt", "updatedAt")
+      VALUES ${Prisma.join(rows)}
+      ON CONFLICT ("onecId") DO UPDATE SET
+        "name" = EXCLUDED."name",
+        "updatedAt" = now()
+      RETURNING id, "onecId"
+    `
+    for (const r of result) idByOnecId.set(r.onecId, r.id)
+  }
+
+  const parentPairs = groups
+    .filter((g) => g.parentOnecId && idByOnecId.has(g.onecId) && idByOnecId.has(g.parentOnecId))
+    .map((g) => Prisma.sql`(${idByOnecId.get(g.onecId)}::int, ${idByOnecId.get(g.parentOnecId!)}::int)`)
+
+  for (let i = 0; i < parentPairs.length; i += CHUNK_SIZE) {
+    const chunk = parentPairs.slice(i, i + CHUNK_SIZE)
+    await db.$executeRaw`
+      UPDATE "OnecCategory" AS t
+      SET "parentId" = v."parentId"
+      FROM (VALUES ${Prisma.join(chunk)}) AS v("id", "parentId")
+      WHERE t."id" = v."id"
+    `
+  }
+
+  return idByOnecId
+}
+
+async function upsertProductChunk(
+  chunk: OnecProduct[],
+  categoryIdByOnecId: Map<string, number>
+): Promise<{ created: number; updated: number }> {
   const rows = chunk.map(
     (p) => Prisma.sql`(
       ${p.onecId}, ${p.article || null}, ${p.name}, ${p.barcode || null}, ${p.brand || null},
-      ${p.countryOfOrigin || null}, ${p.description || null}, ${p.groupName || null}, 0, 0, true, now(), now()
+      ${p.countryOfOrigin || null}, ${p.description || null}, ${p.groupName || null},
+      ${p.groupOnecId ? categoryIdByOnecId.get(p.groupOnecId) ?? null : null}, 0, 0, true, now(), now()
     )`
   )
 
@@ -158,7 +218,7 @@ async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: numb
   // admin reviews them; updates to existing items leave their isNew flag untouched.
   const result = await db.$queryRaw<{ inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
-      ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
+      ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "categoryId", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
     VALUES ${Prisma.join(rows)}
     ON CONFLICT ("onecId") DO UPDATE SET
       "article" = EXCLUDED."article",
@@ -168,6 +228,7 @@ async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: numb
       "countryOfOrigin" = EXCLUDED."countryOfOrigin",
       "description" = EXCLUDED."description",
       "groupName" = EXCLUDED."groupName",
+      "categoryId" = EXCLUDED."categoryId",
       "updatedAt" = now()
     RETURNING (xmax = 0) AS inserted
   `
@@ -177,7 +238,8 @@ async function upsertProductChunk(chunk: OnecProduct[]): Promise<{ created: numb
 }
 
 export async function applyImportXml(
-  products: OnecProduct[]
+  products: OnecProduct[],
+  categoryIdByOnecId: Map<string, number> = new Map()
 ): Promise<{ created: number; updated: number; errors: string[] }> {
   let created = 0
   let updated = 0
@@ -186,7 +248,7 @@ export async function applyImportXml(
   for (let i = 0; i < products.length; i += CHUNK_SIZE) {
     const chunk = products.slice(i, i + CHUNK_SIZE)
     try {
-      const r = await upsertProductChunk(chunk)
+      const r = await upsertProductChunk(chunk, categoryIdByOnecId)
       created += r.created
       updated += r.updated
     } catch (e) {
@@ -194,7 +256,7 @@ export async function applyImportXml(
       // "name" unique-constraint collision) doesn't drop the other 199.
       for (const p of chunk) {
         try {
-          const r = await upsertProductChunk([p])
+          const r = await upsertProductChunk([p], categoryIdByOnecId)
           created += r.created
           updated += r.updated
         } catch (rowErr) {
