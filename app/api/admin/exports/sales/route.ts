@@ -25,28 +25,34 @@ export async function GET(req: Request) {
         status: { not: 'Отменён' },
       },
     },
-    select: { stockItemId: true, name: true, qty: true, price: true },
+    select: { stockItemId: true, onecStockItemId: true, name: true, qty: true, price: true },
   })
 
-  // Look up articles via stockItemId
+  // Look up articles via stockItemId (legacy orders) / onecStockItemId (post-cutover)
   const stockItemIds = [
     ...new Set(orderItems.map(i => i.stockItemId).filter((id): id is number => id !== null)),
   ]
-  const stockItems = await db.stockItem.findMany({
-    where: { id: { in: stockItemIds } },
-    select: { id: true, article: true },
-  })
+  const onecStockItemIds = [
+    ...new Set(orderItems.map(i => i.onecStockItemId).filter((id): id is number => id !== null)),
+  ]
+  const [stockItems, onecStockItems] = await Promise.all([
+    db.stockItem.findMany({ where: { id: { in: stockItemIds } }, select: { id: true, article: true } }),
+    db.onecStockItem.findMany({ where: { id: { in: onecStockItemIds } }, select: { id: true, article: true } }),
+  ])
   const articleMap = new Map(stockItems.map(s => [s.id, s.article ?? '']))
+  const onecArticleMap = new Map(onecStockItems.map(s => [s.id, s.article ?? '']))
 
-  // Group by stockItemId (same product sold multiple times) or by name
+  // Group by onecStockItemId / stockItemId (same product sold multiple times) or by name
   type Row = { article: string; name: string; qty: number; total: number }
   const grouped = new Map<string, Row>()
 
   for (const item of orderItems) {
-    const key = item.stockItemId ? `sid:${item.stockItemId}` : `name:${item.name}`
+    const key = item.onecStockItemId ? `oid:${item.onecStockItemId}` : item.stockItemId ? `sid:${item.stockItemId}` : `name:${item.name}`
     if (!grouped.has(key)) {
       grouped.set(key, {
-        article: item.stockItemId ? (articleMap.get(item.stockItemId) ?? '') : '',
+        article: item.onecStockItemId
+          ? (onecArticleMap.get(item.onecStockItemId) ?? '')
+          : item.stockItemId ? (articleMap.get(item.stockItemId) ?? '') : '',
         name: item.name,
         qty: 0,
         total: 0,

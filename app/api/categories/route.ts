@@ -4,13 +4,13 @@ import { db } from "@/lib/db";
 export const revalidate = 3600;
 
 export async function GET() {
-  const categories = await db.category.findMany({
-    where: { level: 1 },
-    orderBy: { id: "asc" },
-    include: {
+  const categories = await db.onecCategory.findMany({
+    where: { parentId: null },
+    orderBy: { name: "asc" },
+    select: {
+      id: true, name: true, slug: true,
       children: {
-        where: { level: 2 },
-        orderBy: { id: "asc" },
+        orderBy: { name: "asc" },
         select: { id: true, name: true, slug: true },
       },
     },

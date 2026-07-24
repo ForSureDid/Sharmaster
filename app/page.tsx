@@ -12,7 +12,7 @@ import Schedule from "@/components/Schedule";
 import AboutReviews from "@/components/AboutReviews";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
-import { getSaleItems, getNovinkaItems } from "@/lib/stock";
+import { getSaleItems, getNovinkaItems } from "@/lib/onecStock";
 
 export default async function Home() {
   const [saleItems, novinkaItems] = await Promise.all([

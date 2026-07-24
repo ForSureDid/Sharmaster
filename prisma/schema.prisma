@@ -133,15 +133,25 @@ model User {
 
 // Избранное залогиненного пользователя. Гости хранят лайки в localStorage
 // (только ID) и сливают их сюда при входе — см. context/LikesContext.tsx.
+//
+// Surrogate `id` PK (not a composite key) because a user needs to be able to
+// hold both a legacy stockItemId-row and a new onecStockItemId-row during the
+// storefront cutover — exactly one of the two FKs is set per row, enforced by
+// Like_exactly_one_item_chk (see migration 20260725010000_add_onec_stock_item_id).
 model Like {
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stockItemId Int
-  stockItem   StockItem @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stockItemId     Int?
+  stockItem       StockItem?     @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  onecStockItemId Int?
+  onecStockItem   OnecStockItem? @relation(fields: [onecStockItemId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
 
-  @@id([userId, stockItemId])
+  @@unique([userId, stockItemId])
+  @@unique([userId, onecStockItemId])
   @@index([stockItemId])
+  @@index([onecStockItemId])
 }
 
 // Server-side session record. The JWT's `jti` claim references the id here —
@@ -184,13 +194,14 @@ model Order {
 }
 
 model OrderItem {
-  id          Int     @id @default(autoincrement())
-  orderId     Int
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  stockItemId Int?
-  name        String
-  qty         Int
-  price       Decimal @db.Decimal(10, 2)
+  id              Int     @id @default(autoincrement())
+  orderId         Int
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stockItemId     Int?
+  onecStockItemId Int?
+  name            String
+  qty             Int
+  price           Decimal @db.Decimal(10, 2)
 
   @@index([orderId])
 }
@@ -221,6 +232,7 @@ model OnecStockItem {
   salePercent     Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  likes           Like[]
 
   @@index([article])
   @@index([barcode])

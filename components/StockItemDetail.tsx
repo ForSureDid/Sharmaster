@@ -5,7 +5,7 @@ import { useState, useCallback } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLikes } from "@/context/LikesContext";
-import type { StockDetail } from "@/lib/stock";
+import type { StockDetail } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
 function Gallery({ images, name }: { images: string[]; name: string }) {

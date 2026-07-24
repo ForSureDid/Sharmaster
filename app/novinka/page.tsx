@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import NovinkaGrid from "@/components/NovinkaGrid";
-import { getNovinkaItems } from "@/lib/stock";
+import { getNovinkaItems } from "@/lib/onecStock";
 
 export const metadata = {
   title: "Новинки — Sharmaster",

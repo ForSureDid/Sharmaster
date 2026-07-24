@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   if (period === 'month') startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
   // All items currently on sale
-  const saleItems = await db.stockItem.findMany({
+  const saleItems = await db.onecStockItem.findMany({
     where: { onSale: true },
     select: {
       id: true, name: true, article: true, brand: true,
@@ -45,19 +45,19 @@ export async function GET(req: Request) {
       status: { not: 'Отменён' },
       ...(startDate ? { createdAt: { gte: startDate } } : {}),
     },
-    include: { items: { select: { stockItemId: true, qty: true, price: true } } },
+    include: { items: { select: { onecStockItemId: true, qty: true, price: true } } },
   })
 
-  // Sold map: stockItemId → { qty, revenue }
+  // Sold map: onecStockItemId → { qty, revenue }
   const saleIds = new Set(saleItems.map(i => i.id))
   const soldMap = new Map<number, { qty: number; revenue: number }>()
   for (const order of orders) {
     for (const oi of order.items) {
-      if (!oi.stockItemId || !saleIds.has(oi.stockItemId)) continue
-      const cur = soldMap.get(oi.stockItemId) ?? { qty: 0, revenue: 0 }
+      if (!oi.onecStockItemId || !saleIds.has(oi.onecStockItemId)) continue
+      const cur = soldMap.get(oi.onecStockItemId) ?? { qty: 0, revenue: 0 }
       cur.qty     += oi.qty
       cur.revenue += Number(oi.price) * oi.qty
-      soldMap.set(oi.stockItemId, cur)
+      soldMap.set(oi.onecStockItemId, cur)
     }
   }
 

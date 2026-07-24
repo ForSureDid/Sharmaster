@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import { useLikes } from "@/context/LikesContext";
 import { useCart } from "@/context/CartContext";
-import type { StockCard } from "@/lib/stock";
+import type { StockCard } from "@/lib/onecStock";
 
 export default function LikedPage() {
   const { likedIds, removeLike, likedCount, ready } = useLikes();
@@ -90,7 +90,7 @@ export default function LikedPage() {
                     key={item.id}
                     className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex gap-0"
                   >
-                    <Link href={`/catalog/${item.id}`} className="relative w-28 flex-shrink-0 bg-gray-50">
+                    <Link href={`/catalog/${item.slug ?? item.id}`} className="relative w-28 flex-shrink-0 bg-gray-50">
                       {item.imageUrl ? (
                         <Image
                           src={item.imageUrl}
@@ -110,7 +110,7 @@ export default function LikedPage() {
 
                     <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
                       <div className="flex-1 min-w-0">
-                        <Link href={`/catalog/${item.id}`} className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 hover:text-sky-600 transition-colors">
+                        <Link href={`/catalog/${item.slug ?? item.id}`} className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2 hover:text-sky-600 transition-colors">
                           {item.fullName ?? item.name}
                         </Link>
                         {item.brand && (

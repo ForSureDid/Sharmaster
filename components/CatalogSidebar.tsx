@@ -6,7 +6,8 @@ import { useState } from "react";
 type Category = {
   id: number;
   name: string;
-  children: { id: number; name: string; children: { id: number; name: string }[] }[];
+  slug: string | null;
+  children: { id: number; name: string; slug: string | null }[];
 };
 
 type Props = {
@@ -82,30 +83,36 @@ export default function CatalogSidebar({ categories, brands }: Props) {
               Все категории
             </button>
           </li>
-          {categories.map((cat) => (
-            <li key={cat.id}>
-              <button
-                onClick={() => update("cat", activeCat === String(cat.id) ? null : String(cat.id))}
-                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === String(cat.id) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
-              >
-                {cat.name}
-              </button>
-              {cat.children.length > 0 && (
-                <ul className="ml-3 mt-0.5 space-y-0.5">
-                  {cat.children.map((sub) => (
-                    <li key={sub.id}>
-                      <button
-                        onClick={() => update("cat", activeCat === String(sub.id) ? null : String(sub.id))}
-                        className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === String(sub.id) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
-                      >
-                        {sub.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+          {categories.map((cat) => {
+            const catKey = cat.slug ?? String(cat.id);
+            return (
+              <li key={cat.id}>
+                <button
+                  onClick={() => update("cat", activeCat === catKey ? null : catKey)}
+                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === catKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
+                >
+                  {cat.name}
+                </button>
+                {cat.children.length > 0 && (
+                  <ul className="ml-3 mt-0.5 space-y-0.5">
+                    {cat.children.map((sub) => {
+                      const subKey = sub.slug ?? String(sub.id);
+                      return (
+                        <li key={sub.id}>
+                          <button
+                            onClick={() => update("cat", activeCat === subKey ? null : subKey)}
+                            className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === subKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
+                          >
+                            {sub.name}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </Section>
 

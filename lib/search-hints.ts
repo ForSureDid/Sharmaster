@@ -62,13 +62,13 @@ export const CATEGORY_HINTS: CategoryHint[] = [
   {
     label: 'Фольгированные шары',
     subtitle: 'цифры, звёзды, сердца, фигуры',
-    url: '/catalog?cat=275',
+    url: '/catalog?cat=vozdushnye-shary-iz-folgi',
     keywords: ['фольга', 'фольгированный', 'фольгированные', 'металлик'],
   },
   {
     label: 'Латексные шары',
     subtitle: 'пастель, хром, металлик, без рисунка',
-    url: '/catalog?cat=268',
+    url: '/catalog?cat=vozdushnye-shary-iz-lateksa',
     keywords: ['латекс', 'латексный', 'латексные', 'пастель', 'пастельный'],
   },
   {
