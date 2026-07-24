@@ -214,6 +214,11 @@ model OnecStockItem {
   imageUrl        String?          // linked post-sync by scripts/link-onec-images.ts, matched by article to Supabase Storage
   images          String[]
   isNew           Boolean  @default(false) // true when first inserted by sync; admin clears after review
+  slug            String?  @unique // nullable indefinitely — generated on insert (lib/onecImport.ts), backfilled once by scripts/backfill-onec-slugs.ts; never regenerated on update so live URLs don't churn
+  packQty         Int?     // количество шаров в упаковке — 1C doesn't send this, hand-curated per brand; backfilled from StockItem, never overwritten by sync (see upsertProductChunk)
+  sizeInches      String?  // same as above: StockItem-only enrichment, backfilled once
+  onSale          Boolean  @default(false) // manual storefront discount toggle, backfilled from StockItem — never set by 1C sync
+  salePercent     Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -229,6 +234,7 @@ model OnecCategory {
   id        Int             @id @default(autoincrement())
   onecId    String          @unique // 1C "Группа" Ид (GUID), any depth
   name      String
+  slug      String?         @unique // nullable indefinitely, same rationale as OnecStockItem.slug
   parentId  Int?
   parent    OnecCategory?   @relation("OnecCategoryTree", fields: [parentId], references: [id])
   children  OnecCategory[]  @relation("OnecCategoryTree")

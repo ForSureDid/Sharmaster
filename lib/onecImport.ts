@@ -12,6 +12,7 @@
 import { XMLParser } from 'fast-xml-parser'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { baseSlug } from '@/lib/slug'
 
 const parser = new XMLParser({
   ignoreAttributes: false,
@@ -162,6 +163,55 @@ export function parseImportXml(bytes: Uint8Array): { products: OnecProduct[]; gr
   return { products, groups }
 }
 
+// Assigns a URL slug to rows that were just INSERTed (never touches existing rows —
+// slug is deliberately absent from every ON CONFLICT DO UPDATE SET below, so a live
+// product/category URL never changes under an admin's feet). Collisions are resolved
+// against both the rest of this batch and whatever's already persisted: the lowest-id
+// row in a name group keeps the clean slug, the rest get a "-{id}" suffix.
+async function assignSlugsForNewRows(
+  table: 'OnecStockItem' | 'OnecCategory',
+  newRows: { id: number; name: string }[]
+): Promise<void> {
+  if (newRows.length === 0) return
+
+  const candidates = newRows.map((r) => ({ id: r.id, base: baseSlug(r.name) }))
+  const baseSlugs = [...new Set(candidates.map((c) => c.base))]
+  const taken = new Set(
+    (
+      await db.$queryRawUnsafe<{ slug: string }[]>(
+        `SELECT slug FROM "${table}" WHERE slug = ANY($1)`,
+        baseSlugs
+      )
+    ).map((r) => r.slug)
+  )
+
+  const byBase = new Map<string, typeof candidates>()
+  for (const c of candidates) {
+    if (!byBase.has(c.base)) byBase.set(c.base, [])
+    byBase.get(c.base)!.push(c)
+  }
+
+  const updates: { id: number; slug: string }[] = []
+  for (const [base, group] of byBase) {
+    const sorted = [...group].sort((a, b) => a.id - b.id)
+    sorted.forEach((c, i) => {
+      const clean = i === 0 && !taken.has(base)
+      updates.push({ id: c.id, slug: clean ? base : `${base}-${c.id}` })
+    })
+  }
+
+  for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+    const chunk = updates.slice(i, i + CHUNK_SIZE)
+    const rows = chunk.map((u) => Prisma.sql`(${u.id}::int, ${u.slug})`)
+    await db.$executeRaw`
+      UPDATE ${Prisma.raw(`"${table}"`)} AS t
+      SET "slug" = v.slug
+      FROM (VALUES ${Prisma.join(rows)}) AS v("id", slug)
+      WHERE t."id" = v."id"
+    `
+  }
+}
+
 // Upserts the full 1C classifier tree and returns onecId → DB id, so products
 // can resolve their categoryId. Two passes because a child group's DB row must
 // exist before we can look up its parent's DB id.
@@ -169,19 +219,24 @@ export async function upsertOnecCategories(groups: OnecGroup[]): Promise<Map<str
   const idByOnecId = new Map<string, number>()
   if (groups.length === 0) return idByOnecId
 
+  const newlyInserted: { id: number; name: string }[] = []
   for (let i = 0; i < groups.length; i += CHUNK_SIZE) {
     const chunk = groups.slice(i, i + CHUNK_SIZE)
     const rows = chunk.map((g) => Prisma.sql`(${g.onecId}, ${g.name}, now(), now())`)
-    const result = await db.$queryRaw<{ id: number; onecId: string }[]>`
+    const result = await db.$queryRaw<{ id: number; onecId: string; inserted: boolean }[]>`
       INSERT INTO "OnecCategory" ("onecId", "name", "createdAt", "updatedAt")
       VALUES ${Prisma.join(rows)}
       ON CONFLICT ("onecId") DO UPDATE SET
         "name" = EXCLUDED."name",
         "updatedAt" = now()
-      RETURNING id, "onecId"
+      RETURNING id, "onecId", (xmax = 0) AS inserted
     `
-    for (const r of result) idByOnecId.set(r.onecId, r.id)
+    for (const r of result) {
+      idByOnecId.set(r.onecId, r.id)
+      if (r.inserted) newlyInserted.push({ id: r.id, name: chunk.find((g) => g.onecId === r.onecId)!.name })
+    }
   }
+  await assignSlugsForNewRows('OnecCategory', newlyInserted)
 
   const parentPairs = groups
     .filter((g) => g.parentOnecId && idByOnecId.has(g.onecId) && idByOnecId.has(g.parentOnecId))
@@ -216,7 +271,10 @@ async function upsertProductChunk(
   // INSERTed row from one that hit the ON CONFLICT UPDATE branch, in one round trip.
   // isNew is intentionally NOT in the DO UPDATE SET — new items keep isNew=true until
   // admin reviews them; updates to existing items leave their isNew flag untouched.
-  const result = await db.$queryRaw<{ inserted: boolean }[]>`
+  // Same reasoning for packQty/sizeInches/onSale/salePercent/slug (hand-curated /
+  // backfilled — see prisma/migrations/20260725000000_add_onec_stockitem_pack_slug_sale) —
+  // they must survive every future sync untouched.
+  const result = await db.$queryRaw<{ id: number; onecId: string; inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
       ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "categoryId", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
     VALUES ${Prisma.join(rows)}
@@ -230,11 +288,15 @@ async function upsertProductChunk(
       "groupName" = EXCLUDED."groupName",
       "categoryId" = EXCLUDED."categoryId",
       "updatedAt" = now()
-    RETURNING (xmax = 0) AS inserted
+    RETURNING id, "onecId", (xmax = 0) AS inserted
   `
 
-  const created = result.filter((r) => r.inserted).length
-  return { created, updated: result.length - created }
+  const created = result.filter((r) => r.inserted)
+  await assignSlugsForNewRows(
+    'OnecStockItem',
+    created.map((r) => ({ id: r.id, name: chunk.find((p) => p.onecId === r.onecId)!.name }))
+  )
+  return { created: created.length, updated: result.length - created.length }
 }
 
 export async function applyImportXml(
