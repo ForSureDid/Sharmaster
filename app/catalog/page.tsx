@@ -4,8 +4,8 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import StockContent from "@/components/StockContent";
-import { getStockItems, getDescendantCategoryIds } from "@/lib/stock";
-import { getCategories, getBrands } from "@/lib/products";
+import { getStockItems, getDescendantCategoryIds, getOnecCategories, getOnecBrands, getOnecCategoryBySlug } from "@/lib/onecStock";
+import { db } from "@/lib/db";
 
 type SP = { [key: string]: string | string[] | undefined };
 
@@ -26,13 +26,19 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     return Number.isFinite(n) ? n : undefined;
   }
 
-  const catId = safeInt(str(sp.cat), 0) || undefined;
+  const catSlug = str(sp.cat);
   const catsParam = str(sp.cats);
-  const multiCatRoots = catsParam
-    ? catsParam.split(',').map(s => parseInt(s, 10)).filter(n => Number.isFinite(n) && n > 0)
-    : undefined;
+  const catsSlugs = catsParam ? catsParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+
+  const [activeCategory, multiCatRoots] = await Promise.all([
+    catSlug ? getOnecCategoryBySlug(catSlug) : Promise.resolve(null),
+    catsSlugs && catsSlugs.length > 0
+      ? db.onecCategory.findMany({ where: { slug: { in: catsSlugs } }, select: { id: true } })
+      : Promise.resolve(undefined),
+  ]);
+  const catId = activeCategory?.id;
   const expandedCategoryIds = multiCatRoots && multiCatRoots.length > 0
-    ? (await Promise.all(multiCatRoots.map(getDescendantCategoryIds))).flat()
+    ? (await Promise.all(multiCatRoots.map(r => getDescendantCategoryIds(r.id)))).flat()
     : undefined;
   const brand = str(sp.brand);
   const minPrice = safeFloat(str(sp.min));
@@ -48,12 +54,11 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const [{ items, total }, categories, brands] =
     await Promise.all([
       getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
-      getCategories(),
-      getBrands(),
+      getOnecCategories(),
+      getOnecBrands(),
     ]);
 
   const totalPages = Math.ceil(total / per);
-  const activeCategory = catId ? categories.find((c) => c.id === catId) : null;
 
   return (
     <>

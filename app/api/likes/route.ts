@@ -7,11 +7,11 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ ids: null });
   const rows = await db.like.findMany({
-    where: { userId: session.userId },
-    select: { stockItemId: true },
+    where: { userId: session.userId, onecStockItemId: { not: null } },
+    select: { onecStockItemId: true },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ ids: rows.map((r) => r.stockItemId) });
+  return NextResponse.json({ ids: rows.map((r) => r.onecStockItemId) });
 }
 
 // POST { id, liked } → поставить/снять лайк
@@ -25,15 +25,15 @@ export async function POST(req: NextRequest) {
 
   if (body.liked) {
     // Существование проверяем заранее — товар мог быть удалён (FK)
-    const exists = await db.stockItem.findUnique({ where: { id }, select: { id: true } });
+    const exists = await db.onecStockItem.findUnique({ where: { id }, select: { id: true } });
     if (exists) {
       await db.like.createMany({
-        data: [{ userId: session.userId, stockItemId: id }],
+        data: [{ userId: session.userId, onecStockItemId: id }],
         skipDuplicates: true,
       });
     }
   } else {
-    await db.like.deleteMany({ where: { userId: session.userId, stockItemId: id } });
+    await db.like.deleteMany({ where: { userId: session.userId, onecStockItemId: id } });
   }
   return NextResponse.json({ ok: true });
 }
@@ -49,22 +49,22 @@ export async function PUT(req: NextRequest) {
     : [];
 
   if (ids.length > 0) {
-    const existing = await db.stockItem.findMany({
+    const existing = await db.onecStockItem.findMany({
       where: { id: { in: ids } },
       select: { id: true },
     });
     if (existing.length > 0) {
       await db.like.createMany({
-        data: existing.map((e) => ({ userId: session.userId, stockItemId: e.id })),
+        data: existing.map((e) => ({ userId: session.userId, onecStockItemId: e.id })),
         skipDuplicates: true,
       });
     }
   }
 
   const rows = await db.like.findMany({
-    where: { userId: session.userId },
-    select: { stockItemId: true },
+    where: { userId: session.userId, onecStockItemId: { not: null } },
+    select: { onecStockItemId: true },
     orderBy: { createdAt: "desc" },
   });
-  return NextResponse.json({ ids: rows.map((r) => r.stockItemId) });
+  return NextResponse.json({ ids: rows.map((r) => r.onecStockItemId) });
 }

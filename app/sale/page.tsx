@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import SaleGrid from "@/components/SaleGrid";
-import { getAllSaleItems } from "@/lib/stock";
+import { getAllSaleItems } from "@/lib/onecStock";
 
 export const metadata = {
   title: "Акции — Sharmaster",

@@ -8,12 +8,12 @@ import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
 
-type SubCategory = { id: number; name: string; slug: string };
-type TopCategory = { id: number; name: string; slug: string; children: SubCategory[] };
+type SubCategory = { id: number; name: string; slug: string | null };
+type TopCategory = { id: number; name: string; slug: string | null; children: SubCategory[] };
 
-function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className?: string }) {
+function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string | null; className?: string }) {
   switch (slug) {
-    case "lateksnye-shary":
+    case "vozdushnye-shary-iz-lateksa":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2C8.686 2 6 5.134 6 9c0 3.314 1.8 6.1 4.5 7.45V18h3v-1.55C16.2 15.1 18 12.314 18 9c0-3.866-2.686-7-6-7z" />
@@ -21,14 +21,14 @@ function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className
           <line x1="12" y1="20" x2="12" y2="22" />
         </svg>
       );
-    case "folgirovannye-shary":
+    case "vozdushnye-shary-iz-folgi":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.3L12 14.3l-4.8 2.5.9-5.3L4.2 7.7l5.4-.8z" />
           <line x1="12" y1="17" x2="12" y2="22" />
         </svg>
       );
-    case "aksessuary":
+    case "oborudovanie-i-aksessuary":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 8c-2.5-3-6-3-6-3s0 3.5 3 6l3 3 3-3c3-2.5 3-6 3-6s-3.5 0-6 3z" />
@@ -36,7 +36,7 @@ function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className
           <path d="M8 22h8" />
         </svg>
       );
-    case "vse-dlya-prazdnika":
+    case "tovary-dlya-prazdnika":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 18l4-8 4 5 3-3 4 6H3z" />
@@ -46,7 +46,7 @@ function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className
           <line x1="3.5" y1="4.5" x2="6.5" y2="4.5" />
         </svg>
       );
-    case "gelij-i-oborudovanie":
+    case "svechi-i-fontany":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <rect x="8" y="4" width="8" height="14" rx="4" />
@@ -64,7 +64,7 @@ function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className
           <path d="M10 8a2 2 0 010-4" />
         </svg>
       );
-    case "raznoe":
+    case "karnavalnye-aksessuary":
       return (
         <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -85,6 +85,7 @@ function CategoryIcon({ slug, className = "w-4 h-4" }: { slug: string; className
 
 type SuggestItem = {
   id: number;
+  slug: string | null;
   name: string;
   brand: string | null;
   stock: number;
@@ -103,7 +104,7 @@ function SearchDropdown({
   items: SuggestItem[];
   query: string;
   isAdmin: boolean;
-  onSelect: (id: number) => void;
+  onSelect: (item: SuggestItem) => void;
   onShowAll: () => void;
 }) {
   const hint: CategoryHint | null = query.trim().length >= 2 ? getMatchingHint(query) : null;
@@ -133,7 +134,7 @@ function SearchDropdown({
       {items.map((item) => (
         <button
           key={item.id}
-          onMouseDown={(e) => { e.preventDefault(); onSelect(item.id); }}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
           className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-sky-50 transition-colors text-left"
         >
           <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
@@ -256,11 +257,11 @@ export default function Header() {
     router.push(q ? `/catalog?q=${encodeURIComponent(q)}` : "/catalog");
   }
 
-  function handleSuggestSelect(id: number) {
+  function handleSuggestSelect(item: SuggestItem) {
     setShowSuggestions(false);
     setSearch("");
     setSuggestions([]);
-    router.push(`/catalog/${id}`);
+    router.push(`/catalog/${item.slug ?? item.id}`);
   }
 
   function handleShowAll() {
@@ -503,7 +504,7 @@ export default function Header() {
                 <button
                   key={cat.id}
                   onMouseEnter={() => setActiveL1(cat.id)}
-                  onClick={() => { router.push(`/catalog?cat=${cat.id}`); setCatalogOpen(false); }}
+                  onClick={() => { router.push(`/catalog?cat=${cat.slug ?? cat.id}`); setCatalogOpen(false); }}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${
                     activeL1 === cat.id
                       ? "bg-white text-sky-600 font-semibold border-l-2 border-sky-500"
@@ -526,7 +527,7 @@ export default function Header() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-base font-bold text-gray-800">{activeCategory.name}</h3>
                     <a
-                      href={`/catalog?cat=${activeCategory.id}`}
+                      href={`/catalog?cat=${activeCategory.slug ?? activeCategory.id}`}
                       onClick={() => setCatalogOpen(false)}
                       className="text-sm text-sky-500 hover:text-sky-700 transition-colors"
                     >
@@ -538,7 +539,7 @@ export default function Header() {
                       {activeCategory.children.map((sub) => (
                         <a
                           key={sub.id}
-                          href={`/catalog?cat=${sub.id}`}
+                          href={`/catalog?cat=${sub.slug ?? sub.id}`}
                           onClick={() => setCatalogOpen(false)}
                           className="py-2 text-sm text-gray-600 hover:text-sky-600 transition-colors border-b border-gray-50 hover:border-sky-100 truncate"
                         >
@@ -580,7 +581,7 @@ export default function Header() {
                 items={suggestions}
                 query={search}
                 isAdmin={isAdmin}
-                onSelect={(id) => { setSearchOpen(false); handleSuggestSelect(id); }}
+                onSelect={(item) => { setSearchOpen(false); handleSuggestSelect(item); }}
                 onShowAll={() => { setSearchOpen(false); handleShowAll(); }}
               />
             )}
@@ -612,7 +613,7 @@ export default function Header() {
                   items={suggestions}
                   query={search}
                   isAdmin={isAdmin}
-                  onSelect={(id) => { setMenuOpen(false); handleSuggestSelect(id); }}
+                  onSelect={(item) => { setMenuOpen(false); handleSuggestSelect(item); }}
                   onShowAll={() => { setMenuOpen(false); handleShowAll(); }}
                 />
               )}
@@ -646,7 +647,7 @@ export default function Header() {
             {categories.map((cat) => (
               <div key={cat.id}>
                 <a
-                  href={`/catalog?cat=${cat.id}`}
+                  href={`/catalog?cat=${cat.slug ?? cat.id}`}
                   className="px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center gap-2"
                   onClick={() => setMenuOpen(false)}
                 >
@@ -656,7 +657,7 @@ export default function Header() {
                 {cat.children.map((sub) => (
                   <a
                     key={sub.id}
-                    href={`/catalog?cat=${sub.id}`}
+                    href={`/catalog?cat=${sub.slug ?? sub.id}`}
                     className="pl-10 pr-4 py-2 text-xs text-gray-500 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-50 transition-colors flex items-center"
                     onClick={() => setMenuOpen(false)}
                   >

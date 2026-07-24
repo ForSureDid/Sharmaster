@@ -8,17 +8,17 @@ type Entry = {
 };
 
 const CATEGORIES: Entry[] = [
-  { title: "Воздушные шары из латекса", subtitle: "Круглые, пастель, хром, металлик", icon: "/icons/latex-balloons.png", href: "/catalog?cat=268" },
-  { title: "Воздушные шары из фольги", subtitle: "Цифры, звёзды, фигуры, сердца", icon: "/icons/foil-balloons.png", href: "/catalog?cat=275" },
-  { title: "Оборудование и аксессуары", subtitle: "Баллоны, насосы, клей, нитки", icon: "/icons/equipment-helium.png", href: "/catalog?cat=261" },
-  { title: "Карнавальные аксессуары", subtitle: "Маски, костюмы, реквизит", icon: "/icons/carnival-accessories.png", href: "/catalog" },
-  { title: "Ленты и банты", subtitle: "Декоративные ленты, банты, тесьма", icon: "/icons/ribbons-bows.png", href: "/catalog?cats=246,248" },
-  { title: "Гирлянды и освещение", subtitle: "Гирлянды, огни, светодиоды", icon: "/icons/garlands-lighting.png", href: "/catalog?cat=258" },
-  { title: "Полиграфия", subtitle: "Открытки, баннеры, наклейки", icon: "/icons/polygraphy.png", href: "/catalog?cat=254" },
-  { title: "Праздничная упаковка", subtitle: "Коробки, пакеты, бумага", icon: "/icons/festive-packaging.png", href: "/catalog?cats=244,255,259" },
-  { title: "Свечи", subtitle: "Праздничные, декоративные, цифры", icon: "/icons/candles.png", href: "/catalog?cat=258" },
-  { title: "Сервировка стола", subtitle: "Тарелки, стаканы, скатерти", icon: "/icons/table-setting.png", href: "/catalog?cat=256" },
-  { title: "Товары для праздника", subtitle: "Конфетти, хлопушки, украшения", icon: "/icons/party-goods.png", href: "/catalog?cats=257,243,242,248" },
+  { title: "Воздушные шары из латекса", subtitle: "Круглые, пастель, хром, металлик", icon: "/icons/latex-balloons.png", href: "/catalog?cat=vozdushnye-shary-iz-lateksa" },
+  { title: "Воздушные шары из фольги", subtitle: "Цифры, звёзды, фигуры, сердца", icon: "/icons/foil-balloons.png", href: "/catalog?cat=vozdushnye-shary-iz-folgi" },
+  { title: "Оборудование и аксессуары", subtitle: "Баллоны, насосы, клей, нитки", icon: "/icons/equipment-helium.png", href: "/catalog?cat=oborudovanie-i-aksessuary" },
+  { title: "Карнавальные аксессуары", subtitle: "Маски, костюмы, реквизит", icon: "/icons/carnival-accessories.png", href: "/catalog?cat=karnavalnye-aksessuary" },
+  { title: "Ленты и банты", subtitle: "Декоративные ленты, банты, тесьма", icon: "/icons/ribbons-bows.png", href: "/catalog?cat=lenty-i-banty" },
+  { title: "Гирлянды и освещение", subtitle: "Гирлянды, огни, светодиоды", icon: "/icons/garlands-lighting.png", href: "/catalog?cat=girlyandy-osveshchenie-fotozony" },
+  { title: "Полиграфия", subtitle: "Открытки, баннеры, наклейки", icon: "/icons/polygraphy.png", href: "/catalog?cat=prazdnichnaya-poligrafiya" },
+  { title: "Праздничная упаковка", subtitle: "Коробки, пакеты, бумага", icon: "/icons/festive-packaging.png", href: "/catalog?cat=upakovka-dlya-podarkov" },
+  { title: "Свечи", subtitle: "Праздничные, декоративные, цифры", icon: "/icons/candles.png", href: "/catalog?cat=svechi-i-fontany" },
+  { title: "Сервировка стола", subtitle: "Тарелки, стаканы, скатерти", icon: "/icons/table-setting.png", href: "/catalog?cat=servirovka-stola" },
+  { title: "Товары для праздника", subtitle: "Конфетти, хлопушки, украшения", icon: "/icons/party-goods.png", href: "/catalog?cat=tovary-dlya-prazdnika" },
 ];
 
 export default function Categories() {

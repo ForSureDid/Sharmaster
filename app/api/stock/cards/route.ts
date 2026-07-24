@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStockCardsByIds } from "@/lib/stock";
+import { getStockCardsByIds } from "@/lib/onecStock";
 
 // GET /api/stock/cards?ids=1,2,3 → свежие карточки товаров (для избранного).
 export async function GET(req: NextRequest) {

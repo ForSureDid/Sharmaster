@@ -1,6 +1,6 @@
 import Link from "next/link";
 import NovinkaGrid from "@/components/NovinkaGrid";
-import type { NovinkaCard } from "@/lib/stock";
+import type { NovinkaCard } from "@/lib/onecStock";
 
 type Props = { items: NovinkaCard[] };
 

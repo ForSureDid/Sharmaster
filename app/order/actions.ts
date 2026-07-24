@@ -53,12 +53,12 @@ export async function placeOrder(input: {
   const ids   = items.map(i => i.id)
   const names = items.map(i => i.name)
 
-  const stockRows = await db.stockItem.findMany({
+  const stockRows = await db.onecStockItem.findMany({
     where: { OR: [{ id: { in: ids } }, { name: { in: names } }] },
     select: { id: true, stock: true, name: true, pricePerPc: true },
   })
 
-  // Resolve each cart item to its real StockItem
+  // Resolve each cart item to its real OnecStockItem
   const resolved = items.map(item => {
     const byId   = stockRows.find(s => s.id === item.id)
     const byName = stockRows.find(s => s.name === item.name)
@@ -99,12 +99,12 @@ export async function placeOrder(input: {
   try {
     order = await db.$transaction(async (tx) => {
       for (const { item, stockRow } of toDecrement) {
-        const { count } = await tx.stockItem.updateMany({
+        const { count } = await tx.onecStockItem.updateMany({
           where: { id: stockRow!.id, stock: { gte: item.qty } },
           data: { stock: { decrement: item.qty } },
         })
         if (count === 0) {
-          const cur = await tx.stockItem.findUnique({
+          const cur = await tx.onecStockItem.findUnique({
             where: { id: stockRow!.id },
             select: { stock: true },
           })
@@ -122,7 +122,7 @@ export async function placeOrder(input: {
           total,
           items: {
             create: resolved.map(({ item, stockRow }) => ({
-              stockItemId: stockRow?.id ?? null,
+              onecStockItemId: stockRow?.id ?? null,
               name: item.name,
               qty: item.qty,
               price: stockRow ? stockRow.pricePerPc : 0,

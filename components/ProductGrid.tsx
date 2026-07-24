@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
-import type { StockCard } from "@/lib/stock";
+import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 
 type Props = { items: StockCard[] };
@@ -52,7 +52,7 @@ export default function ProductGrid({ items }: Props) {
                   className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all group flex flex-col"
                 >
                   <div className="relative aspect-square bg-white">
-                    <Link href={`/catalog/${item.id}`} className="absolute inset-0">
+                    <Link href={`/catalog/${item.slug ?? item.id}`} className="absolute inset-0">
                       {item.imageUrl ? (
                         <Image
                           src={item.imageUrl}
@@ -81,7 +81,7 @@ export default function ProductGrid({ items }: Props) {
                   </div>
 
                   <div className="p-3 flex flex-col flex-1">
-                    <Link href={`/catalog/${item.id}`} className="text-xs text-gray-500 leading-snug mb-2 flex-1 hover:text-gray-700 transition-colors">
+                    <Link href={`/catalog/${item.slug ?? item.id}`} className="text-xs text-gray-500 leading-snug mb-2 flex-1 hover:text-gray-700 transition-colors">
                       {item.fullName ?? item.name}
                     </Link>
 

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
-import type { StockCard } from "@/lib/stock";
+import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
@@ -154,7 +154,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded font-medium">{item.brand}</span>
           )}
         </div>
-        <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
+        <a href={`/catalog/${item.slug ?? item.id}`} className="hover:text-sky-600 transition-colors">
           <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{displayName}</h3>
         </a>
 
@@ -269,7 +269,7 @@ function StockCardList({ item }: { item: StockCard }) {
               <span className="text-[10px] text-amber-600 font-medium">Ожидайте поступления</span>
             )}
           </div>
-          <a href={`/catalog/${item.id}`} className="hover:text-sky-600 transition-colors">
+          <a href={`/catalog/${item.slug ?? item.id}`} className="hover:text-sky-600 transition-colors">
             <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{displayName}</h3>
           </a>
         </div>

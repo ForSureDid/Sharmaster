@@ -1,16 +1,28 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import StockItemDetail from "@/components/StockItemDetail";
-import { getStockItemById } from "@/lib/stock";
+import { getStockItemBySlug, getStockItemById } from "@/lib/onecStock";
 
-export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const itemId = parseInt(id, 10);
-  if (!Number.isFinite(itemId) || itemId <= 0) notFound();
+export default async function ItemPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
 
-  const item = await getStockItemById(itemId);
+  let item = await getStockItemBySlug(slug);
+
+  // Legacy numeric links, or an item whose slug hasn't been (re)generated yet —
+  // resolve by id and redirect to the canonical slug URL.
+  if (!item) {
+    const asId = parseInt(slug, 10);
+    if (Number.isFinite(asId) && asId > 0 && String(asId) === slug) {
+      const byId = await getStockItemById(asId);
+      if (byId) {
+        if (byId.slug) redirect(`/catalog/${byId.slug}`);
+        item = byId;
+      }
+    }
+  }
+
   if (!item) notFound();
 
   return (

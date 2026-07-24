@@ -2,12 +2,15 @@
 // GET /api/1c-exchange?type=sale&mode=query, and tracks the query → success
 // confirmation cycle on Order.onecQueuedAt / Order.onecExportedAt.
 //
-// Item → 1C nomenclature matching: OrderItem.stockItemId → StockItem, then
-// OnecStockItem by article → barcode → name (same precedence the catalog
-// import uses to clear isNew). Matched items carry the real 1C "Ид" GUID so
-// Розница fills the order lines automatically; unmatched ones get a synthetic
-// id and are additionally listed in the order's Комментарий so the manager
-// can add them by hand instead of silently losing them.
+// Item → 1C nomenclature matching: OrderItem.onecStockItemId → OnecStockItem
+// directly (every order placed after the storefront cutover to OnecStockItem
+// has this set) — falls back to the legacy path (stockItemId → StockItem →
+// OnecStockItem by article → barcode → name, same precedence the catalog
+// import uses to clear isNew) for orders placed before the cutover. Matched
+// items carry the real 1C "Ид" GUID so Розница fills the order lines
+// automatically; unmatched ones get a synthetic id and are additionally
+// listed in the order's Комментарий so the manager can add them by hand
+// instead of silently losing them.
 
 import { db } from '@/lib/db'
 import type { Order, OrderItem, StockItem } from '@prisma/client'
@@ -42,6 +45,18 @@ type OrderWithItems = Order & { items: OrderItem[] }
 async function buildOnecIdResolver(
   orders: OrderWithItems[]
 ): Promise<(item: OrderItem) => string | null> {
+  const onecStockItemIds = [
+    ...new Set(orders.flatMap((o) => o.items.map((i) => i.onecStockItemId)).filter((id): id is number => id !== null)),
+  ]
+  const onecIdById = new Map<number, string>()
+  if (onecStockItemIds.length) {
+    const rows = await db.onecStockItem.findMany({
+      where: { id: { in: onecStockItemIds } },
+      select: { id: true, onecId: true },
+    })
+    for (const r of rows) onecIdById.set(r.id, r.onecId)
+  }
+
   const stockItemIds = [
     ...new Set(orders.flatMap((o) => o.items.map((i) => i.stockItemId)).filter((id): id is number => id !== null)),
   ]
@@ -80,6 +95,10 @@ async function buildOnecIdResolver(
   }
 
   return (item: OrderItem) => {
+    if (item.onecStockItemId !== null) {
+      const direct = onecIdById.get(item.onecStockItemId)
+      if (direct) return direct
+    }
     const stock = item.stockItemId !== null ? stockById.get(item.stockItemId) : undefined
     return (
       (stock?.article && byArticle.get(stock.article)) ||
