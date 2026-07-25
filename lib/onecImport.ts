@@ -168,7 +168,10 @@ export function parseImportXml(bytes: Uint8Array): { products: OnecProduct[]; gr
 // product/category URL never changes under an admin's feet). Collisions are resolved
 // against both the rest of this batch and whatever's already persisted: the lowest-id
 // row in a name group keeps the clean slug, the rest get a "-{id}" suffix.
-async function assignSlugsForNewRows(
+//
+// Exported for reuse by app/admin/actions.ts — manually-created OnecStockItem rows
+// need the same slugging as 1C-synced ones.
+export async function assignSlugsForNewRows(
   table: 'OnecStockItem' | 'OnecCategory',
   newRows: { id: number; name: string }[]
 ): Promise<void> {
@@ -255,10 +258,35 @@ export async function upsertOnecCategories(groups: OnecGroup[]): Promise<Map<str
   return idByOnecId
 }
 
+// The donballon-novelties agent (or an admin) inserts pending "coming soon" rows with
+// isNewPending=true and a synthetic onecId (no real 1C GUID yet — see
+// .claude/agents/donballon-novelties.md) so they can show on the storefront before 1C
+// knows about them. Once the real product arrives through this sync, it must take over
+// that same row (re-pointing onecId to the real 1C id, clearing isNewPending) instead of
+// creating a duplicate — this repoints matching pending rows just before the ON CONFLICT
+// upsert below, by article, so the upsert's own conflict resolution merges into it
+// naturally, and the row drops off the novinki tab (lib/onecStock.ts's
+// _getNovinkaItems()) the moment it's absorbed.
+async function absorbDonballonNovelties(chunk: OnecProduct[]): Promise<void> {
+  const withArticle = chunk.filter((p) => p.article)
+  if (withArticle.length === 0) return
+  const rows = withArticle.map((p) => Prisma.sql`(${p.article}::text, ${p.onecId}::text)`)
+  await db.$executeRaw`
+    UPDATE "OnecStockItem" t
+    SET "onecId" = v."onecId", "isNewPending" = false
+    FROM (VALUES ${Prisma.join(rows)}) AS v(article, "onecId")
+    WHERE t."isNewPending" = true
+      AND t."article" = v.article
+      AND t."onecId" <> v."onecId"
+  `
+}
+
 async function upsertProductChunk(
   chunk: OnecProduct[],
   categoryIdByOnecId: Map<string, number>
 ): Promise<{ created: number; updated: number }> {
+  await absorbDonballonNovelties(chunk)
+
   const rows = chunk.map(
     (p) => Prisma.sql`(
       ${p.onecId}, ${p.article || null}, ${p.name}, ${p.barcode || null}, ${p.brand || null},

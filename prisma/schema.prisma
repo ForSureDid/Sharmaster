@@ -206,7 +206,7 @@ model OrderItem {
   @@index([orderId])
 }
 
-// ─── 1C exchange (isolated — nothing storefront-facing reads from these yet) ──
+// ─── 1C exchange — catalog source of truth for storefront + admin ────────────
 
 model OnecStockItem {
   id              Int      @id @default(autoincrement())
@@ -230,6 +230,9 @@ model OnecStockItem {
   sizeInches      String?  // same as above: StockItem-only enrichment, backfilled once
   onSale          Boolean  @default(false) // manual storefront discount toggle, backfilled from StockItem — never set by 1C sync
   salePercent     Int?
+  isNewPending    Boolean  @default(false) // "Ожидайте поступления" — pre-arrival novelty (admin-created or donballon-novelties agent), never touched by 1C sync
+  stockOverride   Boolean  @default(false) // true = admin manually set stock; lib/onecImport.ts's updateOfferChunk skips this column on future syncs
+  priceOverride   Boolean  @default(false) // true = admin manually set price; same skip behavior as stockOverride
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   likes           Like[]
@@ -237,6 +240,7 @@ model OnecStockItem {
   @@index([article])
   @@index([barcode])
   @@index([isNew])
+  @@index([isNewPending])
   @@index([categoryId])
 }
 

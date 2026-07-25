@@ -14,8 +14,9 @@ export async function POST(req: NextRequest) {
   }
 
   revalidateTag('stockItems', 'max')
+  revalidateTag('onecStockItems', 'max')
   revalidatePath('/')
   revalidatePath('/novinka')
 
-  return NextResponse.json({ ok: true, revalidated: ['stockItems', '/', '/novinka'] })
+  return NextResponse.json({ ok: true, revalidated: ['stockItems', 'onecStockItems', '/', '/novinka'] })
 }

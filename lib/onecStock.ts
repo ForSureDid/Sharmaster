@@ -458,11 +458,20 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
 export const getSaleItems = unstable_cache(() => _getSaleItems(8), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
+// Novelties are rows the donballon-novelties agent (.claude/agents/donballon-novelties.md)
+// or an admin inserted ahead of the goods actually arriving — OnecStockItem.isNewPending
+// (migration 20260725020000_add_onec_stockitem_admin_fields), never touched by 1C sync.
+// Deliberately NOT the generic OnecStockItem.isNew flag: that one is also set by the
+// ordinary 1C catalog sync for any brand-new SKU and is never cleared automatically, so
+// filtering on it alone surfaced every "new since sync began" item ever, not just
+// upcoming donballon novelties. When the real product arrives via 1C, applyImportXml's
+// absorbDonballonNovelties() matches it to this row by article and clears isNewPending,
+// so it naturally drops off this tab with no manual cleanup and no duplicate row.
 async function _getNovinkaItems(): Promise<NovinkaCard[]> {
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
-      where: { isNew: true },
+      where: { isNewPending: true },
       select: SELECT_FIELDS,
       orderBy: [{ createdAt: 'desc' }],
     }),
