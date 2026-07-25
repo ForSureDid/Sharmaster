@@ -6,10 +6,33 @@
  * the CommerceML XML payload, not images). Each bucket has its own filename convention —
  * the per-bucket `extract()` functions below are adapted from the existing
  * scripts/link-<brand>-to-stock.ts scripts (see comments per bucket for the source).
- * latex-Sempertex and latex-BK are NOT scanned: investigation
- * (scripts/check-onec-images-investigate.ts) found their filenames use manufacturer SKU
- * codes (e.g. "LOL6SM000", "Ch47423") that never match any OnecStockItem.article value —
- * 0 matches, not worth the scan.
+ *
+ * latex-BK IS now scanned (added after the original "0 matches" investigation was
+ * revisited — root cause was transliteration, not a genuinely unmatchable key: BK
+ * articles are stored as Cyrillic "Ч47423" / "ч47423" (5 digits), and the bucket
+ * filenames end in the *transliterated* "..._Ch47423.jpg" / "..._ch53218.png" — the
+ * naive equality check (article === filename code) obviously never matched a
+ * Cyrillic string against a Latin one. See extractTrailingChCode/keyForBk below and
+ * scripts/check-bk-match-dryrun.ts for the verification (20/20 spot-checked matches
+ * confirmed correct by comparing DB name to translated filename; 0 collisions against
+ * unrelated Ч/ч-article products like confetti/ribbons).
+ *
+ * latex-Sempertex is STILL NOT scanned: unlike BK, this is a real dead end, not a
+ * transliteration bug. Its filenames encode {size}{SM}{3-digit color code} (e.g.
+ * "R12SM005", "LOL6SM000") — a raw manufacturer SKU scheme that has no relationship
+ * to OnecStockItem.article for Sempertex rows (those use donballon's own numeric
+ * catalog codes, e.g. "238067"). Of the 216 Sempertex OnecStockItem rows still
+ * missing a photo, 212 have article = NULL entirely (no key to look up by, 1C never
+ * sent one) and the remaining 4 use the numeric donballon scheme this bucket can't
+ * satisfy. The old StockItem-era linking (relink-sempertex-full.ts) worked around
+ * this by regex-parsing "R12 005 ..." out of StockItem.name, but current
+ * OnecStockItem names for the unmatched rows don't follow that shape (e.g. "Sempertex
+ * S.A (П 12) Карты НОВЫЕ. 005 белый пастель", "Sempertex S.A (Сердце) 6 белый
+ * пастель 005") and several are printed/holiday designs or non-round shapes (hearts)
+ * that plain-color latex-Sempertex photos don't even depict — a fuzzy name parser
+ * here would risk attaching wrong photos, not just missing ones. See
+ * scripts/check-onec-sempertex-bk2.ts / check-onec-sempertex-bk3.ts /
+ * check-semp-unlinked-article.ts for the investigation.
  *
  * Buckets are scanned in size-descending order; the FIRST bucket that has a code
  * matching a given article wins. Conflicts (article found in >1 bucket) are counted
@@ -89,7 +112,16 @@ async function listAllKeys(bucket: string, prefix = '', depth = 0): Promise<stri
 // attached, and returns { code, ordinal } or null to skip. ordinal 0 = head image
 // (becomes imageUrl); ordinal > 0 = extra, sorted ascending into images[].
 type Extracted = { code: string; ordinal: number }
-type BucketConfig = { name: string; extract: (basename: string) => Extracted | null }
+type BucketConfig = {
+  name: string
+  extract: (basename: string) => Extracted | null
+  // Optional: transform an OnecStockItem.article into the key this bucket's
+  // extract() produces, when the two aren't the same string as-is (e.g.
+  // Cyrillic article vs. transliterated filename code for latex-BK). Returning
+  // null means "this article can't possibly have a key in this bucket" — skip
+  // the lookup entirely rather than looking up a bogus key. Defaults to identity.
+  keyFor?: (article: string) => string | null
+}
 
 const SHARIK_CODE = /^(\d{4}-\d{4})$/
 
@@ -99,7 +131,7 @@ const SHARIK_CODE = /^(\d{4}-\d{4})$/
 // scripts/link-foil-to-stock.ts: "article = first segment of filename before '_'").
 function extractLeadingSegment(basename: string): Extracted | null {
   const noExt = basename.replace(IMG_EXT, '')
-  const m = /^([A-Za-z0-9]+)_/.exec(noExt)
+  const m = /^([A-Za-z0-9-]+)_/.exec(noExt)
   const code = m ? m[1] : (IMG_EXT.test(basename) ? noExt : null)
   if (!code) return null
   const ordM = /_(\d+)$/.exec(noExt)
@@ -134,11 +166,35 @@ function extractTrailingSharikCode(basename: string): Extracted | null {
   return m ? { code: m[1], ordinal: 0 } : null
 }
 
+// latex-BK: "..._Ch47423.jpg" / "..._ch53218.png" — last "{Ch|ch}{5 digits}" segment
+// at the end of the basename, canonicalized to "CH47423" (case-insensitive on both
+// sides). Single image, no extras (verified: 0 of 370 codes have >1 file).
+// Requires keyFor (below) because the DB side is Cyrillic, not Latin — see the
+// top-of-file comment for why the original naive scan found "0 matches".
+function extractTrailingChCode(basename: string): Extracted | null {
+  const noExt = basename.replace(IMG_EXT, '')
+  const m = /_([Cc][Hh]\d{5})$/.exec(noExt)
+  return m ? { code: `CH${m[1].slice(2)}`, ordinal: 0 } : null
+}
+
+// keyFor(article) for latex-BK: OnecStockItem.article for BK items is Cyrillic
+// "Ч47423" / "ч47423" (occasionally "Ч43386_Kz" — trailing junk after the 5 digits
+// is ignored). Transliterate Ч/ч → Ch per the project CYR map
+// (scripts/upload-latex-to-storage.ts) and canonicalize to the same "CH47423" form
+// produced by extractTrailingChCode, so the two sides compare equal.
+// Articles that don't start with Ч/ч+5digits (e.g. the ~74 "1103-XXXX" sharik.ru-
+// style BK articles, or unrelated products) return null — no key, no lookup, no risk
+// of accidental collision (verified 0 collisions against non-BK Ч/ч-article rows).
+function keyForBk(article: string): string | null {
+  const m = /^[Чч](\d{5})/.exec(article.trim())
+  return m ? `CH${m[1]}` : null
+}
+
 // lenyu-bantyu: "{code}_{name}...jpg", code alnum, head has no trailing _N, extras do
 // (link-lentu-banty-to-stock.ts).
 function extractAlnumLeadingSegment(basename: string): Extracted | null {
   const noExt = basename.replace(IMG_EXT, '')
-  const m = /^([A-Za-z0-9]+)_/.exec(noExt)
+  const m = /^([A-Za-z0-9-]+)_/.exec(noExt)
   if (!m) return null
   const ordM = /_(\d+)$/.exec(noExt)
   return { code: m[1], ordinal: ordM ? parseInt(ordM[1], 10) : 0 }
@@ -200,6 +256,8 @@ const BUCKETS: BucketConfig[] = [
   { name: 'foil-Veselaya', extract: extractLastSharikSegment },
   { name: 'latex-Everts', extract: extractLastSharikSegment },
   { name: 'foil-Betalic', extract: extractLastSharikSegment },
+  // STRICT — code must match Ч/ч + 5 digits (transliterated); curated BK bucket.
+  { name: 'latex-BK', extract: extractTrailingChCode, keyFor: keyForBk },
   // SEMI — code = digit/alnum run anchored at the very start of the filename
   // (the uploader encoded the real article there; reliable by construction).
   { name: 'foil-balloons', extract: extractLeadingSegment },
@@ -208,6 +266,7 @@ const BUCKETS: BucketConfig[] = [
   { name: 'lenyu-bantyu', extract: extractAlnumLeadingSegment },
   // LOOSE — whole basename accepted as code, no shape check.
   { name: 'Tovary-dlya-prazdnika', extract: extractPrazdnikStyle },
+  { name: 'Oborudovanie-i-aksessuary', extract: extractPrazdnikStyle },
   { name: 'partydeco', extract: extractPartydecoStyle },
   { name: 'donballon-novelties', extract: extractNoveltiesStyle },
   // LOOSEST — sharik-code searched anywhere in the string, unanchored.
@@ -262,7 +321,8 @@ async function main() {
   for (const article of allArticles) {
     const matchedBuckets: string[] = []
     for (const cfg of BUCKETS) {
-      const group = perBucket.get(cfg.name)!.get(article)
+      const key = cfg.keyFor ? cfg.keyFor(article) : article
+      const group = key === null ? undefined : perBucket.get(cfg.name)!.get(key)
       if (group) {
         matchedBuckets.push(cfg.name)
         if (!winners.has(article)) {
