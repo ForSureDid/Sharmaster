@@ -9,7 +9,7 @@ export async function GET() {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const items = await db.stockItem.findMany({
+  const items = await db.onecStockItem.findMany({
     orderBy: { name: 'asc' },
     select: {
       article: true,

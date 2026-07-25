@@ -424,10 +424,15 @@ async function updateOfferChunk(chunk: OnecOffer[]): Promise<number> {
   )
 
   // COALESCE keeps the existing price when 1C didn't send one for this offer,
-  // instead of clobbering it with NULL/0.
+  // instead of clobbering it with NULL/0. stockOverride/priceOverride are set by the
+  // admin panel (app/admin/actions.ts) when a manager manually edits stock/price for a
+  // row — CASE skips that column here so the sync can't silently clobber it back.
   const result = await db.$executeRaw`
     UPDATE "OnecStockItem" AS t
-    SET "stock" = v.stock, "pricePerPc" = COALESCE(v.price, t."pricePerPc"), "updatedAt" = now()
+    SET
+      "stock" = CASE WHEN t."stockOverride" THEN t."stock" ELSE v.stock END,
+      "pricePerPc" = CASE WHEN t."priceOverride" THEN t."pricePerPc" ELSE COALESCE(v.price, t."pricePerPc") END,
+      "updatedAt" = now()
     FROM (VALUES ${Prisma.join(rows)}) AS v("onecId", "stock", "price")
     WHERE t."onecId" = v."onecId"
   `

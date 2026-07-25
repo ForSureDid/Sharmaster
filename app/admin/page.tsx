@@ -11,23 +11,21 @@ import {
   updateOrderStatus,
   getStockItems,
   updateStockQty,
+  releaseStockOverride,
+  updateManualPrice,
+  releasePriceOverride,
   updateSizeInches,
   getSaleItems,
   updateSaleStatus,
   searchAllItems,
   getNewArrivals,
-  getOnecNewItems,
   toggleNewArrival,
   setNewArrivalPending,
-  dismissOnecNewItem,
-  markStockItemNewFromOnec,
   searchStockForNovinka,
   getAdminMeta,
   createStockItem,
   bulkCreateItems,
   getSyncStatus,
-  previewOnecStockSync,
-  applyOnecStockSync,
   getOnecCategoryTree,
   getOnecItemsByCategory,
 } from "./actions";
@@ -55,7 +53,6 @@ type Stats = {
 type StockItem = {
   id: number;
   name: string;
-  fullName: string | null;
   article: string | null;
   brand: string | null;
   sizeInches: string | null;
@@ -64,6 +61,8 @@ type StockItem = {
   imageUrl: string | null;
   onSale: boolean;
   salePercent: number | null;
+  stockOverride: boolean;
+  priceOverride: boolean;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -110,10 +109,13 @@ function StockTab() {
   const [loading, setLoading]     = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editVal, setEditVal]     = useState("");
+  const [priceEditingId, setPriceEditingId] = useState<number | null>(null);
+  const [priceEditVal, setPriceEditVal]     = useState("");
   const [sizeEditingId, setSizeEditingId] = useState<number | null>(null);
   const [sizeEditVal, setSizeEditVal]     = useState("");
   const [isPending, startTx]      = useTransition();
   const inputRef                  = useRef<HTMLInputElement>(null);
+  const priceInputRef             = useRef<HTMLInputElement>(null);
   const sizeInputRef              = useRef<HTMLInputElement>(null);
 
   // debounce search
@@ -139,9 +141,44 @@ function StockTab() {
     startTx(async () => {
       await updateStockQty(id, qty);
       setData(prev =>
-        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, stock: qty } : i) } : null
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, stock: qty, stockOverride: true } : i) } : null
       );
       setEditingId(null);
+    });
+  }
+  function releaseStock(id: number) {
+    startTx(async () => {
+      await releaseStockOverride(id);
+      setData(prev =>
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, stockOverride: false } : i) } : null
+      );
+    });
+  }
+
+  function startPriceEdit(item: StockItem) {
+    setSizeEditingId(null);
+    setEditingId(null);
+    setPriceEditingId(item.id);
+    setPriceEditVal(String(item.pricePerPc));
+    setTimeout(() => priceInputRef.current?.select(), 30);
+  }
+  function savePriceEdit(id: number) {
+    const price = parseFloat(priceEditVal);
+    if (isNaN(price) || price < 0) { setPriceEditingId(null); return; }
+    startTx(async () => {
+      await updateManualPrice(id, price);
+      setData(prev =>
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, pricePerPc: price, priceOverride: true } : i) } : null
+      );
+      setPriceEditingId(null);
+    });
+  }
+  function releasePrice(id: number) {
+    startTx(async () => {
+      await releasePriceOverride(id);
+      setData(prev =>
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, priceOverride: false } : i) } : null
+      );
     });
   }
 
@@ -200,7 +237,8 @@ function StockTab() {
 
         {/* Tip */}
         <div className="px-6 py-2.5 bg-blue-50 border-b border-blue-100 text-xs text-blue-600">
-          Нажмите на значение в колонке «Остаток» или «Размер», чтобы изменить. Подтвердите клавишей Enter.
+          Нажмите на значение в колонке «Остаток», «Цена» или «Размер», чтобы изменить. Подтвердите клавишей Enter.
+          Изменённые вручную остаток/цена помечаются 🔒 и больше не перезаписываются синхронизацией с 1С — нажмите на замок, чтобы вернуть управление 1С.
         </div>
 
         {loading ? (
@@ -233,9 +271,6 @@ function StockTab() {
                       >
                         <td className="px-6 py-3">
                           <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
-                          {item.fullName && item.fullName !== item.name && (
-                            <div className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{item.fullName}</div>
-                          )}
                         </td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{item.brand ?? "—"}</td>
                         <td className="px-4 py-3 text-center">
@@ -266,30 +301,42 @@ function StockTab() {
                         </td>
                         <td className="px-4 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{item.article ?? "—"}</td>
                         <td className="px-4 py-3 text-center">
-                          {isEditing ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              min={0}
-                              value={editVal}
-                              onChange={e => setEditVal(e.target.value)}
-                              onBlur={() => saveEdit(item.id)}
-                              onKeyDown={e => {
-                                if (e.key === "Enter")  saveEdit(item.id);
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              className="w-20 text-center px-2 py-1 border-2 border-sky-400 rounded-lg focus:outline-none text-sm font-bold"
-                            />
-                          ) : (
-                            <button
-                              onClick={() => startEdit(item)}
-                              disabled={isPending}
-                              title="Нажмите, чтобы изменить"
-                              className="px-3 py-1 rounded-lg text-sm font-bold text-gray-700 hover:bg-sky-50 hover:text-sky-700 transition-colors disabled:opacity-50 cursor-pointer"
-                            >
-                              {item.stock}
-                            </button>
-                          )}
+                          <div className="flex items-center justify-center gap-1">
+                            {isEditing ? (
+                              <input
+                                ref={inputRef}
+                                type="number"
+                                min={0}
+                                value={editVal}
+                                onChange={e => setEditVal(e.target.value)}
+                                onBlur={() => saveEdit(item.id)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter")  saveEdit(item.id);
+                                  if (e.key === "Escape") setEditingId(null);
+                                }}
+                                className="w-20 text-center px-2 py-1 border-2 border-sky-400 rounded-lg focus:outline-none text-sm font-bold"
+                              />
+                            ) : (
+                              <button
+                                onClick={() => startEdit(item)}
+                                disabled={isPending}
+                                title="Нажмите, чтобы изменить"
+                                className="px-3 py-1 rounded-lg text-sm font-bold text-gray-700 hover:bg-sky-50 hover:text-sky-700 transition-colors disabled:opacity-50 cursor-pointer"
+                              >
+                                {item.stock}
+                              </button>
+                            )}
+                            {item.stockOverride && (
+                              <button
+                                onClick={() => releaseStock(item.id)}
+                                disabled={isPending}
+                                title="Остаток задан вручную — нажмите, чтобы вернуть управление 1С"
+                                className="text-xs disabled:opacity-50"
+                              >
+                                🔒
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${badge.cls}`}>
@@ -297,7 +344,43 @@ function StockTab() {
                           </span>
                         </td>
                         <td className="px-6 py-3 text-right font-medium text-gray-700 whitespace-nowrap">
-                          {item.pricePerPc.toLocaleString("ru-RU")} ₸
+                          <div className="flex items-center justify-end gap-1">
+                            {item.priceOverride && (
+                              <button
+                                onClick={() => releasePrice(item.id)}
+                                disabled={isPending}
+                                title="Цена задана вручную — нажмите, чтобы вернуть управление 1С"
+                                className="text-xs disabled:opacity-50"
+                              >
+                                🔒
+                              </button>
+                            )}
+                            {priceEditingId === item.id ? (
+                              <input
+                                ref={priceInputRef}
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={priceEditVal}
+                                onChange={e => setPriceEditVal(e.target.value)}
+                                onBlur={() => savePriceEdit(item.id)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter")  savePriceEdit(item.id);
+                                  if (e.key === "Escape") setPriceEditingId(null);
+                                }}
+                                className="w-24 text-right px-2 py-1 border-2 border-sky-400 rounded-lg focus:outline-none text-sm font-bold"
+                              />
+                            ) : (
+                              <button
+                                onClick={() => startPriceEdit(item)}
+                                disabled={isPending}
+                                title="Нажмите, чтобы изменить"
+                                className="px-2 py-1 rounded-lg hover:bg-sky-50 hover:text-sky-700 transition-colors disabled:opacity-50 cursor-pointer"
+                              >
+                                {item.pricePerPc.toLocaleString("ru-RU")} ₸
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -339,296 +422,6 @@ function StockTab() {
       </div>
     </div>
   );
-}
-
-// ─── Import tab ───────────────────────────────────────────────────────────────
-
-type PreviewRow = {
-  article: string;
-  name: string;
-  qty: number;
-  price: number | null;
-  existingId: number | null;
-  existingStock: number | null;
-  willCreate: boolean;
-};
-type PreviewData = {
-  rows: PreviewRow[];
-  stats: { total: number; willUpdate: number; willCreate: number };
-};
-type ImportResult = { updated: number; created: number; errors: string[] };
-
-function ImportTab() {
-  const [phase, setPhase]     = useState<"idle" | "uploading" | "preview" | "applying" | "done">("idle");
-  const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [result, setResult]   = useState<ImportResult | null>(null);
-  const [error, setError]     = useState<string | null>(null);
-  const [drag, setDrag]       = useState(false);
-  const fileRef               = useRef<HTMLInputElement>(null);
-
-  async function handleFile(file: File) {
-    if (!file.name.match(/\.xlsx?$/i)) {
-      setError("Загрузите файл в формате .xlsx"); return;
-    }
-    setPhase("uploading"); setError(null);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/admin/imports/preview", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка чтения файла");
-      setPreview(data);
-      setPhase("preview");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Неизвестная ошибка");
-      setPhase("idle");
-    }
-  }
-
-  async function handleApply() {
-    if (!preview) return;
-    setPhase("applying"); setError(null);
-    try {
-      const res = await fetch("/api/admin/imports/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: preview.rows }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Ошибка импорта");
-      setResult(data);
-      setPhase("done");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Неизвестная ошибка");
-      setPhase("preview");
-    }
-  }
-
-  function reset() {
-    setPhase("idle"); setPreview(null); setResult(null); setError(null);
-    if (fileRef.current) fileRef.current.value = "";
-  }
-
-  // ── Idle ──────────────────────────────────────────────────────────────────
-  if (phase === "idle" || phase === "uploading") return (
-    <div>
-      <div className="mb-6">
-        <h2 className="text-lg font-bold text-gray-800">Импорт прихода</h2>
-        <p className="text-sm text-gray-400 mt-0.5">
-          Загрузите Excel-файл — система найдёт товары в базе и пополнит остатки
-        </p>
-      </div>
-
-      {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* Drop zone */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={e => {
-          e.preventDefault(); setDrag(false);
-          const f = e.dataTransfer.files[0];
-          if (f) handleFile(f);
-        }}
-        onClick={() => fileRef.current?.click()}
-        className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-3xl py-16 px-8 cursor-pointer transition-colors ${
-          drag ? "border-sky-400 bg-sky-50" : "border-gray-200 bg-white hover:border-sky-300 hover:bg-sky-50/30"
-        }`}
-      >
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xlsx,.xls"
-          className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-        />
-        {phase === "uploading" ? (
-          <>
-            <div className="w-10 h-10 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
-            <p className="text-sm text-sky-600 font-medium">Анализируем файл...</p>
-          </>
-        ) : (
-          <>
-            <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
-              <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-gray-700">Перетащите файл сюда</p>
-              <p className="text-xs text-gray-400 mt-1">или нажмите, чтобы выбрать</p>
-            </div>
-            <span className="px-3 py-1 bg-sky-100 text-sky-700 text-xs font-semibold rounded-full">.xlsx</span>
-          </>
-        )}
-      </div>
-
-      {/* Format hint */}
-      <div className="mt-4 bg-white rounded-2xl border border-gray-100 p-4">
-        <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Поддерживаемые форматы</p>
-        <div className="space-y-1.5 text-xs text-gray-500">
-          <div className="flex gap-2">
-            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Артикул</span>
-            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Наименование</span>
-            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Количество</span>
-            <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded text-gray-600">Цена</span>
-          </div>
-          <p className="text-gray-400">Заголовки распознаются автоматически. Также поддерживается формат Оценка.xlsx.</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ── Preview ────────────────────────────────────────────────────────────────
-  if (phase === "preview" && preview) return (
-    <div>
-      <div className="flex items-start justify-between mb-5">
-        <div>
-          <h2 className="text-lg font-bold text-gray-800">Проверьте данные перед импортом</h2>
-          <p className="text-sm text-gray-400 mt-0.5">Убедитесь, что всё верно, затем нажмите «Применить»</p>
-        </div>
-        <button onClick={reset} className="text-xs text-gray-400 hover:text-gray-600 mt-1">
-          Отмена
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700 font-medium">
-          <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-          Пополнение: {preview.stats.willUpdate} позиций
-        </div>
-        {preview.stats.willCreate > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-700 font-medium">
-            <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />
-            Новых товаров: {preview.stats.willCreate}
-          </div>
-        )}
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-600 font-medium">
-          Итого: {preview.stats.total} строк
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{error}</div>
-      )}
-
-      {/* Table */}
-      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden mb-5">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Наименование</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Приход, шт</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Было → Станет</th>
-                <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Цена</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Действие</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {preview.rows.map((row, idx) => (
-                <tr key={idx} className={`${row.willCreate ? "bg-sky-50/30" : "bg-green-50/20"} hover:bg-gray-50 transition-colors`}>
-                  <td className="px-5 py-2.5 font-mono text-xs text-gray-500">{row.article || "—"}</td>
-                  <td className="px-4 py-2.5 text-gray-800 font-medium max-w-xs">
-                    <div className="truncate">{row.name}</div>
-                  </td>
-                  <td className="px-4 py-2.5 text-center font-bold text-gray-800">+{row.qty}</td>
-                  <td className="px-4 py-2.5 text-center text-xs text-gray-500">
-                    {row.willCreate
-                      ? <span className="text-sky-600 font-medium">новый</span>
-                      : <><span className="text-gray-400">{row.existingStock}</span><span className="mx-1 text-gray-300">→</span><span className="text-green-600 font-semibold">{(row.existingStock ?? 0) + row.qty}</span></>
-                    }
-                  </td>
-                  <td className="px-5 py-2.5 text-right text-gray-600 text-xs">
-                    {row.price != null ? `${row.price.toLocaleString("ru-RU")} ₸` : "—"}
-                  </td>
-                  <td className="px-4 py-2.5 text-center">
-                    {row.willCreate
-                      ? <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-700 font-medium rounded-full">Создать</span>
-                      : <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 font-medium rounded-full">Пополнить</span>
-                    }
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Action */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleApply}
-          className="px-6 py-2.5 bg-green-600 text-white text-sm font-bold rounded-xl hover:bg-green-700 transition-colors shadow-sm"
-        >
-          Применить приход
-        </button>
-        <button onClick={reset} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
-          Отмена
-        </button>
-      </div>
-    </div>
-  );
-
-  // ── Applying ───────────────────────────────────────────────────────────────
-  if (phase === "applying") return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="w-10 h-10 rounded-full border-4 border-green-500 border-t-transparent animate-spin" />
-      <p className="text-sm text-gray-600 font-medium">Применяем приход...</p>
-    </div>
-  );
-
-  // ── Done ──────────────────────────────────────────────────────────────────
-  if (phase === "done" && result) return (
-    <div>
-      <div className="bg-white rounded-3xl border border-gray-100 p-8 max-w-md">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="font-bold text-gray-800">Импорт завершён</h2>
-            <p className="text-sm text-gray-400">Остатки склада обновлены</p>
-          </div>
-        </div>
-        <div className="space-y-2.5 text-sm mb-6">
-          <div className="flex justify-between items-center py-2 border-b border-gray-50">
-            <span className="text-gray-500">Пополнено позиций</span>
-            <span className="font-bold text-green-600">{result.updated}</span>
-          </div>
-          {result.created > 0 && (
-            <div className="flex justify-between items-center py-2 border-b border-gray-50">
-              <span className="text-gray-500">Создано новых товаров</span>
-              <span className="font-bold text-sky-600">{result.created}</span>
-            </div>
-          )}
-          {result.errors.length > 0 && (
-            <div className="py-2">
-              <p className="text-red-600 text-xs font-medium mb-1">Ошибки ({result.errors.length}):</p>
-              {result.errors.map((e, i) => <p key={i} className="text-xs text-red-500">{e}</p>)}
-            </div>
-          )}
-        </div>
-        <button
-          onClick={reset}
-          className="w-full px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors"
-        >
-          Загрузить ещё один файл
-        </button>
-      </div>
-    </div>
-  );
-
-  return null;
 }
 
 // ─── Sale tab ─────────────────────────────────────────────────────────────────
@@ -1067,7 +860,7 @@ function buildFlatCategories(cats: MetaData["categories"]): FlatCat[] {
 }
 
 const EMPTY_FORM = {
-  name: "", fullName: "", article: "", barcode: "",
+  name: "", article: "", barcode: "",
   brand: "", sizeInches: "", stock: "0", pricePerPc: "",
   categoryId: "", onSale: false, salePercent: "",
 };
@@ -1174,7 +967,6 @@ function NewItemTab() {
     try {
       const result = await createStockItem({
         name:       form.name,
-        fullName:   form.fullName   || undefined,
         article:    form.article    || undefined,
         barcode:    form.barcode    || undefined,
         brand:      form.brand      || undefined,
@@ -1248,13 +1040,6 @@ function NewItemTab() {
           <label className="block text-xs font-semibold text-gray-600 mb-1">Название <span className="text-red-400">*</span></label>
           <input value={form.name} onChange={e => set("name", e.target.value)} required
             placeholder="Например: Шар 12'' Красный пастель"
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
-        </div>
-
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Полное название</label>
-          <input value={form.fullName} onChange={e => set("fullName", e.target.value)}
-            placeholder="Полное описание для поиска (необязательно)"
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-sky-400" />
         </div>
 
@@ -1612,13 +1397,6 @@ function BulkItemImport() {
 
 // ─── New arrivals tab ─────────────────────────────────────────────────────────
 
-type OnecNewItem = {
-  id: number; onecId: string; name: string;
-  article: string | null; barcode: string | null; brand: string | null;
-  stock: number; pricePerPc: number; groupName: string | null;
-  createdAt: Date | string;
-  stockItemId: number | null; stockItemIsNew: boolean | null; inCatalog: boolean;
-};
 type NewArrivalItem = {
   id: number; name: string; article: string | null; brand: string | null;
   stock: number; pricePerPc: number; imageUrl: string | null;
@@ -1626,13 +1404,6 @@ type NewArrivalItem = {
 };
 
 function NewArrivalsTab() {
-  const [onecItems, setOnecItems]       = useState<OnecNewItem[]>([]);
-  const [onecTotal, setOnecTotal]       = useState(0);
-  const [onecPage, setOnecPage]         = useState(0);
-  const [onecSearch, setOnecSearch]     = useState("");
-  const [onecDebSearch, setOnecDebSearch] = useState("");
-  const [onecLoading, setOnecLoading]   = useState(true);
-
   const [siteItems, setSiteItems]       = useState<NewArrivalItem[]>([]);
   const [siteTotal, setSiteTotal]       = useState(0);
   const [sitePage, setSitePage]         = useState(0);
@@ -1641,8 +1412,6 @@ function NewArrivalsTab() {
   const [siteLoading, setSiteLoading]   = useState(true);
 
   const [isPending, startTx]            = useTransition();
-  const [actionError, setActionError]   = useState<string | null>(null);
-  const [actionOk, setActionOk]         = useState<string | null>(null);
   const [confirmPending, setConfirmPending] = useState<{ id: number; action: "new" | "pending" } | null>(null);
 
   // Add-any-item search
@@ -1652,23 +1421,11 @@ function NewArrivalsTab() {
   const [addLoading, setAddLoading]     = useState(false);
   const [addConfirm, setAddConfirm]     = useState<{ item: SearchResult; action: "new" | "pending" } | null>(null);
 
-  // Debounce searches
-  useEffect(() => {
-    const t = setTimeout(() => { setOnecDebSearch(onecSearch); setOnecPage(0); }, 400);
-    return () => clearTimeout(t);
-  }, [onecSearch]);
+  // Debounce search
   useEffect(() => {
     const t = setTimeout(() => { setSiteDebSearch(siteSearch); setSitePage(0); }, 400);
     return () => clearTimeout(t);
   }, [siteSearch]);
-
-  // Load 1C new items
-  useEffect(() => {
-    setOnecLoading(true);
-    getOnecNewItems(onecDebSearch, onecPage)
-      .then(r => { setOnecItems(r.items as OnecNewItem[]); setOnecTotal(r.total); })
-      .finally(() => setOnecLoading(false));
-  }, [onecDebSearch, onecPage]);
 
   // Load site новинки
   useEffect(() => {
@@ -1677,45 +1434,6 @@ function NewArrivalsTab() {
       .then(r => { setSiteItems(r.items as NewArrivalItem[]); setSiteTotal(r.total); })
       .finally(() => setSiteLoading(false));
   }, [siteDebSearch, sitePage]);
-
-  function reloadOnec() {
-    setOnecLoading(true);
-    getOnecNewItems(onecDebSearch, onecPage)
-      .then(r => { setOnecItems(r.items as OnecNewItem[]); setOnecTotal(r.total); })
-      .finally(() => setOnecLoading(false));
-  }
-  function reloadSite() {
-    setSiteLoading(true);
-    getNewArrivals(siteDebSearch, sitePage)
-      .then(r => { setSiteItems(r.items as NewArrivalItem[]); setSiteTotal(r.total); })
-      .finally(() => setSiteLoading(false));
-  }
-
-  function flash(ok?: string, err?: string) {
-    setActionOk(ok ?? null);
-    setActionError(err ?? null);
-    setTimeout(() => { setActionOk(null); setActionError(null); }, 3000);
-  }
-
-  function handleMarkNew(item: OnecNewItem) {
-    startTx(async () => {
-      try {
-        await markStockItemNewFromOnec(item.id);
-        flash("Товар отмечен как новинка на сайте");
-        reloadOnec(); reloadSite();
-      } catch (e) {
-        flash(undefined, e instanceof Error ? e.message : "Ошибка");
-      }
-    });
-  }
-
-  function handleDismiss(item: OnecNewItem) {
-    startTx(async () => {
-      await dismissOnecNewItem(item.id);
-      setOnecItems(prev => prev.filter(i => i.id !== item.id));
-      setOnecTotal(t => t - 1);
-    });
-  }
 
   function handleActivateNew(item: NewArrivalItem) {
     startTx(async () => {
@@ -1782,111 +1500,12 @@ function NewArrivalsTab() {
       <div className="mb-5">
         <h2 className="text-lg font-bold text-gray-800">Новинки</h2>
         <p className="text-sm text-gray-400 mt-0.5">
-          Слева — новые товары из синхронизации 1С · Справа — новинки которые видны на сайте
+          Товары, показанные на сайте как новинки. Новые пре-заказы из donballon.ru приходят сюда автоматически
+          (ежедневная синхронизация) со статусом «Ожидайте» — 1С сама переводит их в обычный товар, когда приходит поставка.
         </p>
       </div>
 
-      {/* Flash messages */}
-      {actionError && (
-        <div className="mb-4 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">{actionError}</div>
-      )}
-      {actionOk && (
-        <div className="mb-4 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">{actionOk}</div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
-
-        {/* ── LEFT: 1C new items ── */}
-        <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 flex flex-wrap items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-amber-800 text-sm">Новые из 1С</p>
-              <p className="text-xs text-amber-600 mt-0.5">{onecTotal} товаров появились в синхронизации впервые</p>
-            </div>
-          </div>
-
-          <div className="px-4 py-3 border-b border-gray-50">
-            <input
-              value={onecSearch}
-              onChange={e => setOnecSearch(e.target.value)}
-              placeholder="Поиск..."
-              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-amber-400"
-            />
-          </div>
-
-          {onecLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-7 h-7 rounded-full border-3 border-amber-400 border-t-transparent animate-spin" />
-            </div>
-          ) : onecItems.length === 0 ? (
-            <div className="py-12 text-center text-sm text-gray-400">
-              {onecSearch ? "Ничего не найдено" : "Новых товаров из 1С нет — все проверены"}
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50 max-h-[520px] overflow-y-auto">
-              {onecItems.map(item => (
-                <div key={item.id} className="px-4 py-3 hover:bg-amber-50/30 transition-colors">
-                  <div className="flex items-start gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
-                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                        {item.article && <span className="text-xs text-gray-400 font-mono">Арт. {item.article}</span>}
-                        {item.brand   && <span className="text-xs text-gray-400">{item.brand}</span>}
-                        {item.groupName && <span className="text-xs text-gray-400">{item.groupName}</span>}
-                        <span className="text-xs text-gray-500 font-medium">{item.pricePerPc.toLocaleString("ru-RU")} ₸</span>
-                        <span className="text-xs text-gray-400">{item.stock} шт</span>
-                      </div>
-                      {item.inCatalog ? (
-                        <span className={`inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded-full ${
-                          item.stockItemIsNew ? "bg-green-100 text-green-700" : "bg-sky-100 text-sky-700"
-                        }`}>
-                          {item.stockItemIsNew ? "Уже в новинках сайта" : "Есть в каталоге"}
-                        </span>
-                      ) : (
-                        <span className="inline-block mt-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 text-gray-500">
-                          Нет в каталоге сайта
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      {item.inCatalog && !item.stockItemIsNew && (
-                        <button
-                          onClick={() => handleMarkNew(item)}
-                          disabled={isPending}
-                          className="px-2.5 py-1 bg-amber-500 text-white text-xs font-semibold rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 whitespace-nowrap"
-                        >
-                          → Новинка
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDismiss(item)}
-                        disabled={isPending}
-                        title="Видел, убрать из списка"
-                        className="px-2.5 py-1 bg-gray-100 text-gray-500 text-xs font-semibold rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
-                      >
-                        Убрать
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {onecTotal > 50 && (
-            <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-between">
-              <span className="text-xs text-gray-400">Показано {Math.min((onecPage+1)*50, onecTotal)} из {onecTotal}</span>
-              <div className="flex gap-1.5">
-                <button onClick={() => setOnecPage(p => p-1)} disabled={onecPage === 0}
-                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">← Назад</button>
-                <button onClick={() => setOnecPage(p => p+1)} disabled={(onecPage+1)*50 >= onecTotal}
-                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Вперёд →</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── RIGHT: site новинки ── */}
+      <div className="max-w-2xl">
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-3 bg-green-50 border-b border-green-100">
             <p className="font-semibold text-green-800 text-sm">Новинки на сайте</p>
@@ -2078,8 +1697,6 @@ function NewArrivalsTab() {
   );
 }
 
-// ─── 1C sync tab ──────────────────────────────────────────────────────────────
-
 type SyncLogRow = {
   id: number;
   source: string;
@@ -2091,145 +1708,9 @@ type SyncLogRow = {
   createdAt: Date | string;
 };
 
-function OnecSyncTab() {
-  const [data, setData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [preview, setPreview] = useState<{ rows: import("@/app/admin/actions").OnecSyncRow[]; unmatched: number } | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [result, setResult] = useState<{ updated: number; errors: string[] } | null>(null);
-
-  useEffect(() => {
-    getSyncStatus().then(setData).finally(() => setLoading(false));
-  }, []);
-
-  async function handlePreview() {
-    setPreviewLoading(true);
-    setPreview(null);
-    setResult(null);
-    try {
-      const p = await previewOnecStockSync();
-      setPreview(p);
-    } finally {
-      setPreviewLoading(false);
-    }
-  }
-
-  async function handleApply() {
-    if (!preview?.rows.length) return;
-    setApplying(true);
-    try {
-      const r = await applyOnecStockSync(preview.rows.map(r => r.onecId));
-      setResult(r);
-      setPreview(null);
-      getSyncStatus().then(setData);
-    } finally {
-      setApplying(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Log */}
-      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-          <h2 className="font-bold text-gray-800 mr-auto">Обмен с 1С</h2>
-          <span className="text-xs text-gray-400">
-            Товаров в буфере: <span className="font-semibold text-gray-600">{data?.onecItemCount ?? "—"}</span>
-          </span>
-        </div>
-        {loading ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-400">Загрузка...</div>
-        ) : !data || data.logs.length === 0 ? (
-          <div className="px-6 py-8 text-center text-sm text-gray-400">Синхронизаций пока не было</div>
-        ) : (
-          <div className="divide-y divide-gray-50">
-            {data.logs.map(l => (
-              <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
-                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                  {l.status === "success" ? "Успешно" : "Ошибка"}
-                </span>
-                <span className="text-xs font-semibold text-gray-600">{l.source}</span>
-                <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
-                <span className="text-xs text-gray-500">создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}</span>
-                {l.message && <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Apply to storefront */}
-      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
-          <h2 className="font-bold text-gray-800 mr-auto">Применить на сайт</h2>
-          <button
-            onClick={handlePreview}
-            disabled={previewLoading || applying}
-            className="text-xs bg-sky-500 hover:bg-sky-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl font-medium transition-colors"
-          >
-            {previewLoading ? "Проверяю..." : "Предпросмотр изменений"}
-          </button>
-        </div>
-
-        {result && (
-          <div className={`mx-4 sm:mx-6 my-4 px-4 py-3 rounded-xl text-sm ${result.errors.length ? "bg-amber-50 text-amber-700" : "bg-green-50 text-green-700"}`}>
-            Обновлено {result.updated} позиций{result.errors.length ? `. Ошибки: ${result.errors.slice(0, 3).join("; ")}` : ""}
-          </div>
-        )}
-
-        {preview && (
-          <div className="px-4 sm:px-6 pb-4">
-            <div className="flex items-center gap-3 my-3 flex-wrap">
-              <span className="text-sm text-gray-600">
-                Изменится <span className="font-bold text-gray-800">{preview.rows.length}</span> позиций
-                {preview.unmatched > 0 && <span className="text-gray-400"> · {preview.unmatched} не найдено на сайте</span>}
-              </span>
-              {preview.rows.length > 0 && (
-                <button
-                  onClick={handleApply}
-                  disabled={applying}
-                  className="ml-auto text-xs bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-xl font-medium transition-colors"
-                >
-                  {applying ? "Применяю..." : `Применить ${preview.rows.length} позиций`}
-                </button>
-              )}
-            </div>
-            {preview.rows.length > 0 && (
-              <div className="border border-gray-100 rounded-xl overflow-hidden">
-                <div className="grid grid-cols-[1fr_auto_auto] text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-3 py-2 bg-gray-50 gap-4">
-                  <span>Товар</span><span>Остаток</span><span>Цена</span>
-                </div>
-                <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
-                  {preview.rows.map(r => (
-                    <div key={r.onecId} className="grid grid-cols-[1fr_auto_auto] px-3 py-2 gap-4 items-center">
-                      <span className="text-xs text-gray-700 truncate" title={r.stockItemName}>{r.stockItemName}</span>
-                      <span className="text-xs whitespace-nowrap">
-                        {r.oldStock !== r.newStock
-                          ? <><span className="text-gray-400 line-through">{r.oldStock}</span> → <span className="font-medium text-gray-800">{r.newStock}</span></>
-                          : <span className="text-gray-400">{r.oldStock}</span>}
-                      </span>
-                      <span className="text-xs whitespace-nowrap">
-                        {Math.abs(r.oldPrice - r.newPrice) >= 0.01
-                          ? <><span className="text-gray-400 line-through">{r.oldPrice}₸</span> → <span className="font-medium text-gray-800">{r.newPrice}₸</span></>
-                          : <span className="text-gray-400">{r.oldPrice}₸</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {preview.rows.length === 0 && (
-              <p className="text-sm text-gray-400 py-4 text-center">Всё актуально — изменений нет</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── 1С category tree tab ──────────────────────────────────────────────────────
+// ─── 1С category tree tab (also shows sync log — the old dedicated "1С" tab's
+// StockItem⟵OnecStockItem bridge was removed once the admin panel started
+// reading/writing OnecStockItem directly, leaving nothing left to bridge) ──────
 
 type OnecCategoryNode = { id: number; name: string; itemCount: number; children: OnecCategoryNode[] };
 type OnecTreeItem = { id: number; name: string; article: string | null; brand: string | null; stock: number; pricePerPc: number };
@@ -2290,10 +1771,18 @@ function OnecCategoryTreeTab() {
   const [debSearch, setDebSearch] = useState("");
   const [itemsLoading, setItemsLoading] = useState(false);
 
+  const [syncData, setSyncData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
+  const [syncLoading, setSyncLoading] = useState(true);
+  const [syncOpen, setSyncOpen] = useState(false);
+
   useEffect(() => {
     getOnecCategoryTree()
       .then((r) => { setTree(r.tree); setUncategorizedCount(r.uncategorizedCount); })
       .finally(() => setTreeLoading(false));
+  }, []);
+
+  useEffect(() => {
+    getSyncStatus().then(setSyncData).finally(() => setSyncLoading(false));
   }, []);
 
   useEffect(() => {
@@ -2317,7 +1806,45 @@ function OnecCategoryTreeTab() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col gap-4">
+      {/* Sync log */}
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <button
+          onClick={() => setSyncOpen((o) => !o)}
+          className="w-full px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3 text-left"
+        >
+          <h2 className="font-bold text-gray-800">Обмен с 1С</h2>
+          <span className="text-xs text-gray-400">
+            Товаров в буфере: <span className="font-semibold text-gray-600">{syncData?.onecItemCount ?? "—"}</span>
+          </span>
+          <svg className={`w-4 h-4 ml-auto text-gray-400 transition-transform ${syncOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {syncOpen && (
+          syncLoading ? (
+            <div className="px-6 py-8 text-center text-sm text-gray-400 border-t border-gray-100">Загрузка...</div>
+          ) : !syncData || syncData.logs.length === 0 ? (
+            <div className="px-6 py-8 text-center text-sm text-gray-400 border-t border-gray-100">Синхронизаций пока не было</div>
+          ) : (
+            <div className="divide-y divide-gray-50 border-t border-gray-100 max-h-80 overflow-y-auto">
+              {syncData.logs.map(l => (
+                <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                    {l.status === "success" ? "Успешно" : "Ошибка"}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-600">{l.source}</span>
+                  <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
+                  <span className="text-xs text-gray-500">создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}</span>
+                  {l.message && <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>}
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
       {/* Tree */}
       <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-3xl border border-gray-100 overflow-hidden">
         <div className="px-4 py-4 border-b border-gray-100">
@@ -2400,6 +1927,7 @@ function OnecCategoryTreeTab() {
           </>
         )}
       </div>
+      </div>
     </div>
   );
 }
@@ -2416,7 +1944,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "import" | "new" | "onec" | "onecTree">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "new" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2526,8 +2054,8 @@ export default function AdminPage() {
               {/* Mobile tab bar (hidden on lg+) */}
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
                 {([ ["orders","Заказы","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
-                    ["sale","Акции","purple"], ["export","Экспорт","sky"], ["import","Импорт","sky"],
-                    ["new","+ Товар","sky"], ["onec","1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
+                    ["sale","Акции","purple"], ["export","Экспорт","sky"],
+                    ["new","+ Товар","sky"], ["onecTree","1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -2699,9 +2227,6 @@ export default function AdminPage() {
           {/* ─── Export tab ─── */}
           {activeTab === "export" && <ExportTab />}
 
-          {/* ─── Import tab ─── */}
-          {activeTab === "import" && <ImportTab />}
-
           {/* ─── New item tab ─── */}
           {activeTab === "new" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -2710,8 +2235,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── 1C sync tab ─── */}
-          {activeTab === "onec" && <OnecSyncTab />}
+          {/* ─── 1С tab (category tree + sync log) ─── */}
           {activeTab === "onecTree" && <OnecCategoryTreeTab />}
 
             </div>{/* /content area */}
@@ -2759,11 +2283,6 @@ export default function AdminPage() {
                   Экспорт
                 </button>
 
-                <button onClick={() => setActiveTab("import")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "import" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" /></svg>
-                  Импорт
-                </button>
-
                 <button onClick={() => setActiveTab("new")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "new" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                   + Товар
@@ -2771,14 +2290,9 @@ export default function AdminPage() {
 
                 <div className="my-1.5 border-t border-gray-100" />
 
-                <button onClick={() => setActiveTab("onec")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onec" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                  Синхр. 1С
-                </button>
-
                 <button onClick={() => setActiveTab("onecTree")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onecTree" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
-                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v18M4 8h5m-5 4h5m-5 4h5M14 6h6M14 10h6M14 14h6M14 18h6" /></svg>
-                  Дерево 1С
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  1С
                 </button>
 
               </div>

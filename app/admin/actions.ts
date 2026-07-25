@@ -1,8 +1,15 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { revalidatePath, updateTag } from 'next/cache'
+import { assignSlugsForNewRows } from '@/lib/onecImport'
+
+// Synthetic onecId prefix for items an admin creates directly (not from 1C, not from
+// the donballon-novelties agent — that one uses "donballon-novelty-"). Never collides
+// with a real 1C GUID, so sync never touches these rows.
+const ADMIN_ONEC_ID_PREFIX = 'admin-'
 
 async function requireAdmin() {
   const session = await getSession()
@@ -53,7 +60,6 @@ export async function getStockItems(search = '', page = 0) {
     ? {
         OR: [
           { name: { contains: search, mode: 'insensitive' as const } },
-          { fullName: { contains: search, mode: 'insensitive' as const } },
           { brand: { contains: search, mode: 'insensitive' as const } },
           { article: { contains: search, mode: 'insensitive' as const } },
         ],
@@ -61,20 +67,19 @@ export async function getStockItems(search = '', page = 0) {
     : {}
 
   const [items, total] = await Promise.all([
-    db.stockItem.findMany({
+    db.onecStockItem.findMany({
       where,
       orderBy: [{ stock: 'asc' }, { name: 'asc' }],
       take,
       skip,
     }),
-    db.stockItem.count({ where }),
+    db.onecStockItem.count({ where }),
   ])
 
   return {
     items: items.map(i => ({
       id: i.id,
       name: i.name,
-      fullName: i.fullName,
       article: i.article,
       brand: i.brand,
       sizeInches: i.sizeInches,
@@ -83,6 +88,8 @@ export async function getStockItems(search = '', page = 0) {
       imageUrl: i.imageUrl,
       onSale: i.onSale,
       salePercent: i.salePercent,
+      stockOverride: i.stockOverride,
+      priceOverride: i.priceOverride,
     })),
     total,
   }
@@ -90,15 +97,39 @@ export async function getStockItems(search = '', page = 0) {
 
 export async function updateSizeInches(id: number, sizeInches: string | null) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id }, data: { sizeInches: sizeInches?.trim() || null } })
+  await db.onecStockItem.update({ where: { id }, data: { sizeInches: sizeInches?.trim() || null } })
   revalidatePath('/admin')
   revalidatePath('/catalog')
-  revalidatePath('/catalog/[id]')
+  revalidatePath('/catalog/[slug]')
 }
 
+// Manual stock edits are protected from the next 1C sync via stockOverride — see
+// lib/onecImport.ts's updateOfferChunk().
 export async function updateStockQty(id: number, stock: number) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id }, data: { stock: Math.max(0, stock) } })
+  await db.onecStockItem.update({ where: { id }, data: { stock: Math.max(0, stock), stockOverride: true } })
+  revalidatePath('/admin')
+  updateTag('onecStockItems')
+}
+
+export async function releaseStockOverride(id: number) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id }, data: { stockOverride: false } })
+  revalidatePath('/admin')
+}
+
+export async function updateManualPrice(id: number, price: number) {
+  await requireAdmin()
+  if (price < 0) throw new Error('Цена не может быть отрицательной')
+  await db.onecStockItem.update({ where: { id }, data: { pricePerPc: price, priceOverride: true } })
+  revalidatePath('/admin')
+  revalidatePath('/catalog')
+  updateTag('onecStockItems')
+}
+
+export async function releasePriceOverride(id: number) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id }, data: { priceOverride: false } })
   revalidatePath('/admin')
 }
 
@@ -117,8 +148,8 @@ export async function getSaleItems(search = '', page = 0) {
     } : {}),
   }
   const [items, total] = await Promise.all([
-    db.stockItem.findMany({ where, orderBy: { name: 'asc' }, take, skip }),
-    db.stockItem.count({ where }),
+    db.onecStockItem.findMany({ where, orderBy: { name: 'asc' }, take, skip }),
+    db.onecStockItem.count({ where }),
   ])
   return {
     items: items.map(i => ({
@@ -132,16 +163,17 @@ export async function getSaleItems(search = '', page = 0) {
 
 export async function updateSaleStatus(id: number, onSale: boolean, salePercent: number | null) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id }, data: { onSale, salePercent: onSale ? salePercent : null } })
+  await db.onecStockItem.update({ where: { id }, data: { onSale, salePercent: onSale ? salePercent : null } })
   revalidatePath('/admin')
   revalidatePath('/sale')
   revalidatePath('/catalog')
+  updateTag('onecStockItems')
 }
 
 export async function searchAllItems(query: string) {
   await requireAdmin()
   if (!query.trim()) return []
-  const rows = await db.stockItem.findMany({
+  const rows = await db.onecStockItem.findMany({
     where: {
       OR: [
         { name:    { contains: query, mode: 'insensitive' } },
@@ -156,23 +188,41 @@ export async function searchAllItems(query: string) {
   return rows.map(r => ({ ...r, pricePerPc: Number(r.pricePerPc) }))
 }
 
+// OnecCategory has no `level` column (unlike the old Category) — depth is computed by
+// walking the parent chain, cheap enough for ~250 rows.
 export async function getAdminMeta() {
   await requireAdmin()
   const [categories, brandRows] = await Promise.all([
-    db.category.findMany({ orderBy: { name: 'asc' } }),
-    db.stockItem.findMany({
+    db.onecCategory.findMany({ select: { id: true, name: true, parentId: true }, orderBy: { name: 'asc' } }),
+    // Note: OnecStockItem.brand is mostly NULL — 1C rarely sends Изготовитель — so this
+    // dropdown will be sparse. That's a 1C data-feed gap, not fixable here.
+    db.onecStockItem.findMany({
       where: { brand: { not: null } },
       select: { brand: true },
       distinct: ['brand'],
       orderBy: { brand: 'asc' },
     }),
   ])
+
+  const byId = new Map(categories.map(c => [c.id, c]))
+  function levelOf(c: { id: number; parentId: number | null }): number {
+    let level = 1
+    let cur = c
+    while (cur.parentId != null) {
+      const parent = byId.get(cur.parentId)
+      if (!parent) break
+      level++
+      cur = parent
+    }
+    return level
+  }
+
   return {
     categories: categories.map(c => ({
       id: c.id,
       name: c.name,
       parentId: c.parentId,
-      level: c.level,
+      level: levelOf(c),
     })),
     brands: brandRows.map(r => r.brand!).filter(Boolean),
   }
@@ -180,7 +230,6 @@ export async function getAdminMeta() {
 
 export async function createStockItem(data: {
   name: string
-  fullName?: string
   article?: string
   barcode?: string
   brand?: string
@@ -199,8 +248,9 @@ export async function createStockItem(data: {
   if (data.pricePerPc < 0) throw new Error('Цена не может быть отрицательной')
   if (data.stock < 0)      throw new Error('Остаток не может быть отрицательным')
 
-  // Duplicate guard
-  const dupe = await db.stockItem.findFirst({
+  // Duplicate guard — OnecStockItem.name has no DB-level unique constraint (unlike the
+  // old StockItem), so this is an app-level check only.
+  const dupe = await db.onecStockItem.findFirst({
     where: {
       OR: [
         { name: data.name.trim() },
@@ -216,10 +266,10 @@ export async function createStockItem(data: {
     throw new Error(`Товар с таким ${by} уже есть в базе`)
   }
 
-  const item = await db.stockItem.create({
+  const item = await db.onecStockItem.create({
     data: {
+      onecId:     `${ADMIN_ONEC_ID_PREFIX}${randomUUID()}`,
       name:       data.name.trim(),
-      fullName:   data.fullName?.trim()   || null,
       article:    data.article?.trim()    || null,
       barcode:    data.barcode?.trim()    || null,
       brand:      data.brand?.trim()      || null,
@@ -231,13 +281,19 @@ export async function createStockItem(data: {
       salePercent: data.onSale ? (data.salePercent ?? null) : null,
       imageUrl:   data.imageUrl  || null,
       images:     data.images    ?? [],
+      // Not 1C-managed at all — these flags are irrelevant here since sync will never
+      // match this onecId, but set for consistency with items that do get absorbed.
+      stockOverride: true,
+      priceOverride: true,
     },
   })
+  await assignSlugsForNewRows('OnecStockItem', [{ id: item.id, name: item.name }])
 
   revalidatePath('/')
   revalidatePath('/catalog')
   revalidatePath('/sale')
   revalidatePath('/admin')
+  updateTag('onecStockItems')
 
   return { id: item.id, name: item.name }
 }
@@ -255,8 +311,8 @@ export async function getNewArrivals(search = '', page = 0) {
   } : {}
   const where = { OR: [{ isNew: true }, { isNewPending: true }], ...baseWhere }
   const [items, total] = await Promise.all([
-    db.stockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
-    db.stockItem.count({ where }),
+    db.onecStockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
+    db.onecStockItem.count({ where }),
   ])
   return {
     items: items.map(i => ({
@@ -270,27 +326,27 @@ export async function getNewArrivals(search = '', page = 0) {
 
 export async function toggleNewArrival(stockItemId: number, isNew: boolean) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id: stockItemId }, data: { isNew, ...(isNew ? {} : { isNewPending: false }) } })
+  await db.onecStockItem.update({ where: { id: stockItemId }, data: { isNew, ...(isNew ? {} : { isNewPending: false }) } })
   revalidatePath('/admin')
   revalidatePath('/novinka')
   revalidatePath('/')
-  updateTag('stockItems')
+  updateTag('onecStockItems')
 }
 
 export async function setNewArrivalPending(stockItemId: number, pending: boolean) {
   await requireAdmin()
-  await db.stockItem.update({ where: { id: stockItemId }, data: { isNewPending: pending, ...(pending ? { isNew: false } : {}) } })
+  await db.onecStockItem.update({ where: { id: stockItemId }, data: { isNewPending: pending, ...(pending ? { isNew: false } : {}) } })
   revalidatePath('/admin')
   revalidatePath('/novinka')
   revalidatePath('/')
-  updateTag('stockItems')
+  updateTag('onecStockItems')
 }
 
-// Search any StockItem for adding to novinka (excludes already-marked ones)
+// Search any OnecStockItem for adding to novinka (excludes already-marked ones)
 export async function searchStockForNovinka(query: string) {
   await requireAdmin()
   if (!query.trim()) return []
-  const rows = await db.stockItem.findMany({
+  const rows = await db.onecStockItem.findMany({
     where: {
       isNew: false,
       isNewPending: false,
@@ -305,178 +361,6 @@ export async function searchStockForNovinka(query: string) {
     orderBy: { name: 'asc' },
   })
   return rows.map(r => ({ ...r, pricePerPc: Number(r.pricePerPc) }))
-}
-
-// 1C items that are marked isNew (appeared in a sync for the first time)
-export async function getOnecNewItems(search = '', page = 0) {
-  await requireAdmin()
-  const take = 50
-  const skip = page * take
-  const where = {
-    isNew: true,
-    ...(search ? {
-      OR: [
-        { name:    { contains: search, mode: 'insensitive' as const } },
-        { article: { contains: search, mode: 'insensitive' as const } },
-        { brand:   { contains: search, mode: 'insensitive' as const } },
-      ],
-    } : {}),
-  }
-  const [rows, total] = await Promise.all([
-    db.onecStockItem.findMany({ where, orderBy: { createdAt: 'desc' }, take, skip }),
-    db.onecStockItem.count({ where }),
-  ])
-
-  // Try to find matching StockItem for each (by article or barcode)
-  const articles = rows.filter(r => r.article).map(r => r.article!)
-  const barcodes = rows.filter(r => r.barcode).map(r => r.barcode!)
-  const matched = await db.stockItem.findMany({
-    where: {
-      OR: [
-        ...(articles.length ? [{ article: { in: articles } }] : []),
-        ...(barcodes.length ? [{ barcode: { in: barcodes } }]  : []),
-      ],
-    },
-    select: { id: true, article: true, barcode: true, isNew: true },
-  })
-  const byArticle = new Map(matched.filter(m => m.article).map(m => [m.article!, m]))
-  const byBarcode = new Map(matched.filter(m => m.barcode).map(m => [m.barcode!, m]))
-
-  return {
-    items: rows.map(r => {
-      const si = (r.article ? byArticle.get(r.article) : undefined)
-                ?? (r.barcode ? byBarcode.get(r.barcode) : undefined)
-      return {
-        id: r.id, onecId: r.onecId, name: r.name,
-        article: r.article, barcode: r.barcode, brand: r.brand,
-        stock: r.stock, pricePerPc: Number(r.pricePerPc),
-        groupName: r.groupName, createdAt: r.createdAt,
-        stockItemId:    si?.id     ?? null,
-        stockItemIsNew: si?.isNew  ?? null,
-        inCatalog:      !!si,
-      }
-    }),
-    total,
-  }
-}
-
-export async function dismissOnecNewItem(onecId: number) {
-  await requireAdmin()
-  await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
-}
-
-export async function markStockItemNewFromOnec(onecId: number) {
-  await requireAdmin()
-  const onecItem = await db.onecStockItem.findUnique({ where: { id: onecId } })
-  if (!onecItem) throw new Error('1С товар не найден')
-
-  // Find matching StockItem
-  const stockItem = await db.stockItem.findFirst({
-    where: {
-      OR: [
-        ...(onecItem.article ? [{ article: onecItem.article }] : []),
-        ...(onecItem.barcode ? [{ barcode: onecItem.barcode }] : []),
-      ],
-    },
-    select: { id: true },
-  })
-
-  if (!stockItem) throw new Error('Товар не найден в каталоге сайта (нет совпадения по артикулу/штрихкоду)')
-
-  await db.stockItem.update({ where: { id: stockItem.id }, data: { isNew: true, isNewPending: false } })
-  await db.onecStockItem.update({ where: { id: onecId }, data: { isNew: false } })
-  revalidatePath('/admin')
-  revalidatePath('/')
-  revalidatePath('/novinka')
-  updateTag('stockItems')
-  return { stockItemId: stockItem.id }
-}
-
-export type OnecSyncRow = {
-  onecId: number
-  name: string
-  article: string | null
-  barcode: string | null
-  stockItemId: number
-  stockItemName: string
-  oldStock: number
-  newStock: number
-  oldPrice: number
-  newPrice: number
-}
-
-export async function previewOnecStockSync(): Promise<{ rows: OnecSyncRow[]; unmatched: number }> {
-  await requireAdmin()
-
-  const [onecItems, stockItems] = await Promise.all([
-    db.onecStockItem.findMany({ select: { id: true, onecId: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true } }),
-    db.stockItem.findMany({ select: { id: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true } }),
-  ])
-
-  const byArticle = new Map(stockItems.filter(s => s.article).map(s => [s.article!, s]))
-  const byBarcode = new Map(stockItems.filter(s => s.barcode).map(s => [s.barcode!, s]))
-
-  const rows: OnecSyncRow[] = []
-  let unmatched = 0
-
-  for (const o of onecItems) {
-    const match = (o.article && byArticle.get(o.article)) || (o.barcode && byBarcode.get(o.barcode)) || null
-    if (!match) { unmatched++; continue }
-
-    const newPrice = Number(o.pricePerPc)
-    const oldPrice = Number(match.pricePerPc)
-    if (o.stock === match.stock && Math.abs(newPrice - oldPrice) < 0.01) continue
-
-    rows.push({
-      onecId: o.id,
-      name: o.name,
-      article: o.article,
-      barcode: o.barcode,
-      stockItemId: match.id,
-      stockItemName: match.name,
-      oldStock: match.stock,
-      newStock: o.stock,
-      oldPrice,
-      newPrice,
-    })
-  }
-
-  return { rows, unmatched }
-}
-
-export async function applyOnecStockSync(rowIds: number[]): Promise<{ updated: number; errors: string[] }> {
-  await requireAdmin()
-  if (!rowIds.length) throw new Error('Нет строк для применения')
-
-  const onecItems = await db.onecStockItem.findMany({
-    where: { id: { in: rowIds } },
-    select: { id: true, name: true, article: true, barcode: true, stock: true, pricePerPc: true },
-  })
-
-  const stockItems = await db.stockItem.findMany({
-    select: { id: true, article: true, barcode: true },
-  })
-  const byArticle = new Map(stockItems.filter(s => s.article).map(s => [s.article!, s]))
-  const byBarcode = new Map(stockItems.filter(s => s.barcode).map(s => [s.barcode!, s]))
-
-  const errors: string[] = []
-  let updated = 0
-
-  await Promise.all(onecItems.map(async o => {
-    const match = (o.article && byArticle.get(o.article)) || (o.barcode && byBarcode.get(o.barcode)) || null
-    if (!match) { errors.push(`Не найден на сайте: "${o.name}"`); return }
-    try {
-      await db.stockItem.update({
-        where: { id: match.id },
-        data: { stock: o.stock, pricePerPc: Number(o.pricePerPc) },
-      })
-      updated++
-    } catch {
-      errors.push(`Ошибка обновления: "${o.name}"`)
-    }
-  }))
-
-  return { updated, errors }
 }
 
 export async function getSyncStatus() {
@@ -563,7 +447,7 @@ export async function getOnecItemsByCategory(categoryId: number | null, search =
 }
 
 export async function bulkCreateItems(rows: Array<{
-  article: string; name: string; fullName: string; barcode: string
+  article: string; name: string; barcode: string
   brand: string; sizeInches: string; stock: number | null; price: number | null
 }>) {
   await requireAdmin()
@@ -573,7 +457,7 @@ export async function bulkCreateItems(rows: Array<{
   const articles = rows.filter(r => r.article).map(r => r.article)
   const names    = rows.map(r => r.name)
 
-  const existing = await db.stockItem.findMany({
+  const existing = await db.onecStockItem.findMany({
     where: {
       OR: [
         ...(articles.length ? [{ article: { in: articles } }] : []),
@@ -592,13 +476,14 @@ export async function bulkCreateItems(rows: Array<{
 
   let created = 0
   const errors: string[] = []
+  const createdRows: { id: number; name: string }[] = []
 
   for (const r of toCreate) {
     try {
-      await db.stockItem.create({
+      const item = await db.onecStockItem.create({
         data: {
+          onecId:     `${ADMIN_ONEC_ID_PREFIX}${randomUUID()}`,
           name:       r.name,
-          fullName:   r.fullName   || null,
           article:    r.article    || null,
           barcode:    r.barcode    || null,
           brand:      r.brand      || null,
@@ -607,17 +492,22 @@ export async function bulkCreateItems(rows: Array<{
           pricePerPc: r.price   ?? 0,
           onSale:     false,
           images:     [],
+          stockOverride: true,
+          priceOverride: true,
         },
       })
       created++
+      createdRows.push({ id: item.id, name: item.name })
     } catch {
       errors.push(r.name)
     }
   }
+  await assignSlugsForNewRows('OnecStockItem', createdRows)
 
   revalidatePath('/')
   revalidatePath('/catalog')
   revalidatePath('/admin')
+  updateTag('onecStockItems')
 
   return { created, skipped, errors }
 }

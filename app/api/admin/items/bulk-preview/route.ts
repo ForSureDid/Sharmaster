@@ -162,7 +162,7 @@ export async function POST(req: Request) {
   const articles = deduped.filter(r => r.article).map(r => r.article)
   const names    = deduped.map(r => r.name)
 
-  const existing = await db.stockItem.findMany({
+  const existing = await db.onecStockItem.findMany({
     where: {
       OR: [
         ...(articles.length ? [{ article: { in: articles } }] : []),
