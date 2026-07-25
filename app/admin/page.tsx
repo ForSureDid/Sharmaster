@@ -1708,9 +1708,7 @@ type SyncLogRow = {
   createdAt: Date | string;
 };
 
-// ─── 1С category tree tab (also shows sync log — the old dedicated "1С" tab's
-// StockItem⟵OnecStockItem bridge was removed once the admin panel started
-// reading/writing OnecStockItem directly, leaving nothing left to bridge) ──────
+// ─── 1С category tree tab ──────────────────────────────────────────────────────
 
 type OnecCategoryNode = { id: number; name: string; itemCount: number; children: OnecCategoryNode[] };
 type OnecTreeItem = { id: number; name: string; article: string | null; brand: string | null; stock: number; pricePerPc: number };
@@ -1758,6 +1756,47 @@ function OnecCategoryTreeNode({ node, depth, selectedId, onSelect }: {
   );
 }
 
+// ─── 1C sync tab ──────────────────────────────────────────────────────────────
+
+function OnecSyncTab() {
+  const [data, setData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getSyncStatus().then(setData).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3">
+        <h2 className="font-bold text-gray-800 mr-auto">Обмен с 1С</h2>
+        <span className="text-xs text-gray-400">
+          Товаров в буфере: <span className="font-semibold text-gray-600">{data?.onecItemCount ?? "—"}</span>
+        </span>
+      </div>
+      {loading ? (
+        <div className="px-6 py-8 text-center text-sm text-gray-400">Загрузка...</div>
+      ) : !data || data.logs.length === 0 ? (
+        <div className="px-6 py-8 text-center text-sm text-gray-400">Синхронизаций пока не было</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {data.logs.map(l => (
+            <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
+              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                {l.status === "success" ? "Успешно" : "Ошибка"}
+              </span>
+              <span className="text-xs font-semibold text-gray-600">{l.source}</span>
+              <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
+              <span className="text-xs text-gray-500">создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}</span>
+              {l.message && <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OnecCategoryTreeTab() {
   const [tree, setTree] = useState<OnecCategoryNode[]>([]);
   const [uncategorizedCount, setUncategorizedCount] = useState(0);
@@ -1771,18 +1810,10 @@ function OnecCategoryTreeTab() {
   const [debSearch, setDebSearch] = useState("");
   const [itemsLoading, setItemsLoading] = useState(false);
 
-  const [syncData, setSyncData] = useState<{ onecItemCount: number; logs: SyncLogRow[] } | null>(null);
-  const [syncLoading, setSyncLoading] = useState(true);
-  const [syncOpen, setSyncOpen] = useState(false);
-
   useEffect(() => {
     getOnecCategoryTree()
       .then((r) => { setTree(r.tree); setUncategorizedCount(r.uncategorizedCount); })
       .finally(() => setTreeLoading(false));
-  }, []);
-
-  useEffect(() => {
-    getSyncStatus().then(setSyncData).finally(() => setSyncLoading(false));
   }, []);
 
   useEffect(() => {
@@ -1806,45 +1837,7 @@ function OnecCategoryTreeTab() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Sync log */}
-      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-        <button
-          onClick={() => setSyncOpen((o) => !o)}
-          className="w-full px-4 sm:px-6 py-4 flex flex-wrap items-center gap-3 text-left"
-        >
-          <h2 className="font-bold text-gray-800">Обмен с 1С</h2>
-          <span className="text-xs text-gray-400">
-            Товаров в буфере: <span className="font-semibold text-gray-600">{syncData?.onecItemCount ?? "—"}</span>
-          </span>
-          <svg className={`w-4 h-4 ml-auto text-gray-400 transition-transform ${syncOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        {syncOpen && (
-          syncLoading ? (
-            <div className="px-6 py-8 text-center text-sm text-gray-400 border-t border-gray-100">Загрузка...</div>
-          ) : !syncData || syncData.logs.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-gray-400 border-t border-gray-100">Синхронизаций пока не было</div>
-          ) : (
-            <div className="divide-y divide-gray-50 border-t border-gray-100 max-h-80 overflow-y-auto">
-              {syncData.logs.map(l => (
-                <div key={l.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
-                  <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${l.status === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                    {l.status === "success" ? "Успешно" : "Ошибка"}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-600">{l.source}</span>
-                  <span className="text-xs text-gray-400">{fmtDate(l.createdAt)}, {fmtTime(l.createdAt)}</span>
-                  <span className="text-xs text-gray-500">создано {l.created} / обновлено {l.updated} / пропущено {l.skipped}</span>
-                  {l.message && <span className="text-xs text-red-500 w-full truncate" title={l.message}>{l.message}</span>}
-                </div>
-              ))}
-            </div>
-          )
-        )}
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-4 items-start">
+    <div className="flex flex-col lg:flex-row gap-4 items-start">
       {/* Tree */}
       <div className="w-full lg:w-80 flex-shrink-0 bg-white rounded-3xl border border-gray-100 overflow-hidden">
         <div className="px-4 py-4 border-b border-gray-100">
@@ -1927,7 +1920,6 @@ function OnecCategoryTreeTab() {
           </>
         )}
       </div>
-      </div>
     </div>
   );
 }
@@ -1944,7 +1936,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "new" | "onecTree">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "new" | "onec" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2055,7 +2047,7 @@ export default function AdminPage() {
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
                 {([ ["orders","Заказы","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
                     ["sale","Акции","purple"], ["export","Экспорт","sky"],
-                    ["new","+ Товар","sky"], ["onecTree","1С","sky"] ] as const).map(([tab, label, color]) => (
+                    ["new","+ Товар","sky"], ["onec","Синхр. 1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -2235,7 +2227,8 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* ─── 1С tab (category tree + sync log) ─── */}
+          {/* ─── 1C sync tab ─── */}
+          {activeTab === "onec" && <OnecSyncTab />}
           {activeTab === "onecTree" && <OnecCategoryTreeTab />}
 
             </div>{/* /content area */}
@@ -2290,9 +2283,14 @@ export default function AdminPage() {
 
                 <div className="my-1.5 border-t border-gray-100" />
 
-                <button onClick={() => setActiveTab("onecTree")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onecTree" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                <button onClick={() => setActiveTab("onec")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onec" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                  1С
+                  Синхр. 1С
+                </button>
+
+                <button onClick={() => setActiveTab("onecTree")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "onecTree" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v18M4 8h5m-5 4h5m-5 4h5M14 6h6M14 10h6M14 14h6M14 18h6" /></svg>
+                  Дерево 1С
                 </button>
 
               </div>
