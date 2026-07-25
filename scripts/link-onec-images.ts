@@ -288,6 +288,54 @@ async function main() {
   console.log('\nWins by bucket:')
   for (const cfg of BUCKETS) console.log(`  ${cfg.name}: ${winsByBucket.get(cfg.name) ?? 0}`)
 
+  // ── Fuzzy second pass ──────────────────────────────────────────────────────
+  // Still-unmatched articles vs. codes that differ by exactly one trailing LETTER
+  // (never a digit — spot-checked that stripping a trailing digit lands on a
+  // genuinely different product, e.g. "R12S67" vs "R12S6" are different colors).
+  // This catches packaging/piece-count SKU variants like "27424" (DB article) vs
+  // photo filed as "27424P" — same physical product. See
+  // scripts/check-onec-fuzzy-suffix.ts for the investigation that found this
+  // pattern (dominated by Falali foil figures: P/S/N suffix on the photo code).
+  const TRAILING_LETTER = /[A-Za-zА-Яа-я]$/
+  const MIN_CORE_LEN = 4
+  const codeCoreIndex = new Map<string, { bucket: string; code: string }[]>()
+  for (const cfg of BUCKETS) {
+    for (const code of perBucket.get(cfg.name)!.keys()) {
+      if (TRAILING_LETTER.test(code)) {
+        const core = code.slice(0, -1)
+        if (!codeCoreIndex.has(core)) codeCoreIndex.set(core, [])
+        codeCoreIndex.get(core)!.push({ bucket: cfg.name, code })
+      }
+    }
+  }
+
+  let fuzzyMatched = 0
+  for (const article of allArticles) {
+    if (winners.has(article)) continue
+    let hit: { bucket: string; code: string } | null = null
+
+    if (!TRAILING_LETTER.test(article) && article.length >= MIN_CORE_LEN && /\d$/.test(article)) {
+      const candidates = codeCoreIndex.get(article)
+      if (candidates?.length) hit = candidates[0]
+    } else if (TRAILING_LETTER.test(article)) {
+      const core = article.slice(0, -1)
+      if (core.length >= MIN_CORE_LEN && /\d$/.test(core)) {
+        for (const cfg of BUCKETS) {
+          const group = perBucket.get(cfg.name)!.get(core)
+          if (group) { hit = { bucket: cfg.name, code: core }; break }
+        }
+      }
+    }
+
+    if (hit) {
+      const group = perBucket.get(hit.bucket)!.get(hit.code)!
+      winners.set(article, { bucket: hit.bucket, head: publicUrl(hit.bucket, group.head), extras: group.extras.map(k => publicUrl(hit.bucket, k)) })
+      fuzzyMatched++
+    }
+  }
+  console.log(`\nFuzzy (single-trailing-letter) matches: ${fuzzyMatched}`)
+  console.log(`Total unique articles matched (exact + fuzzy): ${winners.size} / ${allArticles.size}`)
+
   // Build per-row plan
   type Plan = { id: number; article: string; oldImageUrl: string | null; oldImages: string[]; win: Winner }
   const plans: Plan[] = []
