@@ -60,6 +60,7 @@ type RawItem = {
   id: number; slug: string | null; name: string; brand: string | null
   sizeInches: string | null; packQty: number | null; stock: number; pricePerPc: unknown
   imageUrl: string | null; images: string[]; onSale: boolean; salePercent: number | null; isNew: boolean
+  categoryId: number | null
 }
 
 // OnecStockItem.images[] holds only the *extra* photos (scripts/link-onec-images.ts
@@ -73,12 +74,21 @@ function buildImages(imageUrl: string | null, images: string[]): string[] {
 
 // OnecStockItem has no isNewPending column (that's a StockItem-only pre-arrival
 // concept from the donballon novelties workflow) — always false here.
-function toCard(i: RawItem): StockCard {
+//
+// `brand` is null on every OnecStockItem row (1C sync never populates it) — lib/pack.ts's
+// isLatex()/isSoldByPiece() (the "latex 18''/24''/36'' giants always sold individually,
+// with a quick-add for the full pack" rule) relies on `material`/`brand` to detect latex,
+// which silently broke that rule for the whole catalog after the OnecStockItem cutover
+// (giants fell back to plain packQty-based pack-only selling). `material` is derived here
+// from real OnecCategory subtree membership instead — the same latex-detection signal
+// getStockItems already uses for smart-sort, just threaded through to the card shape.
+function toCard(i: RawItem, latexCategoryIds: Set<number>): StockCard {
   return {
     id: i.id, slug: i.slug, name: i.name, fullName: null, brand: i.brand,
     stock: i.stock, pricePerPc: Number(i.pricePerPc),
     imageUrl: i.imageUrl, images: buildImages(i.imageUrl, i.images),
-    material: null, sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
+    material: i.categoryId != null && latexCategoryIds.has(i.categoryId) ? 'латекс' : null,
+    sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
     isNew: i.isNew, isNewPending: false,
   }
@@ -379,7 +389,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     const itemMap = new Map(rawItems.map((i) => [i.id, i]))
     const orderedRaw = pageIds.map((id) => itemMap.get(id)!).filter(Boolean)
 
-    return { total, items: orderedRaw.map(toCard) }
+    return { total, items: orderedRaw.map((i) => toCard(i, flags.latex)) }
   }
 
   const orderBy =
@@ -387,21 +397,25 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     sort === 'name_asc' ? { name: 'asc' as const } :
     { pricePerPc: 'asc' as const }
 
-  const [rawItems, total] = await Promise.all([
+  const [flags, rawItems, total] = await Promise.all([
+    resolveCategoryFlags(),
     db.onecStockItem.findMany({ where, select: SELECT_FIELDS, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
     db.onecStockItem.count({ where }),
   ])
 
-  return { items: rawItems.map(toCard), total }
+  return { items: rawItems.map((i) => toCard(i, flags.latex)), total }
 }
 
 async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
-  const item = await db.onecStockItem.findUnique({
-    where: { slug },
-    select: { ...SELECT_FIELDS, article: true, barcode: true },
-  })
+  const [flags, item] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findUnique({
+      where: { slug },
+      select: { ...SELECT_FIELDS, article: true, barcode: true },
+    }),
+  ])
   if (!item) return null
-  return { ...toCard(item), article: item.article, barcode: item.barcode }
+  return { ...toCard(item, flags.latex), article: item.article, barcode: item.barcode }
 }
 
 export const getStockItemBySlug = unstable_cache(
@@ -411,12 +425,15 @@ export const getStockItemBySlug = unstable_cache(
 )
 
 async function _getStockItemById(id: number): Promise<StockDetail | null> {
-  const item = await db.onecStockItem.findUnique({
-    where: { id },
-    select: { ...SELECT_FIELDS, article: true, barcode: true },
-  })
+  const [flags, item] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findUnique({
+      where: { id },
+      select: { ...SELECT_FIELDS, article: true, barcode: true },
+    }),
+  ])
   if (!item) return null
-  return { ...toCard(item), article: item.article, barcode: item.barcode }
+  return { ...toCard(item, flags.latex), article: item.article, barcode: item.barcode }
 }
 
 export const getStockItemById = unstable_cache(
@@ -426,25 +443,31 @@ export const getStockItemById = unstable_cache(
 )
 
 async function _getSaleItems(limit?: number): Promise<StockCard[]> {
-  const rawItems = await db.onecStockItem.findMany({
-    where: { onSale: true },
-    select: SELECT_FIELDS,
-    orderBy: { pricePerPc: 'asc' },
-    ...(limit != null ? { take: limit } : {}),
-  })
-  return rawItems.map(toCard)
+  const [flags, rawItems] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findMany({
+      where: { onSale: true },
+      select: SELECT_FIELDS,
+      orderBy: { pricePerPc: 'asc' },
+      ...(limit != null ? { take: limit } : {}),
+    }),
+  ])
+  return rawItems.map((i) => toCard(i, flags.latex))
 }
 
 export const getSaleItems = unstable_cache(() => _getSaleItems(8), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
 async function _getNovinkaItems(): Promise<NovinkaCard[]> {
-  const rawItems = await db.onecStockItem.findMany({
-    where: { isNew: true },
-    select: SELECT_FIELDS,
-    orderBy: [{ createdAt: 'desc' }],
-  })
-  return rawItems.map(toCard)
+  const [flags, rawItems] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findMany({
+      where: { isNew: true },
+      select: SELECT_FIELDS,
+      orderBy: [{ createdAt: 'desc' }],
+    }),
+  ])
+  return rawItems.map((i) => toCard(i, flags.latex))
 }
 
 export const getNovinkaItems = unstable_cache(_getNovinkaItems, ['onecNovinkaItems'], { revalidate: 60, tags: ['onecStockItems'] })
@@ -452,8 +475,11 @@ export const getNovinkaItems = unstable_cache(_getNovinkaItems, ['onecNovinkaIte
 // Not cached — избранное персонально, должно показывать актуальные цены/наличие.
 export async function getStockCardsByIds(ids: number[]): Promise<StockCard[]> {
   if (ids.length === 0) return []
-  const rawItems = await db.onecStockItem.findMany({ where: { id: { in: ids } }, select: SELECT_FIELDS })
-  const byId = new Map(rawItems.map((i) => [i.id, toCard(i)]))
+  const [flags, rawItems] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findMany({ where: { id: { in: ids } }, select: SELECT_FIELDS }),
+  ])
+  const byId = new Map(rawItems.map((i) => [i.id, toCard(i, flags.latex)]))
   return ids.map((id) => byId.get(id)).filter((c): c is StockCard => Boolean(c))
 }
 
