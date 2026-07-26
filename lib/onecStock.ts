@@ -370,7 +370,11 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
         a.name.localeCompare(b.name, 'ru')
       )
     } else if (isLatex) {
-      allRows.sort((a, b) => latexSizeOrder(a.name) - latexSizeOrder(b.name) || a.name.localeCompare(b.name, 'ru'))
+      allRows.sort((a, b) =>
+        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        latexSizeOrder(a.name) - latexSizeOrder(b.name) ||
+        a.name.localeCompare(b.name, 'ru')
+      )
     } else if (isFoilDigit) {
       allRows.sort((a, b) => {
         const [tagA, digA] = foilDigitGroupKey(a.name)
