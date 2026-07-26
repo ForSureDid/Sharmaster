@@ -379,7 +379,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
       allRows.sort((a, b) => {
         const [tagA, digA] = foilDigitGroupKey(a.name)
         const [tagB, digB] = foilDigitGroupKey(b.name)
-        return tagA.localeCompare(tagB, 'ru') || digA - digB || (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0)
+        return (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || tagA.localeCompare(tagB, 'ru') || digA - digB
       })
     } else if (isFoil) {
       allRows.sort((a, b) => (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) || a.name.localeCompare(b.name, 'ru'))
