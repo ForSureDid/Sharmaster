@@ -159,6 +159,15 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
           </button>
         </div>
 
+        {/* Helium tank delivery/price disclaimer — only these two hand-priced refill sizes */}
+        {(item.article === "ГАЗ10" || item.article === "ГАЗ40") && (
+          <div className="text-sm text-red-600 font-medium leading-snug bg-red-50 border border-red-100 rounded-xl px-4 py-2.5">
+            Доставка гелия осуществляется только для покупателей в черте г. Астана.
+            <br />
+            Данная цена не является актуальной. Актуальную цену можно узнать у менеджера.
+          </div>
+        )}
+
         {/* Pack info */}
         {!byPiece && packSize && (
           <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
