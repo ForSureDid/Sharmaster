@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import type { NovinkaCard } from "@/lib/onecStock";
-import { getPackSize, isSoldByPiece } from "@/lib/pack";
+import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
 type Props = { items: NovinkaCard[]; gridClassName?: string };
 
@@ -28,7 +28,7 @@ export default function NovinkaGrid({ items, gridClassName }: Props) {
         const cartItem = cartItems.find((i) => i.id === item.id);
         const liked = isLiked(item.id);
         const packSize = isSoldByPiece(item) ? null : getPackSize(item);
-        const basePrice = item.pricePerPc * (packSize ?? 1);
+        const basePrice = getDisplayPrice(item);
         const salePrice = item.salePercent
           ? Math.round(basePrice * (1 - item.salePercent / 100))
           : null;

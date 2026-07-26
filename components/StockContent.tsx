@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import type { StockCard } from "@/lib/onecStock";
-import { getPackSize, isSoldByPiece } from "@/lib/pack";
+import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 
@@ -99,7 +99,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = byPiece ? item.pricePerPc : (packSize ? item.pricePerPc * packSize : item.pricePerPc);
+  const displayPrice = getDisplayPrice(item);
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -165,7 +165,9 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
           </div>
           {!byPiece && packSize && (
             <div className="text-[10px] text-gray-400 mb-2">
-              {packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт
+              {item.isBalloon === false
+                ? <>{packSize} шт в упаковке</>
+                : <>{packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт</>}
             </div>
           )}
 
@@ -233,7 +235,7 @@ function StockCardList({ item }: { item: StockCard }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = byPiece ? item.pricePerPc : (packSize ? item.pricePerPc * packSize : item.pricePerPc);
+  const displayPrice = getDisplayPrice(item);
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -277,7 +279,11 @@ function StockCardList({ item }: { item: StockCard }) {
           <p className="text-lg font-bold text-sky-600">{displayPrice.toLocaleString()} ₸</p>
           <p className="text-xs text-gray-400">за 1 {byPiece ? "шт" : packSize ? "уп" : "шт"}</p>
           {!byPiece && packSize && (
-            <p className="text-[10px] text-gray-400 mt-0.5">{packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              {item.isBalloon === false
+                ? <>{packSize} шт в упаковке</>
+                : <>{packSize} шт · {item.pricePerPc.toLocaleString()} ₸/шт</>}
+            </p>
           )}
         </div>
         {!inStock ? (

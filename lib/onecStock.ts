@@ -20,6 +20,7 @@ export type StockCard = {
   imageUrl: string | null
   images: string[]
   material: string | null
+  isBalloon: boolean
   sizeInches: string | null
   model: string | null
   unitsPerPackage: number | null
@@ -82,12 +83,21 @@ function buildImages(imageUrl: string | null, images: string[]): string[] {
 // (giants fell back to plain packQty-based pack-only selling). `material` is derived here
 // from real OnecCategory subtree membership instead — the same latex-detection signal
 // getStockItems already uses for smart-sort, just threaded through to the card shape.
-function toCard(i: RawItem, latexCategoryIds: Set<number>): StockCard {
+//
+// `isBalloon` (latex ∪ foil) drives lib/pack.ts's getDisplayPrice(): only for actual
+// balloons is pricePerPc genuinely a per-single-piece price that should be multiplied
+// by packQty to show a pack price. For every other category (сервировка, свечи,
+// топперы, перья, etc.) 1C's price already IS the whole pack/set price — packQty
+// there is descriptive only, multiplying again double-counts it.
+function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<number>): StockCard {
+  const isLatex = i.categoryId != null && latexCategoryIds.has(i.categoryId)
+  const isFoil = i.categoryId != null && foilCategoryIds.has(i.categoryId)
   return {
     id: i.id, slug: i.slug, name: i.name, fullName: null, brand: i.brand,
     stock: i.stock, pricePerPc: Number(i.pricePerPc),
     imageUrl: i.imageUrl, images: buildImages(i.imageUrl, i.images),
-    material: i.categoryId != null && latexCategoryIds.has(i.categoryId) ? 'латекс' : null,
+    material: isLatex ? 'латекс' : null,
+    isBalloon: isLatex || isFoil,
     sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
     isNew: i.isNew, isNewPending: false,
@@ -214,8 +224,11 @@ export async function getFuzzyItemIds(query: string, limit = 200): Promise<numbe
     SELECT id
     FROM "OnecStockItem"
     WHERE
-      word_similarity(${query}::text, name) > 0.25
-      OR (brand IS NOT NULL AND similarity(${query}::text, brand) > 0.3)
+      "isHidden" = false
+      AND (
+        word_similarity(${query}::text, name) > 0.25
+        OR (brand IS NOT NULL AND similarity(${query}::text, brand) > 0.3)
+      )
     ORDER BY
       GREATEST(
         word_similarity(${query}::text, name),
@@ -253,6 +266,7 @@ function buildStockWhere(opts: {
 }) {
   const { categoryIds, brand, minPrice, maxPrice, search, inStockOnly = false } = opts
   return {
+    isHidden: false,
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brand ? { brand } : {}),
@@ -389,7 +403,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     const itemMap = new Map(rawItems.map((i) => [i.id, i]))
     const orderedRaw = pageIds.map((id) => itemMap.get(id)!).filter(Boolean)
 
-    return { total, items: orderedRaw.map((i) => toCard(i, flags.latex)) }
+    return { total, items: orderedRaw.map((i) => toCard(i, flags.latex, flags.foil)) }
   }
 
   const orderBy =
@@ -403,7 +417,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     db.onecStockItem.count({ where }),
   ])
 
-  return { items: rawItems.map((i) => toCard(i, flags.latex)), total }
+  return { items: rawItems.map((i) => toCard(i, flags.latex, flags.foil)), total }
 }
 
 async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
@@ -411,11 +425,14 @@ async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
     resolveCategoryFlags(),
     db.onecStockItem.findUnique({
       where: { slug },
-      select: { ...SELECT_FIELDS, article: true, barcode: true },
+      select: { ...SELECT_FIELDS, article: true, barcode: true, isHidden: true },
     }),
   ])
-  if (!item) return null
-  return { ...toCard(item, flags.latex), article: item.article, barcode: item.barcode }
+  // A hidden row (admin permanently unwanted, e.g. a duplicate/unwanted 1C offer
+  // variant) must 404 the same as a genuinely missing item — a direct link should
+  // stop resolving, not just drop out of listings.
+  if (!item || item.isHidden) return null
+  return { ...toCard(item, flags.latex, flags.foil), article: item.article, barcode: item.barcode }
 }
 
 export const getStockItemBySlug = unstable_cache(
@@ -429,11 +446,12 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     resolveCategoryFlags(),
     db.onecStockItem.findUnique({
       where: { id },
-      select: { ...SELECT_FIELDS, article: true, barcode: true },
+      select: { ...SELECT_FIELDS, article: true, barcode: true, isHidden: true },
     }),
   ])
-  if (!item) return null
-  return { ...toCard(item, flags.latex), article: item.article, barcode: item.barcode }
+  // Same 404-not-just-delisted treatment as _getStockItemBySlug above.
+  if (!item || item.isHidden) return null
+  return { ...toCard(item, flags.latex, flags.foil), article: item.article, barcode: item.barcode }
 }
 
 export const getStockItemById = unstable_cache(
@@ -446,13 +464,13 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
-      where: { onSale: true },
+      where: { onSale: true, isHidden: false },
       select: SELECT_FIELDS,
       orderBy: { pricePerPc: 'asc' },
       ...(limit != null ? { take: limit } : {}),
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags.latex))
+  return rawItems.map((i) => toCard(i, flags.latex, flags.foil))
 }
 
 export const getSaleItems = unstable_cache(() => _getSaleItems(8), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
@@ -471,12 +489,12 @@ async function _getNovinkaItems(): Promise<NovinkaCard[]> {
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
-      where: { isNewPending: true },
+      where: { isNewPending: true, isHidden: false },
       select: SELECT_FIELDS,
       orderBy: [{ createdAt: 'desc' }],
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags.latex))
+  return rawItems.map((i) => toCard(i, flags.latex, flags.foil))
 }
 
 export const getNovinkaItems = unstable_cache(_getNovinkaItems, ['onecNovinkaItems'], { revalidate: 60, tags: ['onecStockItems'] })
@@ -486,9 +504,9 @@ export async function getStockCardsByIds(ids: number[]): Promise<StockCard[]> {
   if (ids.length === 0) return []
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),
-    db.onecStockItem.findMany({ where: { id: { in: ids } }, select: SELECT_FIELDS }),
+    db.onecStockItem.findMany({ where: { id: { in: ids }, isHidden: false }, select: SELECT_FIELDS }),
   ])
-  const byId = new Map(rawItems.map((i) => [i.id, toCard(i, flags.latex)]))
+  const byId = new Map(rawItems.map((i) => [i.id, toCard(i, flags.latex, flags.foil)]))
   return ids.map((id) => byId.get(id)).filter((c): c is StockCard => Boolean(c))
 }
 

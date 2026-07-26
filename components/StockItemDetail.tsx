@@ -6,7 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLikes } from "@/context/LikesContext";
 import type { StockDetail } from "@/lib/onecStock";
-import { getPackSize, isSoldByPiece } from "@/lib/pack";
+import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
 function Gallery({ images, name }: { images: string[]; name: string }) {
   const [active, setActive] = useState(0);
@@ -98,7 +98,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = byPiece ? item.pricePerPc : (packSize ? item.pricePerPc * packSize : item.pricePerPc);
+  const displayPrice = getDisplayPrice(item);
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -165,7 +165,11 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
             </svg>
-            <strong>{packSize} шт</strong> в упаковке · {item.pricePerPc.toLocaleString("ru-KZ")} ₸ / шт
+            {item.isBalloon === false ? (
+              <><strong>{packSize} шт</strong> в упаковке</>
+            ) : (
+              <><strong>{packSize} шт</strong> в упаковке · {item.pricePerPc.toLocaleString("ru-KZ")} ₸ / шт</>
+            )}
           </div>
         )}
 

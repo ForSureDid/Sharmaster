@@ -16,6 +16,7 @@ export type PackItem = {
   model?: string | null;
   unitsPerPackage?: number | null;
   packQty?: number | null;
+  isBalloon?: boolean;
 };
 
 // Brands that are always latex — used as fallback when material field is missing.
@@ -115,4 +116,19 @@ export function isSoldByPiece(item: PackItem): boolean {
   }
   if (item.packQty != null) return item.packQty <= 1;
   return false;
+}
+
+// Pack price for display. For actual balloons (item.isBalloon), pricePerPc is
+// genuinely the price of one single balloon, so the pack price is pricePerPc*packSize.
+// For every other category (сервировка, свечи, топперы, перья, коробки, etc.) 1C's
+// price already IS the whole pack/set price — packQty there is a descriptive "how many
+// pieces are in this pack" count, not a per-unit multiplier, so multiplying again would
+// double-count it. item.isBalloon is only set on OnecStockItem-backed cards (see
+// lib/onecStock.ts's toCard()) — legacy StockItem-backed items (item.isBalloon
+// undefined) fall back to the old always-multiply behavior.
+export function getDisplayPrice(item: PackItem & { pricePerPc: number }): number {
+  if (isSoldByPiece(item)) return item.pricePerPc;
+  const packSize = getPackSize(item);
+  if (!packSize) return item.pricePerPc;
+  return item.isBalloon === false ? item.pricePerPc : item.pricePerPc * packSize;
 }
