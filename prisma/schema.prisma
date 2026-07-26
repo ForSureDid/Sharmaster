@@ -233,6 +233,7 @@ model OnecStockItem {
   isNewPending    Boolean  @default(false) // "Ожидайте поступления" — pre-arrival novelty (admin-created or donballon-novelties agent), never touched by 1C sync
   stockOverride   Boolean  @default(false) // true = admin manually set stock; lib/onecImport.ts's updateOfferChunk skips this column on future syncs
   priceOverride   Boolean  @default(false) // true = admin manually set price; same skip behavior as stockOverride
+  isHidden        Boolean  @default(false) // admin permanently hides this row from the storefront (e.g. an unwanted 1C offer variant); survives 1C sync — never written by lib/onecImport.ts, filtered out of every public read path in lib/onecStock.ts
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   likes           Like[]
