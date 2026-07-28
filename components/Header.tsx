@@ -382,6 +382,14 @@ export default function Header() {
 
           {/* Right icons */}
           <div className="flex items-center ml-auto">
+            {/* Новинки */}
+            <a href="/novinka" className="hidden sm:flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" />
+              </svg>
+              <span className="text-[10px] text-gray-400 leading-none">Новинки</span>
+            </a>
+
             {/* Акции */}
             <a href="/sale" className="hidden sm:flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-600 hover:text-gray-900 transition-colors flex-shrink-0">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -624,6 +632,14 @@ export default function Header() {
               className="px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors"
               onClick={() => setMenuOpen(false)}>
               Весь каталог
+            </a>
+            <a href="/novinka"
+              className="px-4 py-3 text-sm font-semibold text-amber-600 hover:bg-amber-50 border-b border-gray-100 transition-colors flex items-center gap-2"
+              onClick={() => setMenuOpen(false)}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" />
+              </svg>
+              Новинки
             </a>
             <a href="/sale"
               className="px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 border-b border-gray-100 transition-colors flex items-center gap-2"

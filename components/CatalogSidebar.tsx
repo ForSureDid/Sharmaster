@@ -56,8 +56,11 @@ export default function CatalogSidebar({ categories, brands }: Props) {
   const minPrice = sp.get("min") ?? "";
   const maxPrice = sp.get("max") ?? "";
   const inStockOnly = sp.get("instock") === "1";
+  const novinki = sp.get("novinki") === "1";
+  const akcii = sp.get("akcii") === "1";
 
-  const activeCount = [activeCat, activeBrand, minPrice, maxPrice].filter(Boolean).length + (inStockOnly ? 1 : 0);
+  const activeCount = [activeCat, activeBrand, minPrice, maxPrice].filter(Boolean).length
+    + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0);
 
   const filterSections = (
     <>
@@ -71,6 +74,29 @@ export default function CatalogSidebar({ categories, brands }: Props) {
           />
           Только в наличии
         </label>
+      </Section>
+
+      <Section title="Зоны">
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
+            <input
+              type="checkbox"
+              checked={novinki}
+              onChange={(e) => update("novinki", e.target.checked ? "1" : null)}
+              className="w-3.5 h-3.5 rounded accent-amber-500"
+            />
+            Только новинки
+          </label>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
+            <input
+              type="checkbox"
+              checked={akcii}
+              onChange={(e) => update("akcii", e.target.checked ? "1" : null)}
+              className="w-3.5 h-3.5 rounded accent-red-500"
+            />
+            Только акции
+          </label>
+        </div>
       </Section>
 
       <Section title="Категории">

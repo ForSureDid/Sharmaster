@@ -50,15 +50,18 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const per = Math.min(Math.max(safeInt(str(sp.per), 48), 1), 200);
   const q = str(sp.q);
   const inStockOnly = str(sp.instock) === "1";
+  const novinki = str(sp.novinki) === "1";
+  const akcii = str(sp.akcii) === "1";
 
   const [{ items, total }, categories, brands] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
       getOnecCategories(),
       getOnecBrands(),
     ]);
 
   const totalPages = Math.ceil(total / per);
+  const zoneTitle = novinki && akcii ? "Новинки и акции" : novinki ? "Новинки" : akcii ? "Акции" : null;
 
   return (
     <>
@@ -71,13 +74,13 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              {activeCategory ? (
+              {activeCategory || zoneTitle ? (
                 <>
                   <a href="/catalog" className="hover:text-sky-500 transition-colors">Каталог</a>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
-                  <span className="text-gray-600 font-medium">{activeCategory.name}</span>
+                  <span className="text-gray-600 font-medium">{activeCategory ? activeCategory.name : zoneTitle}</span>
                 </>
               ) : (
                 <span className="text-gray-600 font-medium">Каталог</span>
@@ -88,7 +91,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <h1 className="text-xl font-bold text-gray-800 mb-4">
-            {activeCategory ? activeCategory.name : "Каталог товаров"}
+            {activeCategory ? activeCategory.name : zoneTitle ?? "Каталог товаров"}
           </h1>
 
           <div className="flex lg:gap-6 items-start">

@@ -46,6 +46,8 @@ export type StockFilters = {
   maxPrice?: number
   search?: string
   inStockOnly?: boolean
+  isNewPending?: boolean
+  onSale?: boolean
   sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart'
   page?: number
   pageSize?: number
@@ -54,14 +56,14 @@ export type StockFilters = {
 const SELECT_FIELDS = {
   id: true, slug: true, name: true, brand: true, sizeInches: true, packQty: true,
   stock: true, pricePerPc: true, imageUrl: true, images: true,
-  onSale: true, salePercent: true, isNew: true, categoryId: true,
+  onSale: true, salePercent: true, isNew: true, isNewPending: true, categoryId: true,
 } as const
 
 type RawItem = {
   id: number; slug: string | null; name: string; brand: string | null
   sizeInches: string | null; packQty: number | null; stock: number; pricePerPc: unknown
   imageUrl: string | null; images: string[]; onSale: boolean; salePercent: number | null; isNew: boolean
-  categoryId: number | null
+  isNewPending: boolean; categoryId: number | null
 }
 
 // OnecStockItem.images[] holds only the *extra* photos (scripts/link-onec-images.ts
@@ -73,9 +75,6 @@ function buildImages(imageUrl: string | null, images: string[]): string[] {
   return [imageUrl, ...images.filter((u) => u !== imageUrl)]
 }
 
-// OnecStockItem has no isNewPending column (that's a StockItem-only pre-arrival
-// concept from the donballon novelties workflow) — always false here.
-//
 // `brand` is null on every OnecStockItem row (1C sync never populates it) — lib/pack.ts's
 // isLatex()/isSoldByPiece() (the "latex 18''/24''/36'' giants always sold individually,
 // with a quick-add for the full pack" rule) relies on `material`/`brand` to detect latex,
@@ -100,7 +99,7 @@ function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<
     isBalloon: isLatex || isFoil,
     sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
-    isNew: i.isNew, isNewPending: false,
+    isNew: i.isNew, isNewPending: i.isNewPending,
   }
 }
 
@@ -263,11 +262,15 @@ function buildStockWhere(opts: {
   maxPrice?: number
   search?: string
   inStockOnly?: boolean
+  isNewPending?: boolean
+  onSale?: boolean
 }) {
-  const { categoryIds, brand, minPrice, maxPrice, search, inStockOnly = false } = opts
+  const { categoryIds, brand, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
   return {
     isHidden: false,
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
+    ...(isNewPending ? { isNewPending: true } : {}),
+    ...(onSale ? { onSale: true } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brand ? { brand } : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
@@ -296,6 +299,8 @@ async function _fetchAllForSmartSort(
   maxPrice: number | null,
   search: string | null,
   inStockOnly: boolean,
+  isNewPending: boolean,
+  onSale: boolean,
 ) {
   const where = buildStockWhere({
     categoryIds: categoryIds ?? undefined,
@@ -304,6 +309,8 @@ async function _fetchAllForSmartSort(
     maxPrice: maxPrice ?? undefined,
     search: search ?? undefined,
     inStockOnly,
+    isNewPending,
+    onSale,
   })
   return db.onecStockItem.findMany({
     where,
@@ -329,12 +336,14 @@ async function fetchAllForSmartSort(
   maxPrice: number | null,
   search: string | null,
   inStockOnly: boolean,
+  isNewPending: boolean,
+  onSale: boolean,
 ) {
-  const isFullyUnfiltered = categoryIds == null && brand == null && minPrice == null && maxPrice == null && search == null && !inStockOnly
+  const isFullyUnfiltered = categoryIds == null && brand == null && minPrice == null && maxPrice == null && search == null && !inStockOnly && !isNewPending && !onSale
   if (isFullyUnfiltered) {
-    return _fetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly)
+    return _fetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale)
   }
-  return cachedFetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly)
+  return cachedFetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale)
 }
 
 export async function getStockItems(filters: StockFilters = {}): Promise<{ items: StockCard[]; total: number }> {
@@ -342,14 +351,14 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     page = 1, pageSize = 48,
     categoryId, categoryIds: explicitCategoryIds, brand,
     minPrice, maxPrice, search,
-    inStockOnly = false, sort = 'smart',
+    inStockOnly = false, isNewPending = false, onSale = false, sort = 'smart',
   } = filters
 
   const categoryIds = explicitCategoryIds
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, minPrice, maxPrice, search, inStockOnly })
+  const where = buildStockWhere({ categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -359,7 +368,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
     const allRows = [...(await fetchAllForSmartSort(
-      stableCatIds, brand ?? null, minPrice ?? null, maxPrice ?? null, search ?? null, inStockOnly,
+      stableCatIds, brand ?? null, minPrice ?? null, maxPrice ?? null, search ?? null, inStockOnly, isNewPending, onSale,
     ))]
 
     if (search) {
