@@ -262,18 +262,27 @@ export async function upsertOnecCategories(groups: OnecGroup[]): Promise<Map<str
 // isNewPending=true and a synthetic onecId (no real 1C GUID yet — see
 // .claude/agents/donballon-novelties.md) so they can show on the storefront before 1C
 // knows about them. Once the real product arrives through this sync, it must take over
-// that same row (re-pointing onecId to the real 1C id, clearing isNewPending) instead of
-// creating a duplicate — this repoints matching pending rows just before the ON CONFLICT
-// upsert below, by article, so the upsert's own conflict resolution merges into it
-// naturally, and the row drops off the novinki tab (lib/onecStock.ts's
-// _getNovinkaItems()) the moment it's absorbed.
+// that same row (re-pointing onecId to the real 1C id) instead of creating a duplicate —
+// this repoints matching pending rows just before the ON CONFLICT upsert below, by
+// article, so the upsert's own conflict resolution merges into it naturally.
+//
+// Arrival flips the row from "Ожидайте поступления" to an active "Новинка": isNew is set
+// true (same flag the admin's manual "Новинка" button sets — see toggleNewArrival in
+// app/admin/actions.ts) while isNewPending is left true on purpose, matching that same
+// manual flow. lib/onecStock.ts's _getNovinkaItems() filters on isNewPending alone, so the
+// row keeps showing on /novinka; the isNewPending && !isNew "Ожидайте" badge logic in
+// components/NovinkaGrid.tsx / StockContent.tsx flips off because isNew is now true, and
+// the normal offers.xml sync (matched by the now-real onecId) fills in real stock/price so
+// it's simply for sale. The photo/slug/etc are untouched since it's the same row. It stays
+// on /novinka until an admin manually clears it via the "Убрать" button (toggleNewArrival
+// with isNew=false, which also clears isNewPending) — no automatic expiry.
 async function absorbDonballonNovelties(chunk: OnecProduct[]): Promise<void> {
   const withArticle = chunk.filter((p) => p.article)
   if (withArticle.length === 0) return
   const rows = withArticle.map((p) => Prisma.sql`(${p.article}::text, ${p.onecId}::text)`)
   await db.$executeRaw`
     UPDATE "OnecStockItem" t
-    SET "onecId" = v."onecId", "isNewPending" = false
+    SET "onecId" = v."onecId", "isNew" = true
     FROM (VALUES ${Prisma.join(rows)}) AS v(article, "onecId")
     WHERE t."isNewPending" = true
       AND t."article" = v.article
