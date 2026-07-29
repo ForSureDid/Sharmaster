@@ -310,7 +310,13 @@ async function upsertProductChunk(
   // admin reviews them; updates to existing items leave their isNew flag untouched.
   // Same reasoning for packQty/sizeInches/onSale/salePercent/slug (hand-curated /
   // backfilled — see prisma/migrations/20260725000000_add_onec_stockitem_pack_slug_sale) —
-  // they must survive every future sync untouched.
+  // they must survive every future sync untouched. isHidden (migration
+  // 20260726000000_add_onec_stockitem_is_hidden) is the same: admin-only, never
+  // referenced by this INSERT/UPDATE column list, so a hidden row stays hidden
+  // across every future 1C sync. brand joined that list 2026-07-29: 1C almost never
+  // sends Изготовитель, so it's backfilled from donballon's YML feed instead
+  // (scripts/backfill-onec-brand-from-donballon.ts) — still set on INSERT (from 1C,
+  // usually null) but no longer overwritten on UPDATE so the backfill survives sync.
   const result = await db.$queryRaw<{ id: number; onecId: string; inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
       ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "categoryId", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
@@ -319,7 +325,6 @@ async function upsertProductChunk(
       "article" = EXCLUDED."article",
       "name" = EXCLUDED."name",
       "barcode" = EXCLUDED."barcode",
-      "brand" = EXCLUDED."brand",
       "countryOfOrigin" = EXCLUDED."countryOfOrigin",
       "description" = EXCLUDED."description",
       "groupName" = EXCLUDED."groupName",
