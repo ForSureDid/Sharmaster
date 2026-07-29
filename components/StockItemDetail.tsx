@@ -98,7 +98,11 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = getDisplayPrice(item);
+  const basePrice = getDisplayPrice(item);
+  const salePrice = item.onSale && item.salePercent
+    ? Math.round(basePrice * (1 - item.salePercent / 100))
+    : null;
+  const displayPrice = salePrice ?? basePrice;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -112,6 +116,8 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
     manufacturer: item.brand,
   };
 
+  const isPending = item.isNewPending && !inStock;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
       {/* Gallery */}
@@ -123,6 +129,20 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
       <div className="flex flex-col gap-5">
         {/* Badges */}
         <div className="flex items-center gap-2 flex-wrap">
+          {item.onSale && (
+            <span className="text-xs bg-red-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
+              {item.salePercent ? `-${item.salePercent}%` : "Акция"}
+            </span>
+          )}
+          {isPending ? (
+            <span className="text-xs bg-amber-400 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
+              Ожидайте поступления
+            </span>
+          ) : item.isNew ? (
+            <span className="text-xs bg-sky-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
+              Новинка
+            </span>
+          ) : null}
           {item.brand && (
             <span className="text-xs bg-sky-50 text-sky-600 border border-sky-100 px-2.5 py-1 rounded-full font-medium">
               {item.brand}
@@ -144,7 +164,10 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
 
         {/* Price block */}
         <div className="bg-gray-50 rounded-2xl p-4 flex items-end gap-3">
-          <span className="text-4xl font-extrabold text-sky-600">
+          {salePrice && (
+            <span className="text-lg text-gray-400 line-through pb-1">{basePrice.toLocaleString("ru-KZ")} ₸</span>
+          )}
+          <span className={`text-4xl font-extrabold ${salePrice ? "text-red-600" : "text-sky-600"}`}>
             {displayPrice.toLocaleString("ru-KZ")} ₸
           </span>
           <span className="text-sm text-gray-400 pb-1">/ {byPiece ? "шт" : packSize ? "уп" : "шт"}</span>

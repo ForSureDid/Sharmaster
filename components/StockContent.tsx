@@ -99,7 +99,11 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = getDisplayPrice(item);
+  const basePrice = getDisplayPrice(item);
+  const salePrice = item.onSale && item.salePercent
+    ? Math.round(basePrice * (1 - item.salePercent / 100))
+    : null;
+  const displayPrice = salePrice ?? basePrice;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -136,15 +140,22 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             </svg>
           </div>
         )}
-        {isPending ? (
-          <span className="absolute top-2 left-2 bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide z-10">
-            Ожидайте
-          </span>
-        ) : item.isNew ? (
-          <span className="absolute top-2 left-2 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide z-10">
-            New
-          </span>
-        ) : null}
+        <div className="absolute top-2 left-2 flex flex-col items-start gap-1 z-10">
+          {item.onSale && (
+            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              {item.salePercent ? `-${item.salePercent}%` : "Акция"}
+            </span>
+          )}
+          {isPending ? (
+            <span className="bg-amber-400 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              Ожидайте
+            </span>
+          ) : item.isNew ? (
+            <span className="bg-sky-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              New
+            </span>
+          ) : null}
+        </div>
         <LikeButton id={item.id} />
       </div>
 
@@ -159,10 +170,20 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
         </a>
 
         <div className="mt-auto">
-          <div className="text-base font-bold text-sky-600 mb-0.5">
-            {displayPrice.toLocaleString()} ₸
-            <span className="text-xs font-normal text-gray-400"> / {byPiece ? "шт" : packSize ? "уп" : "шт"}</span>
-          </div>
+          {salePrice ? (
+            <div className="mb-0.5">
+              <div className="text-base font-bold text-red-600">
+                {salePrice.toLocaleString()} ₸
+                <span className="text-xs font-normal text-gray-400"> / {byPiece ? "шт" : packSize ? "уп" : "шт"}</span>
+              </div>
+              <div className="text-xs text-gray-400 line-through">{basePrice.toLocaleString()} ₸</div>
+            </div>
+          ) : (
+            <div className="text-base font-bold text-sky-600 mb-0.5">
+              {displayPrice.toLocaleString()} ₸
+              <span className="text-xs font-normal text-gray-400"> / {byPiece ? "шт" : packSize ? "уп" : "шт"}</span>
+            </div>
+          )}
           {!byPiece && packSize && (
             <div className="text-[10px] text-gray-400 mb-2">
               {item.isBalloon === false
@@ -235,7 +256,11 @@ function StockCardList({ item }: { item: StockCard }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
-  const displayPrice = getDisplayPrice(item);
+  const basePrice = getDisplayPrice(item);
+  const salePrice = item.onSale && item.salePercent
+    ? Math.round(basePrice * (1 - item.salePercent / 100))
+    : null;
+  const displayPrice = salePrice ?? basePrice;
 
   const displayName = item.fullName ?? item.name;
   const asCartProduct = {
@@ -261,6 +286,11 @@ function StockCardList({ item }: { item: StockCard }) {
             </svg>
           </div>
         )}
+        {item.onSale && (
+          <span className="absolute top-1 left-1 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide z-10">
+            {item.salePercent ? `-${item.salePercent}%` : "Акция"}
+          </span>
+        )}
         <LikeButton id={item.id} className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center rounded-full bg-white/80 hover:bg-white shadow-sm transition-colors z-10" />
       </div>
       <div className="flex-1 p-4 flex items-center gap-4 min-w-0">
@@ -276,7 +306,10 @@ function StockCardList({ item }: { item: StockCard }) {
           </a>
         </div>
         <div className="flex-shrink-0 text-right min-w-[100px]">
-          <p className="text-lg font-bold text-sky-600">{displayPrice.toLocaleString()} ₸</p>
+          {salePrice && (
+            <p className="text-xs text-gray-400 line-through">{basePrice.toLocaleString()} ₸</p>
+          )}
+          <p className={`text-lg font-bold ${salePrice ? "text-red-600" : "text-sky-600"}`}>{displayPrice.toLocaleString()} ₸</p>
           <p className="text-xs text-gray-400">за 1 {byPiece ? "шт" : packSize ? "уп" : "шт"}</p>
           {!byPiece && packSize && (
             <p className="text-[10px] text-gray-400 mt-0.5">
