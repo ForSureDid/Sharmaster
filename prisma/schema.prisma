@@ -228,6 +228,13 @@ model OnecStockItem {
   slug            String?  @unique // nullable indefinitely — generated on insert (lib/onecImport.ts), backfilled once by scripts/backfill-onec-slugs.ts; never regenerated on update so live URLs don't churn
   packQty         Int?     // количество шаров в упаковке — 1C doesn't send this, hand-curated per brand; backfilled from StockItem, never overwritten by sync (see upsertProductChunk)
   sizeInches      String?  // same as above: StockItem-only enrichment, backfilled once
+  occasion        String?  // Праздник — 1C doesn't send this, backfilled from Donballon xlsx export, hand-curated, never touched by lib/onecImport.ts sync
+  shade           String?  // Оттенок
+  color           String?  // Цвет
+  colorGroup      String?  // Группа цвета
+  lengthMm        Int?     // Длина (мм)
+  widthMm         Int?     // Ширина (мм)
+  heightMm        Int?     // Высота (мм)
   onSale          Boolean  @default(false) // manual storefront discount toggle, backfilled from StockItem — never set by 1C sync
   salePercent     Int?
   isNewPending    Boolean  @default(false) // "Ожидайте поступления" — pre-arrival novelty (admin-created or donballon-novelties agent), never touched by 1C sync
