@@ -52,6 +52,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { writeFileSync } from 'fs'
 import { resolve } from 'path'
 import * as dotenv from 'dotenv'
+import { sanitize } from './lib/oborudovanie-groups'
 dotenv.config()
 
 const APPLY = process.argv.includes('--apply')
@@ -77,17 +78,32 @@ function publicUrl(bucket: string, key: string): string {
 //    (foil-balloons, latex-balloons, partydeco, Tovary-dlya-prazdnika,
 //    donballon-novelties) store files under subfolders, which come back as
 //    entries with id:null that must be recursed into) ──────────────────────────
+// Supabase's HTTP/2 connection occasionally hangs mid-request on large buckets
+// (observed: stalls exactly at foil-balloons, 25k+ objects, "stream timeout after
+// 300000") — retry a few times with backoff before giving up on this page.
+async function listPage(bucket: string, prefix: string, offset: number): Promise<Array<{ name: string; id: string | null }>> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 1000, offset, prefix }),
+      })
+      if (!res.ok) { console.error(`  list failed for ${bucket} prefix="${prefix}":`, await res.text()); return [] }
+      return await res.json() as Array<{ name: string; id: string | null }>
+    } catch (e) {
+      if (attempt === 3) { console.error(`  list failed for ${bucket} prefix="${prefix}" after retries:`, (e as Error).message); return [] }
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)))
+    }
+  }
+  return []
+}
+
 async function listOneLevel(bucket: string, prefix: string): Promise<Array<{ name: string; id: string | null }>> {
   const out: Array<{ name: string; id: string | null }> = []
   let offset = 0
   while (true) {
-    const res = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${bucket}`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ limit: 1000, offset, prefix }),
-    })
-    if (!res.ok) { console.error(`  list failed for ${bucket} prefix="${prefix}":`, await res.text()); break }
-    const files = await res.json() as Array<{ name: string; id: string | null }>
+    const files = await listPage(bucket, prefix, offset)
     out.push(...files)
     if (files.length < 1000) break
     offset += files.length
@@ -133,6 +149,24 @@ function extractLeadingSegment(basename: string): Extracted | null {
   const noExt = basename.replace(IMG_EXT, '')
   const m = /^([A-Za-z0-9-]+)_/.exec(noExt)
   const code = m ? m[1] : (IMG_EXT.test(basename) ? noExt : null)
+  if (!code) return null
+  const ordM = /_(\d+)$/.exec(noExt)
+  return { code, ordinal: ordM ? parseInt(ordM[1], 10) : 0 }
+}
+
+// Prazdnichnaya-poligrafiya / Floristika / Karnavalnye-aksessuary: uploaded by
+// upload-material-folders-to-storage.ts, which preserves full original filenames
+// (transliterated only, not reformatted/coded) and the full subfolder structure.
+// Code = everything before the FIRST underscore, unrestricted charset — several
+// real articles contain dots (e.g. "0200.113") which extractLeadingSegment's
+// [A-Za-z0-9-] class would reject, silently falling back to treating the whole
+// descriptive filename as the code. No 0-unextractable across all 3 buckets when
+// verified (scripts/_test_extract.ts, since removed).
+function extractLeadingToken(basename: string): Extracted | null {
+  if (!IMG_EXT.test(basename)) return null
+  const noExt = basename.replace(IMG_EXT, '')
+  const idx = noExt.indexOf('_')
+  const code = idx === -1 ? noExt : noExt.slice(0, idx)
   if (!code) return null
   const ordM = /_(\d+)$/.exec(noExt)
   return { code, ordinal: ordM ? parseInt(ordM[1], 10) : 0 }
@@ -264,9 +298,19 @@ const BUCKETS: BucketConfig[] = [
   { name: 'latex-balloons', extract: extractLeadingSegment },
   { name: 'Servirovka-stola', extract: extractLeadingDigits },
   { name: 'lenyu-bantyu', extract: extractAlnumLeadingSegment },
+  { name: 'Prazdnichnaya-poligrafiya', extract: extractLeadingToken },
+  { name: 'Floristika', extract: extractLeadingToken },
+  { name: 'Karnavalnye-aksessuary', extract: extractLeadingToken },
   // LOOSE — whole basename accepted as code, no shape check.
   { name: 'Tovary-dlya-prazdnika', extract: extractPrazdnikStyle },
-  { name: 'Oborudovanie-i-aksessuary', extract: extractPrazdnikStyle },
+  // keyFor: sanitize — upload-oborudovanie-to-storage.ts transliterated Cyrillic
+  // article codes (e.g. "Б10П") into the ASCII storage keys ("B10P.jpg") via the
+  // same CYR map (scripts/lib/oborudovanie-groups.ts, exported as sanitize()); the
+  // naive equality match never matched those rows for the same reason latex-BK
+  // didn't (see keyForBk above). sanitize() is the exact inverse transliteration,
+  // and a no-op on articles that are already pure Latin/numeric (spot-checked:
+  // "3000041-B", "615312-16", "6015360", "HT102" resolve identically before/after).
+  { name: 'Oborudovanie-i-aksessuary', extract: extractPrazdnikStyle, keyFor: sanitize },
   { name: 'partydeco', extract: extractPartydecoStyle },
   { name: 'donballon-novelties', extract: extractNoveltiesStyle },
   // LOOSEST — sharik-code searched anywhere in the string, unanchored.
@@ -394,6 +438,30 @@ async function main() {
     }
   }
   console.log(`\nFuzzy (single-trailing-letter) matches: ${fuzzyMatched}`)
+
+  // ── Third pass: slash-suffixed articles ─────────────────────────────────────
+  // Some 1C articles carry a pack-size/variant suffix after a literal "/" (e.g.
+  // "6233762/40Y", "6014741/250" — decorative ribbon/confetti items from donballon's
+  // catalog). The uploaded photo is filed under just the part before the slash
+  // ("6233762_Lenta_..."/"6014741.jpg") — the slash and everything after it is
+  // packaging metadata the photo filename never carried. Try the pre-slash prefix
+  // as a second key, same priority order as the exact pass.
+  let slashMatched = 0
+  for (const article of allArticles) {
+    if (winners.has(article)) continue
+    const slashIdx = article.indexOf('/')
+    if (slashIdx < 4) continue // no slash, or prefix too short to be a real code
+    const prefix = article.slice(0, slashIdx)
+    for (const cfg of BUCKETS) {
+      const group = perBucket.get(cfg.name)!.get(prefix)
+      if (group) {
+        winners.set(article, { bucket: cfg.name, head: publicUrl(cfg.name, group.head), extras: group.extras.map(k => publicUrl(cfg.name, k)) })
+        slashMatched++
+        break
+      }
+    }
+  }
+  console.log(`Slash-prefix matches: ${slashMatched}`)
   console.log(`Total unique articles matched (exact + fuzzy): ${winners.size} / ${allArticles.size}`)
 
   // Build per-row plan
