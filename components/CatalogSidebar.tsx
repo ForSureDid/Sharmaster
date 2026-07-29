@@ -85,7 +85,7 @@ export default function CatalogSidebar({ categories, brands }: Props) {
               onChange={(e) => update("novinki", e.target.checked ? "1" : null)}
               className="w-3.5 h-3.5 rounded accent-amber-500"
             />
-            Только новинки
+            Новинки
           </label>
           <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
             <input
@@ -94,7 +94,7 @@ export default function CatalogSidebar({ categories, brands }: Props) {
               onChange={(e) => update("akcii", e.target.checked ? "1" : null)}
               className="w-3.5 h-3.5 rounded accent-red-500"
             />
-            Только акции
+            Акции
           </label>
         </div>
       </Section>
