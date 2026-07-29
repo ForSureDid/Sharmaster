@@ -4,7 +4,7 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import StockContent from "@/components/StockContent";
-import { getStockItems, getDescendantCategoryIds, getOnecCategories, getOnecBrands, getOnecCategoryBySlug } from "@/lib/onecStock";
+import { getStockItems, getDescendantCategoryIds, getOnecCategories, getOnecFilterOptions, getOnecCategoryBySlug } from "@/lib/onecStock";
 import { db } from "@/lib/db";
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -41,6 +41,10 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
     ? (await Promise.all(multiCatRoots.map(r => getDescendantCategoryIds(r.id)))).flat()
     : undefined;
   const brand = str(sp.brand);
+  const size = str(sp.size);
+  const shade = str(sp.shade);
+  const occasionParam = str(sp.occasion);
+  const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const minPrice = safeFloat(str(sp.min));
   const maxPrice = safeFloat(str(sp.max));
   const SORT_OPTS = ["smart", "price_asc", "price_desc", "name_asc"] as const;
@@ -53,11 +57,15 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const novinki = str(sp.novinki) === "1";
   const akcii = str(sp.akcii) === "1";
 
-  const [{ items, total }, categories, brands] =
+  // Same category scope the item query uses — keeps filter option lists (brand/size/
+  // shade/occasion) scoped to the active category's subtree instead of the whole catalog.
+  const filterCategoryIds = expandedCategoryIds ?? (catId ? await getDescendantCategoryIds(catId) : null);
+
+  const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, sizeInches: size, shade, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
       getOnecCategories(),
-      getOnecBrands(),
+      getOnecFilterOptions(filterCategoryIds),
     ]);
 
   const totalPages = Math.ceil(total / per);
@@ -98,7 +106,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
             <Suspense fallback={null}>
               <CatalogSidebar
                 categories={categories}
-                brands={brands}
+                filterOptions={filterOptions}
               />
             </Suspense>
 

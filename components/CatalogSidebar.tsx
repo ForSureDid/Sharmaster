@@ -10,9 +10,16 @@ type Category = {
   children: { id: number; name: string; slug: string | null }[];
 };
 
+type FilterOptions = {
+  brands: string[];
+  sizes: string[];
+  shades: string[];
+  occasions: string[];
+};
+
 type Props = {
   categories: Category[];
-  brands: string[];
+  filterOptions: FilterOptions;
 };
 
 function Section({ title, children, defaultOpen = true }: {
@@ -35,7 +42,36 @@ function Section({ title, children, defaultOpen = true }: {
   );
 }
 
-export default function CatalogSidebar({ categories, brands }: Props) {
+function Toggle({ checked, onChange, activeColor = "bg-sky-500" }: {
+  checked: boolean; onChange: (v: boolean) => void; activeColor?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative w-9 h-5 flex-shrink-0 rounded-full transition-colors ${checked ? activeColor : "bg-gray-300"}`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`}
+      />
+    </button>
+  );
+}
+
+function ToggleRow({ label, checked, onChange, activeColor }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void; activeColor?: string;
+}) {
+  return (
+    <label className="flex items-center justify-between py-1 cursor-pointer">
+      <span className="text-xs text-gray-600">{label}</span>
+      <Toggle checked={checked} onChange={onChange} activeColor={activeColor} />
+    </label>
+  );
+}
+
+export default function CatalogSidebar({ categories, filterOptions }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -51,96 +87,169 @@ export default function CatalogSidebar({ categories, brands }: Props) {
     router.push(`/catalog?${params.toString()}`);
   }
 
+  function toggleInList(key: string, value: string) {
+    const current = sp.get(key)?.split(",").filter(Boolean) ?? [];
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    update(key, next.length > 0 ? next.join(",") : null);
+  }
+
   const activeCat = sp.get("cat") ?? "";
   const activeBrand = sp.get("brand") ?? "";
+  const activeSize = sp.get("size") ?? "";
+  const activeShade = sp.get("shade") ?? "";
+  const activeOccasions = sp.get("occasion")?.split(",").filter(Boolean) ?? [];
   const minPrice = sp.get("min") ?? "";
   const maxPrice = sp.get("max") ?? "";
   const inStockOnly = sp.get("instock") === "1";
   const novinki = sp.get("novinki") === "1";
   const akcii = sp.get("akcii") === "1";
 
-  const activeCount = [activeCat, activeBrand, minPrice, maxPrice].filter(Boolean).length
-    + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0);
+  const activeCount = [activeCat, activeBrand, activeSize, activeShade, minPrice, maxPrice].filter(Boolean).length
+    + activeOccasions.length + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0);
+
+  // When a category is active, scope the category nav to just that branch (its own
+  // top-level parent + siblings) instead of showing the whole catalog tree — same
+  // idea as filterOptions being scoped server-side: once you're in "фольга", you
+  // shouldn't be browsing latex categories from the same list.
+  const activeCatRoot = activeCat
+    ? categories.find((c) => (c.slug ?? String(c.id)) === activeCat || c.children.some((s) => (s.slug ?? String(s.id)) === activeCat))
+    : undefined;
 
   const filterSections = (
     <>
-      <Section title="Наличие">
-        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-          <input
-            type="checkbox"
-            checked={inStockOnly}
-            onChange={(e) => update("instock", e.target.checked ? "1" : null)}
-            className="w-3.5 h-3.5 rounded accent-sky-500"
-          />
-          Только в наличии
-        </label>
+      <Section title={activeCatRoot ? activeCatRoot.name : "Категории"}>
+        {activeCatRoot ? (
+          <ul className="space-y-0.5">
+            <li>
+              <button
+                onClick={() => update("cat", null)}
+                className="w-full text-left px-2 py-1.5 rounded-lg text-xs text-gray-400 hover:text-sky-500 hover:bg-gray-50 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Все категории
+              </button>
+            </li>
+            <li>
+              <button
+                onClick={() => update("cat", activeCatRoot.slug ?? String(activeCatRoot.id))}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === (activeCatRoot.slug ?? String(activeCatRoot.id)) ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
+              >
+                {activeCatRoot.name}
+              </button>
+            </li>
+            {activeCatRoot.children.length > 0 && (
+              <ul className="ml-3 mt-0.5 space-y-0.5">
+                {activeCatRoot.children.map((sub) => {
+                  const subKey = sub.slug ?? String(sub.id);
+                  return (
+                    <li key={sub.id}>
+                      <button
+                        onClick={() => update("cat", activeCat === subKey ? (activeCatRoot.slug ?? String(activeCatRoot.id)) : subKey)}
+                        className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === subKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
+                      >
+                        {sub.name}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </ul>
+        ) : (
+          <ul className="space-y-0.5">
+            <li>
+              <button
+                onClick={() => update("cat", null)}
+                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${!activeCat ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-sky-500"}`}
+              >
+                Все категории
+              </button>
+            </li>
+            {categories.map((cat) => {
+              const catKey = cat.slug ?? String(cat.id);
+              return (
+                <li key={cat.id}>
+                  <button
+                    onClick={() => update("cat", activeCat === catKey ? null : catKey)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === catKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
+                  >
+                    {cat.name}
+                  </button>
+                  {cat.children.length > 0 && (
+                    <ul className="ml-3 mt-0.5 space-y-0.5">
+                      {cat.children.map((sub) => {
+                        const subKey = sub.slug ?? String(sub.id);
+                        return (
+                          <li key={sub.id}>
+                            <button
+                              onClick={() => update("cat", activeCat === subKey ? null : subKey)}
+                              className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === subKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
+                            >
+                              {sub.name}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </Section>
 
-      <Section title="Зоны">
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-            <input
-              type="checkbox"
-              checked={novinki}
-              onChange={(e) => update("novinki", e.target.checked ? "1" : null)}
-              className="w-3.5 h-3.5 rounded accent-amber-500"
-            />
-            Новинки
-          </label>
-          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-            <input
-              type="checkbox"
-              checked={akcii}
-              onChange={(e) => update("akcii", e.target.checked ? "1" : null)}
-              className="w-3.5 h-3.5 rounded accent-red-500"
-            />
-            Акции
-          </label>
+      <Section title="Зоны и наличие">
+        <div className="space-y-1">
+          <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-amber-500" />
+          <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" />
+          <ToggleRow label="Наличие" checked={inStockOnly} onChange={(v) => update("instock", v ? "1" : null)} />
         </div>
       </Section>
 
-      <Section title="Категории">
-        <ul className="space-y-0.5">
-          <li>
-            <button
-              onClick={() => update("cat", null)}
-              className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors ${!activeCat ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-600 hover:bg-gray-50 hover:text-sky-500"}`}
-            >
-              Все категории
-            </button>
-          </li>
-          {categories.map((cat) => {
-            const catKey = cat.slug ?? String(cat.id);
-            return (
-              <li key={cat.id}>
-                <button
-                  onClick={() => update("cat", activeCat === catKey ? null : catKey)}
-                  className={`w-full text-left px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${activeCat === catKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-700 hover:bg-gray-50 hover:text-sky-500"}`}
-                >
-                  {cat.name}
-                </button>
-                {cat.children.length > 0 && (
-                  <ul className="ml-3 mt-0.5 space-y-0.5">
-                    {cat.children.map((sub) => {
-                      const subKey = sub.slug ?? String(sub.id);
-                      return (
-                        <li key={sub.id}>
-                          <button
-                            onClick={() => update("cat", activeCat === subKey ? null : subKey)}
-                            className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === subKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
-                          >
-                            {sub.name}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+      {filterOptions.sizes.length > 0 && (
+        <Section title="Размер" defaultOpen={false}>
+          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+            {filterOptions.sizes.map((s) => (
+              <li key={s}>
+                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
+                  <input
+                    type="radio"
+                    name="size"
+                    checked={activeSize === s}
+                    onChange={() => update("size", activeSize === s ? null : s)}
+                    className="w-3.5 h-3.5 accent-sky-500"
+                  />
+                  {s}
+                </label>
               </li>
-            );
-          })}
-        </ul>
-      </Section>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {filterOptions.shades.length > 0 && (
+        <Section title="Оттенок" defaultOpen={false}>
+          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+            {filterOptions.shades.map((s) => (
+              <li key={s}>
+                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
+                  <input
+                    type="radio"
+                    name="shade"
+                    checked={activeShade === s}
+                    onChange={() => update("shade", activeShade === s ? null : s)}
+                    className="w-3.5 h-3.5 accent-sky-500"
+                  />
+                  {s}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Цена (₸/шт)" defaultOpen={false}>
         <div className="flex items-center gap-2">
@@ -162,10 +271,10 @@ export default function CatalogSidebar({ categories, brands }: Props) {
         </div>
       </Section>
 
-      {brands.length > 0 && (
-        <Section title="Бренд" defaultOpen={false}>
+      {filterOptions.brands.length > 0 && (
+        <Section title="Производитель" defaultOpen={false}>
           <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {brands.map((b) => (
+            {filterOptions.brands.map((b) => (
               <li key={b}>
                 <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
                   <input
@@ -180,6 +289,25 @@ export default function CatalogSidebar({ categories, brands }: Props) {
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {filterOptions.occasions.length > 0 && (
+        <Section title="Праздник" defaultOpen={false}>
+          <div className="flex flex-wrap gap-1.5">
+            {filterOptions.occasions.map((o) => {
+              const active = activeOccasions.includes(o);
+              return (
+                <button
+                  key={o}
+                  onClick={() => toggleInList("occasion", o)}
+                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${active ? "bg-sky-500 border-sky-500 text-white" : "border-gray-200 text-gray-600 hover:border-sky-300 hover:text-sky-600"}`}
+                >
+                  {o}
+                </button>
+              );
+            })}
+          </div>
         </Section>
       )}
     </>

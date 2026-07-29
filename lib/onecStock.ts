@@ -42,6 +42,9 @@ export type StockFilters = {
   categoryId?: number
   categoryIds?: number[]
   brand?: string
+  sizeInches?: string
+  shade?: string
+  occasions?: string[]
   minPrice?: number
   maxPrice?: number
   search?: string
@@ -258,6 +261,9 @@ export async function getOnecCategoryBySlug(slug: string): Promise<{ id: number;
 function buildStockWhere(opts: {
   categoryIds?: number[]
   brand?: string
+  sizeInches?: string
+  shade?: string
+  occasions?: string[]
   minPrice?: number
   maxPrice?: number
   search?: string
@@ -265,7 +271,7 @@ function buildStockWhere(opts: {
   isNewPending?: boolean
   onSale?: boolean
 }) {
-  const { categoryIds, brand, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
+  const { categoryIds, brand, sizeInches, shade, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
   return {
     isHidden: false,
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
@@ -273,6 +279,13 @@ function buildStockWhere(opts: {
     ...(onSale ? { onSale: true } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brand ? { brand } : {}),
+    ...(sizeInches ? { sizeInches } : {}),
+    ...(shade ? { shade } : {}),
+    // occasion stores multiple values in one row as "14 Февраля;8 Марта" — match any
+    // selected occasion as a substring rather than an exact equals.
+    ...(occasions && occasions.length > 0
+      ? { OR: occasions.map((o) => ({ occasion: { contains: o, mode: 'insensitive' as const } })) }
+      : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
       : {}),
@@ -292,25 +305,33 @@ function buildStockWhere(opts: {
   }
 }
 
-async function _fetchAllForSmartSort(
-  categoryIds: number[] | null,
-  brand: string | null,
-  minPrice: number | null,
-  maxPrice: number | null,
-  search: string | null,
-  inStockOnly: boolean,
-  isNewPending: boolean,
-  onSale: boolean,
-) {
+type SmartSortKey = {
+  categoryIds: number[] | null
+  brand: string | null
+  sizeInches: string | null
+  shade: string | null
+  occasions: string[] | null
+  minPrice: number | null
+  maxPrice: number | null
+  search: string | null
+  inStockOnly: boolean
+  isNewPending: boolean
+  onSale: boolean
+}
+
+async function _fetchAllForSmartSort(key: SmartSortKey) {
   const where = buildStockWhere({
-    categoryIds: categoryIds ?? undefined,
-    brand: brand ?? undefined,
-    minPrice: minPrice ?? undefined,
-    maxPrice: maxPrice ?? undefined,
-    search: search ?? undefined,
-    inStockOnly,
-    isNewPending,
-    onSale,
+    categoryIds: key.categoryIds ?? undefined,
+    brand: key.brand ?? undefined,
+    sizeInches: key.sizeInches ?? undefined,
+    shade: key.shade ?? undefined,
+    occasions: key.occasions ?? undefined,
+    minPrice: key.minPrice ?? undefined,
+    maxPrice: key.maxPrice ?? undefined,
+    search: key.search ?? undefined,
+    inStockOnly: key.inStockOnly,
+    isNewPending: key.isNewPending,
+    onSale: key.onSale,
   })
   return db.onecStockItem.findMany({
     where,
@@ -329,27 +350,21 @@ const cachedFetchAllForSmartSort = unstable_cache(
 // a fast, plain indexed query; Postgres does it in milliseconds, the cost is
 // payload transfer, not caching). Every category-filtered view is comfortably
 // under the limit and gets the normal 5-minute cache.
-async function fetchAllForSmartSort(
-  categoryIds: number[] | null,
-  brand: string | null,
-  minPrice: number | null,
-  maxPrice: number | null,
-  search: string | null,
-  inStockOnly: boolean,
-  isNewPending: boolean,
-  onSale: boolean,
-) {
-  const isFullyUnfiltered = categoryIds == null && brand == null && minPrice == null && maxPrice == null && search == null && !inStockOnly && !isNewPending && !onSale
+async function fetchAllForSmartSort(key: SmartSortKey) {
+  const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.sizeInches == null && key.shade == null
+    && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
+    && !key.inStockOnly && !key.isNewPending && !key.onSale
   if (isFullyUnfiltered) {
-    return _fetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale)
+    return _fetchAllForSmartSort(key)
   }
-  return cachedFetchAllForSmartSort(categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale)
+  return cachedFetchAllForSmartSort(key)
 }
 
 export async function getStockItems(filters: StockFilters = {}): Promise<{ items: StockCard[]; total: number }> {
   const {
     page = 1, pageSize = 48,
     categoryId, categoryIds: explicitCategoryIds, brand,
+    sizeInches, shade, occasions,
     minPrice, maxPrice, search,
     inStockOnly = false, isNewPending = false, onSale = false, sort = 'smart',
   } = filters
@@ -358,7 +373,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
+  const where = buildStockWhere({ categoryIds, brand, sizeInches, shade, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -367,9 +382,11 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     const isFoilDigit = categoryIds != null && categoryIds.length > 0 && categoryIds.every((id) => flags.foilDigit.has(id))
 
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
-    const allRows = [...(await fetchAllForSmartSort(
-      stableCatIds, brand ?? null, minPrice ?? null, maxPrice ?? null, search ?? null, inStockOnly, isNewPending, onSale,
-    ))]
+    const allRows = [...(await fetchAllForSmartSort({
+      categoryIds: stableCatIds, brand: brand ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
+      occasions: occasions ?? null, minPrice: minPrice ?? null, maxPrice: maxPrice ?? null, search: search ?? null,
+      inStockOnly, isNewPending, onSale,
+    }))]
 
     if (search) {
       const words = search.trim().split(/\s+/).filter(Boolean)
@@ -537,11 +554,31 @@ export const getOnecCategories = unstable_cache(
   { revalidate: 3600, tags: ['categories'] }
 )
 
-export const getOnecBrands = unstable_cache(
-  async (): Promise<string[]> => {
-    const rows = await db.onecStockItem.findMany({ where: { brand: { not: null } }, select: { brand: true }, distinct: ['brand'], orderBy: { brand: 'asc' } })
-    return rows.map((r) => r.brand!).filter(Boolean)
+export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; occasions: string[] }
+
+// Scoped to categoryIds (the active category's own subtree) so e.g. latex-only
+// shades/brands never leak into the foil filter list, and vice versa — this is
+// the "сепарация брендов" separation the sidebar filters rely on. Pass null for
+// the unscoped/whole-catalog view.
+export const getOnecFilterOptions = unstable_cache(
+  async (categoryIds: number[] | null): Promise<FilterOptions> => {
+    const where = { isHidden: false, ...(categoryIds ? { categoryId: { in: categoryIds } } : {}) }
+    const [brandRows, sizeRows, shadeRows, occasionRows] = await Promise.all([
+      db.onecStockItem.findMany({ where: { ...where, brand: { not: null } }, select: { brand: true }, distinct: ['brand'] }),
+      db.onecStockItem.findMany({ where: { ...where, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'] }),
+      db.onecStockItem.findMany({ where: { ...where, shade: { not: null } }, select: { shade: true }, distinct: ['shade'] }),
+      db.onecStockItem.findMany({ where: { ...where, occasion: { not: null } }, select: { occasion: true }, distinct: ['occasion'] }),
+    ])
+    return {
+      brands: brandRows.map((r) => r.brand!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
+      sizes: sizeRows.map((r) => r.sizeInches!).filter(Boolean).sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b, 'ru')),
+      shades: shadeRows.map((r) => r.shade!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
+      // occasion stores multiple values per row as "14 Февраля;8 Марта" — split and
+      // dedupe into individual options.
+      occasions: [...new Set(occasionRows.flatMap((r) => r.occasion!.split(';').map((s) => s.trim()).filter(Boolean)))]
+        .sort((a, b) => a.localeCompare(b, 'ru')),
+    }
   },
-  ['onec-brands'],
+  ['onec-filter-options'],
   { revalidate: 3600, tags: ['filters'] }
 )
