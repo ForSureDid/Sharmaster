@@ -272,36 +272,45 @@ function buildStockWhere(opts: {
   onSale?: boolean
 }) {
   const { categoryIds, brand, sizeInches, shade, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
+
+  // Collected into one shared AND array (rather than each spreading its own top-level
+  // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
+  // — can't collide and silently overwrite each other via duplicate object keys.
+  const andConditions: object[] = []
+  // Same union as lib/onecStock.ts's _getNovinkaItems() (user decision 2026-07-30): every
+  // product with novinka status, not just the donballon-agent isNewPending pipeline.
+  if (isNewPending) andConditions.push({ OR: [{ isNewPending: true }, { isNew: true }] })
+  // occasion stores multiple values in one row as "14 Февраля;8 Марта" — match any
+  // selected occasion as a substring rather than an exact equals.
+  if (occasions && occasions.length > 0) {
+    andConditions.push({ OR: occasions.map((o) => ({ occasion: { contains: o, mode: 'insensitive' as const } })) })
+  }
+  if (search) {
+    andConditions.push(...search.trim().split(/\s+/).filter(Boolean).map((word) => {
+      const variants = [word, ...(WORD_SYNONYMS[word.toLowerCase()] ?? [])]
+      return {
+        OR: variants.flatMap((w) => [
+          { name: { contains: w, mode: 'insensitive' as const } },
+          { brand: { contains: w, mode: 'insensitive' as const } },
+          { article: { contains: w, mode: 'insensitive' as const } },
+          { barcode: { contains: w, mode: 'insensitive' as const } },
+        ]),
+      }
+    }))
+  }
+
   return {
     isHidden: false,
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
-    ...(isNewPending ? { isNewPending: true } : {}),
     ...(onSale ? { onSale: true } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brand ? { brand } : {}),
     ...(sizeInches ? { sizeInches } : {}),
     ...(shade ? { shade } : {}),
-    // occasion stores multiple values in one row as "14 Февраля;8 Марта" — match any
-    // selected occasion as a substring rather than an exact equals.
-    ...(occasions && occasions.length > 0
-      ? { OR: occasions.map((o) => ({ occasion: { contains: o, mode: 'insensitive' as const } })) }
-      : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
       : {}),
-    ...(search ? {
-      AND: search.trim().split(/\s+/).filter(Boolean).map((word) => {
-        const variants = [word, ...(WORD_SYNONYMS[word.toLowerCase()] ?? [])]
-        return {
-          OR: variants.flatMap((w) => [
-            { name: { contains: w, mode: 'insensitive' as const } },
-            { brand: { contains: w, mode: 'insensitive' as const } },
-            { article: { contains: w, mode: 'insensitive' as const } },
-            { barcode: { contains: w, mode: 'insensitive' as const } },
-          ]),
-        }
-      }),
-    } : {}),
+    ...(andConditions.length > 0 ? { AND: andConditions } : {}),
   }
 }
 
@@ -506,20 +515,22 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
 export const getSaleItems = unstable_cache(() => _getSaleItems(8), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
-// Novelties are rows the donballon-novelties agent (.claude/agents/donballon-novelties.md)
-// or an admin inserted ahead of the goods actually arriving — OnecStockItem.isNewPending
-// (migration 20260725020000_add_onec_stockitem_admin_fields), never touched by 1C sync.
-// Deliberately NOT the generic OnecStockItem.isNew flag: that one is also set by the
-// ordinary 1C catalog sync for any brand-new SKU and is never cleared automatically, so
-// filtering on it alone surfaced every "new since sync began" item ever, not just
-// upcoming donballon novelties. When the real product arrives via 1C, applyImportXml's
-// absorbDonballonNovelties() matches it to this row by article and clears isNewPending,
-// so it naturally drops off this tab with no manual cleanup and no duplicate row.
+// Novelties tab shows the union of both novinka signals (user decision 2026-07-30 — every
+// product with "novinka" status should show here, not just the donballon-agent pipeline):
+//   - isNewPending: rows the donballon-novelties agent (.claude/agents/donballon-novelties.md)
+//     or an admin inserted ahead of the goods actually arriving (migration
+//     20260725020000_add_onec_stockitem_admin_fields), never touched by 1C sync.
+//   - isNew: the generic flag the ordinary 1C catalog sync sets on any brand-new SKU
+//     (cleared by admin review, or by applyImportXml's absorbDonballonNovelties() flipping
+//     it true when a pending row's real product arrives — see lib/onecImport.ts).
+// A row can have either flag alone or both; NovinkaGrid/StockContent's `isNewPending &&
+// !isNew` check still tells "still awaiting arrival" apart from "active novinka" within
+// this combined set.
 async function _getNovinkaItems(): Promise<NovinkaCard[]> {
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
-      where: { isNewPending: true, isHidden: false },
+      where: { OR: [{ isNewPending: true }, { isNew: true }], isHidden: false },
       select: SELECT_FIELDS,
       orderBy: [{ createdAt: 'desc' }],
     }),
