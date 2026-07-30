@@ -141,7 +141,9 @@ export async function placeOrder(input: {
   notifyTelegram(order.id, name, ph, addr, resolved.map(({ item, stockRow }) => ({
     item,
     stockRow: stockRow ? { name: stockRow.name, pricePerPc: Number(stockRow.pricePerPc) } : null,
-  })), subtotal, discountPercent, discountAmount, total).catch(() => {})
+  })), subtotal, discountPercent, discountAmount, total).catch((err) => {
+    console.error(`notifyTelegram failed for order #${order.id}:`, err)
+  })
 
   return { ok: true, orderId: order.id }
 }
@@ -182,56 +184,76 @@ async function notifyTelegram(
     ...(discountPercent > 0 ? [`🏷️ Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг): итого ${total.toLocaleString('ru-RU')} тг`] : []),
   ].join('\n')
 
-  // Build Excel
-  const items = resolved.map(({ item, stockRow }) => ({
-    name: item.name,
-    qty: item.qty,
-    price: stockRow ? Number(stockRow.pricePerPc) : 0,
-  }))
+  // Build Excel — kept separate from the Telegram send below so a template/formatting
+  // failure (e.g. missing file, bad cell layout) can't silently swallow the whole
+  // notification. Falls back to a text-only message if this throws.
+  let buffer: Buffer | null = null
+  try {
+    const items = resolved.map(({ item, stockRow }) => ({
+      name: item.name,
+      qty: item.qty,
+      price: stockRow ? Number(stockRow.pricePerPc) : 0,
+    }))
 
-  const workbook = new ExcelJS.Workbook()
-  await workbook.xlsx.readFile(TEMPLATE_PATH)
-  const sheet = workbook.worksheets[0]
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.readFile(TEMPLATE_PATH)
+    const sheet = workbook.worksheets[0]
 
-  sheet.getCell('A1').value = `Заказ покупателя №${orderId}`
-  sheet.getCell('B6').value = `${name}, ${address}. Тел: ${phone}`
+    sheet.getCell('A1').value = `Заказ покупателя №${orderId}`
+    sheet.getCell('B6').value = `${name}, ${address}. Тел: ${phone}`
 
-  const itemCount = items.length
-  if (itemCount > TEMPLATE_ITEM_ROWS) {
-    sheet.duplicateRow(ITEMS_START_ROW + TEMPLATE_ITEM_ROWS - 1, itemCount - TEMPLATE_ITEM_ROWS, true)
+    const itemCount = items.length
+    if (itemCount > TEMPLATE_ITEM_ROWS) {
+      sheet.duplicateRow(ITEMS_START_ROW + TEMPLATE_ITEM_ROWS - 1, itemCount - TEMPLATE_ITEM_ROWS, true)
+    }
+    items.forEach((item, idx) => {
+      const r = ITEMS_START_ROW + idx
+      sheet.getCell(`A${r}`).value = idx + 1
+      sheet.getCell(`B${r}`).value = ''
+      sheet.getCell(`C${r}`).value = item.name
+      sheet.getCell(`D${r}`).value = item.qty
+      sheet.getCell(`E${r}`).value = 'шт'
+      sheet.getCell(`F${r}`).value = item.price
+      sheet.getCell(`G${r}`).value = item.price * item.qty
+    })
+
+    const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
+    sheet.getCell(`G${TOTAL_ROW + shift}`).value = subtotal
+    sheet.getCell(`A${SUMMARY_ROW + shift}`).value = discountPercent > 0
+      ? `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг. Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг). Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`
+      : `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
+    const words = amountInWords(total)
+    sheet.getCell(`A${WORDS_ROW + shift}`).value = words.charAt(0).toUpperCase() + words.slice(1)
+
+    buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+  } catch (err) {
+    console.error(`notifyTelegram: failed to build order Excel for order #${orderId}:`, err)
   }
-  items.forEach((item, idx) => {
-    const r = ITEMS_START_ROW + idx
-    sheet.getCell(`A${r}`).value = idx + 1
-    sheet.getCell(`B${r}`).value = ''
-    sheet.getCell(`C${r}`).value = item.name
-    sheet.getCell(`D${r}`).value = item.qty
-    sheet.getCell(`E${r}`).value = 'шт'
-    sheet.getCell(`F${r}`).value = item.price
-    sheet.getCell(`G${r}`).value = item.price * item.qty
-  })
 
-  const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
-  sheet.getCell(`G${TOTAL_ROW + shift}`).value = subtotal
-  sheet.getCell(`A${SUMMARY_ROW + shift}`).value = discountPercent > 0
-    ? `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг. Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг). Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`
-    : `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
-  const words = amountInWords(total)
-  sheet.getCell(`A${WORDS_ROW + shift}`).value = words.charAt(0).toUpperCase() + words.slice(1)
-
-  const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
-
-  const form = new FormData()
-  form.append('chat_id', chatId)
-  form.append('caption', caption)
-  form.append(
-    'document',
-    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `Заказ-${orderId}.xlsx`,
-  )
-
-  await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-    method: 'POST',
-    body: form,
-  })
+  if (buffer) {
+    const form = new FormData()
+    form.append('chat_id', chatId)
+    form.append('caption', caption)
+    form.append(
+      'document',
+      new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `Заказ-${orderId}.xlsx`,
+    )
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: 'POST',
+      body: form,
+    })
+    if (!res.ok) {
+      console.error(`notifyTelegram: sendDocument failed for order #${orderId}:`, res.status, await res.text())
+    }
+  } else {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: caption }),
+    })
+    if (!res.ok) {
+      console.error(`notifyTelegram: sendMessage fallback failed for order #${orderId}:`, res.status, await res.text())
+    }
+  }
 }
