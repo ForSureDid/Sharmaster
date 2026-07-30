@@ -16,6 +16,7 @@ const BRANDS: Brand[] = [
   { name: "512 Шар", file: "512brand.jpeg", color: "#F97316" },
   { name: "Дон Баллон", file: "donballon.png", color: "#F43F5E", logoMaxHeight: 35 },
   { name: "Anagram", file: "anagram.svg", color: "#A78BFA" },
+  { name: "Забава", file: "zabava.jpeg", color: "#2563EB" },
 ];
 
 function BrandCard({ brand }: { brand: Brand }) {
