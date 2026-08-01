@@ -77,6 +77,42 @@ export function LikesProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, [user, ready]);
 
+  // Ghost-like guard: a product hidden by admin (isHidden=true) never disappears
+  // from likedIds on its own — the hard FK cascade only fires on a real row
+  // delete, and the "remove" button lives on the card itself, which stops
+  // rendering once the item is filtered out of every public read path. Without
+  // this, the id (and the header's like-count badge) is stuck forever with no
+  // way for the user to clear it. Reconcile against live stock once per
+  // distinct id set and drop anything that no longer resolves — same source
+  // /liked already trusts for display.
+  const syncedKeyRef = useRef<string>("");
+  useEffect(() => {
+    if (!ready || likedIds.length === 0) return;
+    const key = [...likedIds].sort((a, b) => a - b).join(",");
+    if (key === syncedKeyRef.current) return;
+    syncedKeyRef.current = key;
+
+    fetch(`/api/stock/cards?ids=${likedIds.join(",")}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { items: Array<{ id: number }> } | null) => {
+        if (!data || !Array.isArray(data.items)) return;
+        const validIds = new Set(data.items.map((i) => i.id));
+        const stale = likedIds.filter((id) => !validIds.has(id));
+        if (stale.length === 0) return;
+        setLikedIds((prev) => prev.filter((id) => !stale.includes(id)));
+        if (user) {
+          stale.forEach((id) => {
+            fetch("/api/likes", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id, liked: false }),
+            }).catch(() => {});
+          });
+        }
+      })
+      .catch(() => {});
+  }, [ready, likedIds, user]);
+
   const isLiked = useCallback((id: number) => likedIds.includes(id), [likedIds]);
 
   const toggleLike = useCallback((id: number) => {
