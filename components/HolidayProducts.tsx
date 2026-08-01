@@ -7,16 +7,16 @@ type Occasion = {
 };
 
 const OCCASIONS: Occasion[] = [
-  { label: "1 Сентября", image: "/occasions/1_sentyabra.png", occasion: "1 Сентября" },
-  { label: "Хэллоуин", image: "/occasions/hellouin.png", occasion: "Хэллоуин" },
-  { label: "День Рождения", image: "/occasions/Birthday.png", occasion: "День Рождения" },
-  { label: "Свадьба", image: "/occasions/svadba.png", occasion: "Свадьба" },
-  { label: "Гендер Пати", image: "/occasions/gender.png", occasion: "Гендер Пати" },
-  { label: "Девичник", image: "/occasions/bride.png", occasion: "Девичник" },
-  { label: "Новый Год", image: "/occasions/new_year.png", occasion: "Новый Год" },
-  { label: "14 Февраля", image: "/occasions/14_fevralya.png", occasion: "14 Февраля" },
-  { label: "8 Марта", image: "/occasions/8_marta.png", occasion: "8 Марта" },
-  { label: "9 Мая", image: "/occasions/9_maya.png", occasion: "9 Мая" },
+  { label: "1 Сентября", image: "/occasions/1_sentyabra.webp", occasion: "1 Сентября" },
+  { label: "Хэллоуин", image: "/occasions/hellouin.webp", occasion: "Хэллоуин" },
+  { label: "День Рождения", image: "/occasions/Birthday.webp", occasion: "День Рождения" },
+  { label: "Свадьба", image: "/occasions/svadba.webp", occasion: "Свадьба" },
+  { label: "Гендер Пати", image: "/occasions/gender.webp", occasion: "Гендер Пати" },
+  { label: "Девичник", image: "/occasions/bride.webp", occasion: "Девичник" },
+  { label: "Новый Год", image: "/occasions/new_year.webp", occasion: "Новый Год" },
+  { label: "14 Февраля", image: "/occasions/14_fevralya.webp", occasion: "14 Февраля" },
+  { label: "8 Марта", image: "/occasions/8_marta.webp", occasion: "8 Марта" },
+  { label: "9 Мая", image: "/occasions/9_maya.webp", occasion: "9 Мая" },
 ];
 
 export default function HolidayProducts() {
