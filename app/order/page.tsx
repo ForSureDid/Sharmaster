@@ -25,7 +25,16 @@ export default function OrderPage() {
         customerName: name,
         phone,
         address,
-        items: items.map(i => ({ id: i.id, qty: i.packSize ? i.qty * i.packSize : i.qty, name: i.name, price: i.salePrice ?? i.price })),
+        // Server prices/decrements stock per piece (see actions.ts) — for balloons
+        // (isBalloon !== false) a pack line's qty must be flattened to raw piece
+        // count. For non-balloon packQty items the price/stock unit IS the pack
+        // itself (packQty there is descriptive only), so qty stays as-is.
+        items: items.map(i => ({
+          id: i.id,
+          qty: i.packSize && i.isBalloon !== false ? i.qty * i.packSize : i.qty,
+          name: i.name,
+          price: i.salePrice ?? i.price,
+        })),
       });
       if (result.ok) {
         clearCart();

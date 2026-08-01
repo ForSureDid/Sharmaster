@@ -12,6 +12,9 @@ export type CartItem = {
   imageUrl: string | null;
   qty: number;
   packSize: number | null;
+  // See ProductCard.isBalloon — carried over as-is from add time since it's a
+  // static category property, not something that needs re-fetching on sync.
+  isBalloon?: boolean;
 };
 
 type CartContextType = {
@@ -86,14 +89,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             return acc;
           }
           const qty = Math.min(item.qty, maxQty);
-          const salePrice = fresh.salePercent ? Math.round(fresh.pricePerPc * (1 - fresh.salePercent / 100)) : null;
+          // Mirrors lib/pack.ts's getDisplayPrice(): a pack line's price is the
+          // per-piece price times the pack size, unless isBalloon is explicitly
+          // false (packQty there is descriptive only — 1C's price already IS the
+          // whole pack/set). Re-deriving pricePerPc alone here (as this used to)
+          // silently dropped the pack multiplier on every background refresh.
+          const unitPrice = item.packSize && item.isBalloon !== false
+            ? fresh.pricePerPc * item.packSize
+            : fresh.pricePerPc;
+          const salePrice = fresh.salePercent ? Math.round(unitPrice * (1 - fresh.salePercent / 100)) : null;
           if (qty < item.qty) {
             notices.push(`Количество «${item.name}» уменьшено до ${qty}${item.packSize ? " уп" : ""} — столько осталось на складе`);
           }
-          if (qty !== item.qty || fresh.pricePerPc !== item.price || salePrice !== item.salePrice || fresh.imageUrl !== item.imageUrl) {
+          if (qty !== item.qty || unitPrice !== item.price || salePrice !== item.salePrice || fresh.imageUrl !== item.imageUrl) {
             changed = true;
           }
-          acc.push({ ...item, qty, price: fresh.pricePerPc, salePrice, imageUrl: fresh.imageUrl });
+          acc.push({ ...item, qty, price: unitPrice, salePrice, imageUrl: fresh.imageUrl });
           return acc;
         }, []);
 
@@ -117,6 +128,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         imageUrl: product.imageUrl,
         qty: initialQty ?? 1,
         packSize,
+        isBalloon: product.isBalloon,
       }];
     });
   }, []);

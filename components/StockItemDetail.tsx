@@ -114,6 +114,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
     colorGroup: null,
     sizeInches: null,
     manufacturer: item.brand,
+    isBalloon: item.isBalloon,
   };
 
   const isPending = item.isNewPending && !inStock;

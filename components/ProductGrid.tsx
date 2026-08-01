@@ -44,6 +44,7 @@ export default function ProductGrid({ items }: Props) {
                 colorGroup: null,
                 sizeInches: null,
                 manufacturer: item.brand,
+                isBalloon: item.isBalloon,
               };
 
               return (

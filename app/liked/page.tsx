@@ -9,6 +9,7 @@ import FloatingCart from "@/components/FloatingCart";
 import { useLikes } from "@/context/LikesContext";
 import { useCart } from "@/context/CartContext";
 import type { StockCard } from "@/lib/onecStock";
+import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
 export default function LikedPage() {
   const { likedIds, removeLike, likedCount, ready } = useLikes();
@@ -71,7 +72,9 @@ export default function LikedPage() {
             <div className="flex flex-col gap-3">
               {likedItems.map((item) => {
                 const cartItem = cartItems.find((i) => i.id === item.id);
-                const price = item.pricePerPc;
+                const packSize = getPackSize(item);
+                const byPiece = isSoldByPiece(item);
+                const price = getDisplayPrice(item);
                 const salePrice = item.salePercent ? Math.round(price * (1 - item.salePercent / 100)) : null;
                 const displayPrice = salePrice ?? price;
                 const asCartProduct = {
@@ -83,6 +86,7 @@ export default function LikedPage() {
                   colorGroup: null,
                   sizeInches: null,
                   manufacturer: item.brand,
+                  isBalloon: item.isBalloon,
                 };
 
                 return (
@@ -137,7 +141,7 @@ export default function LikedPage() {
                           >
                             −
                           </button>
-                          <span className="w-8 text-center text-sm font-bold text-sky-600">{cartItem.qty}</span>
+                          <span className="w-8 text-center text-sm font-bold text-sky-600">{cartItem.qty}{byPiece || !packSize ? "" : " уп"}</span>
                           <button
                             onClick={() => updateQty(item.id, cartItem.qty + 1)}
                             className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
@@ -147,7 +151,7 @@ export default function LikedPage() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => addToCart(asCartProduct)}
+                          onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
                           className="flex-shrink-0 hidden sm:flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

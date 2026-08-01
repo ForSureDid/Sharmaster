@@ -41,6 +41,7 @@ export default function NovinkaGrid({ items, gridClassName }: Props) {
           colorGroup: null,
           sizeInches: null,
           manufacturer: item.brand,
+          isBalloon: item.isBalloon,
         };
         const isPending = item.isNewPending && !item.isNew;
 

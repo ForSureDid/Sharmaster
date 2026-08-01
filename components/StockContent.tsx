@@ -115,6 +115,7 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
     colorGroup: null,
     sizeInches: null,
     manufacturer: item.brand,
+    isBalloon: item.isBalloon,
   };
 
   const isPending = item.isNewPending && !inStock;
@@ -272,6 +273,7 @@ function StockCardList({ item }: { item: StockCard }) {
     colorGroup: null,
     sizeInches: null,
     manufacturer: item.brand,
+    isBalloon: item.isBalloon,
   };
 
   return (

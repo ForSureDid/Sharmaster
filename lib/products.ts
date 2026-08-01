@@ -10,6 +10,10 @@ export type ProductCard = {
   colorGroup: string | null
   sizeInches: string | null
   manufacturer: string | null
+  // Undefined (legacy Product/StockItem-backed cards) behaves like true — see
+  // lib/pack.ts's getDisplayPrice(). Only OnecStockItem-backed cards set this
+  // explicitly, since only they know real category-subtree membership.
+  isBalloon?: boolean
 }
 
 export type ProductFilters = {
