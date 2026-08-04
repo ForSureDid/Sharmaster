@@ -317,14 +317,6 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             </dl>
           </div>
         )}
-
-        {/* Description */}
-        {item.description && (
-          <div>
-            <h2 className="text-sm font-semibold text-gray-600 mb-2">Описание</h2>
-            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{item.description}</p>
-          </div>
-        )}
       </div>
     </div>
   );
