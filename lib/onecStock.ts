@@ -48,6 +48,7 @@ export type StockFilters = {
   brand?: string
   sizeInches?: string
   shade?: string
+  colorGroup?: string
   occasions?: string[]
   minPrice?: number
   maxPrice?: number
@@ -267,6 +268,7 @@ function buildStockWhere(opts: {
   brand?: string
   sizeInches?: string
   shade?: string
+  colorGroup?: string
   occasions?: string[]
   minPrice?: number
   maxPrice?: number
@@ -275,7 +277,7 @@ function buildStockWhere(opts: {
   isNewPending?: boolean
   onSale?: boolean
 }) {
-  const { categoryIds, brand, sizeInches, shade, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
+  const { categoryIds, brand, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
 
   // Collected into one shared AND array (rather than each spreading its own top-level
   // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
@@ -311,6 +313,7 @@ function buildStockWhere(opts: {
     ...(brand ? { brand } : {}),
     ...(sizeInches ? { sizeInches } : {}),
     ...(shade ? { shade } : {}),
+    ...(colorGroup ? { colorGroup } : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
       : {}),
@@ -323,6 +326,7 @@ type SmartSortKey = {
   brand: string | null
   sizeInches: string | null
   shade: string | null
+  colorGroup: string | null
   occasions: string[] | null
   minPrice: number | null
   maxPrice: number | null
@@ -338,6 +342,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     brand: key.brand ?? undefined,
     sizeInches: key.sizeInches ?? undefined,
     shade: key.shade ?? undefined,
+    colorGroup: key.colorGroup ?? undefined,
     occasions: key.occasions ?? undefined,
     minPrice: key.minPrice ?? undefined,
     maxPrice: key.maxPrice ?? undefined,
@@ -365,7 +370,7 @@ const cachedFetchAllForSmartSort = unstable_cache(
 // under the limit and gets the normal 5-minute cache.
 async function fetchAllForSmartSort(key: SmartSortKey) {
   const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.sizeInches == null && key.shade == null
-    && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
+    && key.colorGroup == null && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
     && !key.inStockOnly && !key.isNewPending && !key.onSale
   if (isFullyUnfiltered) {
     return _fetchAllForSmartSort(key)
@@ -377,7 +382,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
   const {
     page = 1, pageSize = 48,
     categoryId, categoryIds: explicitCategoryIds, brand,
-    sizeInches, shade, occasions,
+    sizeInches, shade, colorGroup, occasions,
     minPrice, maxPrice, search,
     inStockOnly = false, isNewPending = false, onSale = false, sort = 'smart',
   } = filters
@@ -386,7 +391,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, sizeInches, shade, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
+  const where = buildStockWhere({ categoryIds, brand, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -397,6 +402,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
     const allRows = [...(await fetchAllForSmartSort({
       categoryIds: stableCatIds, brand: brand ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
+      colorGroup: colorGroup ?? null,
       occasions: occasions ?? null, minPrice: minPrice ?? null, maxPrice: maxPrice ?? null, search: search ?? null,
       inStockOnly, isNewPending, onSale,
     }))]
@@ -584,7 +590,7 @@ export const getOnecCategories = unstable_cache(
   { revalidate: 3600, tags: ['categories'] }
 )
 
-export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; occasions: string[] }
+export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; colors: string[]; occasions: string[] }
 
 // Scoped to categoryIds (the active category's own subtree) so e.g. latex-only
 // shades/brands never leak into the foil filter list, and vice versa — this is
@@ -593,16 +599,18 @@ export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[
 export const getOnecFilterOptions = unstable_cache(
   async (categoryIds: number[] | null): Promise<FilterOptions> => {
     const where = { isHidden: false, ...(categoryIds ? { categoryId: { in: categoryIds } } : {}) }
-    const [brandRows, sizeRows, shadeRows, occasionRows] = await Promise.all([
+    const [brandRows, sizeRows, shadeRows, colorRows, occasionRows] = await Promise.all([
       db.onecStockItem.findMany({ where: { ...where, brand: { not: null } }, select: { brand: true }, distinct: ['brand'] }),
       db.onecStockItem.findMany({ where: { ...where, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'] }),
       db.onecStockItem.findMany({ where: { ...where, shade: { not: null } }, select: { shade: true }, distinct: ['shade'] }),
+      db.onecStockItem.findMany({ where: { ...where, colorGroup: { not: null } }, select: { colorGroup: true }, distinct: ['colorGroup'] }),
       db.onecStockItem.findMany({ where: { ...where, occasion: { not: null } }, select: { occasion: true }, distinct: ['occasion'] }),
     ])
     return {
       brands: brandRows.map((r) => r.brand!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       sizes: sizeRows.map((r) => r.sizeInches!).filter(Boolean).sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b, 'ru')),
       shades: shadeRows.map((r) => r.shade!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
+      colors: colorRows.map((r) => r.colorGroup!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       // occasion stores multiple values per row as "14 Февраля;8 Марта" — split and
       // dedupe into individual options.
       occasions: [...new Set(occasionRows.flatMap((r) => r.occasion!.split(';').map((s) => s.trim()).filter(Boolean)))]

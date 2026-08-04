@@ -14,8 +14,45 @@ type FilterOptions = {
   brands: string[];
   sizes: string[];
   shades: string[];
+  colors: string[];
   occasions: string[];
 };
+
+// OnecStockItem.colorGroup values (Russian color-bucket names from the 1C/donballon
+// feed) -> a representative swatch fill. Plain hex for solid colors; a CSS gradient
+// string for the multi-tone ones (Ассорти/Золото/Серебро/Розовое золото), applied as
+// backgroundImage instead of backgroundColor. Прозрачный gets no fill — just the ring,
+// like a real transparent balloon swatch.
+const COLOR_SWATCHES: Record<string, string> = {
+  "ассорти": "conic-gradient(from 90deg, #f43f5e, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #a855f7, #f43f5e)",
+  "бежевый": "#e8dcc0",
+  "белый": "#ffffff",
+  "бирюзовый": "#40e0d0",
+  "бордовый": "#7b1e2b",
+  "голубой": "#7ec8f2",
+  "желтый": "#fde047",
+  "зеленый": "#22a559",
+  "золото": "linear-gradient(135deg, #f7e199, #d4af37, #f7e199)",
+  "красный": "#e02424",
+  "оранжевый": "#f5901e",
+  "персиковый": "#f3b28c",
+  "прозрачный": "transparent",
+  "розовое золото": "linear-gradient(135deg, #f3c8be, #d19a8f, #f3c8be)",
+  "розовый": "#f7b6cf",
+  "серебро": "linear-gradient(135deg, #f0f0f0, #b8b8b8, #f0f0f0)",
+  "серый": "#9ca3af",
+  "синий": "#1e3fd6",
+  "сиреневый": "#c9a3e8",
+  "фиолетовый": "#6b21c9",
+  "фуше": "#d6247a",
+  "черный": "#1a1a1a",
+  "шоколадный": "#5a3a22",
+};
+
+function colorSwatchStyle(name: string): React.CSSProperties {
+  const fill = COLOR_SWATCHES[name.toLowerCase()] ?? "#d1d5db";
+  return fill.includes("gradient") ? { backgroundImage: fill } : { backgroundColor: fill };
+}
 
 type Props = {
   categories: Category[];
@@ -97,6 +134,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
   const activeBrand = sp.get("brand") ?? "";
   const activeSize = sp.get("size") ?? "";
   const activeShade = sp.get("shade") ?? "";
+  const activeColor = sp.get("color") ?? "";
   const activeOccasions = sp.get("occasion")?.split(",").filter(Boolean) ?? [];
   const minPrice = sp.get("min") ?? "";
   const maxPrice = sp.get("max") ?? "";
@@ -104,7 +142,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
   const novinki = sp.get("novinki") === "1";
   const akcii = sp.get("akcii") === "1";
 
-  const activeCount = [activeCat, activeBrand, activeSize, activeShade, minPrice, maxPrice].filter(Boolean).length
+  const activeCount = [activeCat, activeBrand, activeSize, activeShade, activeColor, minPrice, maxPrice].filter(Boolean).length
     + activeOccasions.length + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0);
 
   // When a category is active, scope the category nav to just that branch (its own
@@ -227,6 +265,33 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
               </li>
             ))}
           </ul>
+        </Section>
+      )}
+
+      {filterOptions.colors.length > 0 && (
+        <Section title="Цвет">
+          <div className="grid grid-cols-4 gap-x-2 gap-y-3 max-h-64 overflow-y-auto pr-1">
+            {filterOptions.colors.map((c) => {
+              const active = activeColor === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => update("color", active ? null : c)}
+                  className="flex flex-col items-center gap-1 group"
+                  title={c}
+                >
+                  <span
+                    className={`w-9 h-9 rounded-full border transition-all ${active ? "ring-2 ring-sky-500 ring-offset-2 border-transparent" : "border-gray-200 group-hover:border-sky-300"}`}
+                    style={colorSwatchStyle(c)}
+                  />
+                  <span className={`text-[10px] leading-tight text-center truncate w-full ${active ? "text-sky-600 font-semibold" : "text-gray-500"}`}>
+                    {c}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </Section>
       )}
 

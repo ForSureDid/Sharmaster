@@ -43,6 +43,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const brand = str(sp.brand);
   const size = str(sp.size);
   const shade = str(sp.shade);
+  const color = str(sp.color);
   const occasionParam = str(sp.occasion);
   const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const minPrice = safeFloat(str(sp.min));
@@ -63,7 +64,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, sizeInches: size, shade, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);
