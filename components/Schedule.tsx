@@ -80,10 +80,21 @@ export default function Schedule() {
                 </a>
               </div>
 
-              {/* Map placeholder */}
-              <div className="h-36 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400 text-sm border border-gray-100">
-                📍 Казахстан — уточните адрес по телефону
+              {/* Map */}
+              <div className="rounded-2xl overflow-hidden border border-gray-100">
+                <iframe
+                  src="https://yandex.ru/map-widget/v1/?ll=71.432100%2C51.107593&z=17&l=map&pt=71.432100%2C51.107593%2Cpm2rdm"
+                  width="100%"
+                  height="220"
+                  frameBorder="0"
+                  loading="lazy"
+                  title="Sharmaster на карте"
+                  className="block"
+                />
               </div>
+              <p className="text-xs text-gray-400">
+                📍 Астана, пр. Мәңгілік Ел, 36 (цокольный этаж)
+              </p>
             </div>
           </div>
         </div>

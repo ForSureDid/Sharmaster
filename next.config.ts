@@ -23,8 +23,9 @@ const csp = [
   "font-src 'self' data:",
   // XHR/fetch/beacon: self, Supabase, and the analytics vendors above
   `connect-src 'self' https://${SUPABASE_HOST} ${GA_GTM_HOSTS} ${YM_HOST} ${META_PIXEL_HOST}`,
-  // GTM's <noscript> fallback embeds an iframe from googletagmanager.com
-  "frame-src https://www.googletagmanager.com",
+  // GTM's <noscript> fallback embeds an iframe from googletagmanager.com;
+  // yandex.ru/yandex.kz for the Yandex Maps location embed on the homepage (Schedule.tsx)
+  "frame-src https://www.googletagmanager.com https://yandex.ru https://yandex.kz",
   // Prevent <base> tag injection (redirects all relative URLs to attacker domain)
   "base-uri 'self'",
   // Prevent forms from being submitted to external sites
