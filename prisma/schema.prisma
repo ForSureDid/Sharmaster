@@ -235,6 +235,8 @@ model OnecStockItem {
   lengthMm        Int?     // Длина (мм)
   widthMm         Int?     // Ширина (мм)
   heightMm        Int?     // Высота (мм)
+  baseUnit        String?  // Базовая единица — donballon xlsx export ("шт"/"упак"), hand-curated, never touched by lib/onecImport.ts sync
+  weightGrams     Int?     // Вес (грамм) — donballon xlsx export, same as above
   onSale          Boolean  @default(false) // manual storefront discount toggle, backfilled from StockItem — never set by 1C sync
   salePercent     Int?
   isNewPending    Boolean  @default(false) // "Ожидайте поступления" — pre-arrival novelty (admin-created or donballon-novelties agent), never touched by 1C sync

@@ -257,7 +257,8 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
                     type="radio"
                     name="size"
                     checked={activeSize === s}
-                    onChange={() => update("size", activeSize === s ? null : s)}
+                    readOnly
+                    onClick={() => update("size", activeSize === s ? null : s)}
                     className="w-3.5 h-3.5 accent-sky-500"
                   />
                   {s}
@@ -305,7 +306,8 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
                     type="radio"
                     name="shade"
                     checked={activeShade === s}
-                    onChange={() => update("shade", activeShade === s ? null : s)}
+                    readOnly
+                    onClick={() => update("shade", activeShade === s ? null : s)}
                     className="w-3.5 h-3.5 accent-sky-500"
                   />
                   {s}
@@ -346,7 +348,8 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
                     type="radio"
                     name="brand"
                     checked={activeBrand === b}
-                    onChange={() => update("brand", activeBrand === b ? null : b)}
+                    readOnly
+                    onClick={() => update("brand", activeBrand === b ? null : b)}
                     className="w-3.5 h-3.5 accent-sky-500"
                   />
                   {b}

@@ -14,6 +14,19 @@ function formatCm(mm: number): string {
   return Number.isInteger(cm) ? String(cm) : cm.toFixed(1);
 }
 
+// grams -> g/kg for display, e.g. 3530 -> "3.53 кг", 150 -> "150 г".
+function formatWeight(g: number): string {
+  if (g < 1000) return `${g} г`;
+  const kg = g / 1000;
+  return `${Number.isInteger(kg) ? kg : kg.toFixed(2)} кг`;
+}
+
+// occasion/color store multiple values in one field, e.g. "14 Февраля;8 Марта"
+// or "Голубой;Прозрачный".
+function formatMultiValue(raw: string): string {
+  return raw.split(";").map((s) => s.trim()).filter(Boolean).join(", ");
+}
+
 function Gallery({ images, name }: { images: string[]; name: string }) {
   const [active, setActive] = useState(0);
 
@@ -266,7 +279,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         </div>
 
         {/* Details table */}
-        {(item.article || item.barcode || item.material || item.sizeInches || item.model || packSize || dimensions) && (
+        {(item.article || item.barcode || item.material || item.sizeInches || item.model || packSize || dimensions || item.occasion || item.color || item.shade || item.weightGrams) && (
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-600">Характеристики</h2>
@@ -290,6 +303,24 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                   <dd className="text-sm font-medium text-gray-700">{item.sizeInches}"</dd>
                 </div>
               )}
+              {item.color && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Цвет</dt>
+                  <dd className="text-sm font-medium text-gray-700">{formatMultiValue(item.color)}</dd>
+                </div>
+              )}
+              {item.shade && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Оттенок</dt>
+                  <dd className="text-sm font-medium text-gray-700">{item.shade}</dd>
+                </div>
+              )}
+              {item.occasion && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Праздник</dt>
+                  <dd className="text-sm font-medium text-gray-700">{formatMultiValue(item.occasion)}</dd>
+                </div>
+              )}
               {item.model && (
                 <div className="flex px-4 py-2.5 gap-4">
                   <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Модель</dt>
@@ -306,6 +337,12 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                 <div className="flex px-4 py-2.5 gap-4">
                   <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Габариты</dt>
                   <dd className="text-sm font-medium text-gray-700">{dimensions}</dd>
+                </div>
+              )}
+              {item.weightGrams && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Вес</dt>
+                  <dd className="text-sm font-medium text-gray-700">{formatWeight(item.weightGrams)}</dd>
                 </div>
               )}
               {item.barcode && (

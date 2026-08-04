@@ -317,6 +317,14 @@ async function upsertProductChunk(
   // sends Изготовитель, so it's backfilled from donballon's YML feed instead
   // (scripts/backfill-onec-brand-from-donballon.ts) — still set on INSERT (from 1C,
   // usually null) but no longer overwritten on UPDATE so the backfill survives sync.
+  // occasion/shade/color/colorGroup/lengthMm/widthMm/heightMm (migration
+  // 20260728000000_add_onec_stockitem_characteristics) and baseUnit/weightGrams
+  // (migration 20260804000000_add_onec_stockitem_baseunit_weight) are the same
+  // pattern again: Donballon.xlsx-sourced, hand-curated, backfilled by
+  // scripts/backfill-onec-characteristics-from-donballon.ts and
+  // scripts/backfill-onec-baseunit-weight-size-from-donballon.ts respectively —
+  // absent from both this INSERT's column list and its ON CONFLICT DO UPDATE SET
+  // clause, so a future 1C sync can never clobber them.
   const result = await db.$queryRaw<{ id: number; onecId: string; inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
       ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "categoryId", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")

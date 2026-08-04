@@ -38,6 +38,10 @@ export type StockDetail = StockCard & {
   lengthMm: number | null
   widthMm: number | null
   heightMm: number | null
+  occasion: string | null
+  color: string | null
+  shade: string | null
+  weightGrams: number | null
 }
 
 export type NovinkaCard = StockCard & { isNew: boolean; isNewPending: boolean }
@@ -474,6 +478,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 const DETAIL_ONLY_FIELDS = {
   article: true, barcode: true, isHidden: true,
   description: true, lengthMm: true, widthMm: true, heightMm: true,
+  occasion: true, color: true, shade: true, weightGrams: true,
 } as const
 
 async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
@@ -492,6 +497,7 @@ async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
     ...toCard(item, flags.latex, flags.foil),
     article: item.article, barcode: item.barcode,
     description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
+    occasion: item.occasion, color: item.color, shade: item.shade, weightGrams: item.weightGrams,
   }
 }
 
@@ -515,6 +521,7 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     ...toCard(item, flags.latex, flags.foil),
     article: item.article, barcode: item.barcode,
     description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
+    occasion: item.occasion, color: item.color, shade: item.shade, weightGrams: item.weightGrams,
   }
 }
 
