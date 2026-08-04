@@ -83,7 +83,7 @@ export default function Schedule() {
               {/* Map */}
               <div className="rounded-2xl overflow-hidden border border-gray-100">
                 <iframe
-                  src="https://yandex.ru/map-widget/v1/?ll=71.432100%2C51.107593&z=17&l=map&pt=71.432100%2C51.107593%2Cpm2rdm"
+                  src="https://yandex.ru/map-widget/v1/?ll=71.432683%2C51.106016&z=17&l=map&pt=71.432683%2C51.106016%2Cpm2rdm"
                   width="100%"
                   height="220"
                   frameBorder="0"
