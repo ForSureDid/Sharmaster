@@ -34,6 +34,10 @@ export type StockCard = {
 export type StockDetail = StockCard & {
   article: string | null
   barcode: string | null
+  description: string | null
+  lengthMm: number | null
+  widthMm: number | null
+  heightMm: number | null
 }
 
 export type NovinkaCard = StockCard & { isNew: boolean; isNewPending: boolean }
@@ -459,19 +463,30 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
   return { items: rawItems.map((i) => toCard(i, flags.latex, flags.foil)), total }
 }
 
+// Detail-only fields (description, dimensions) — kept off SELECT_FIELDS since
+// list/card queries never render them and shouldn't pay for the extra columns.
+const DETAIL_ONLY_FIELDS = {
+  article: true, barcode: true, isHidden: true,
+  description: true, lengthMm: true, widthMm: true, heightMm: true,
+} as const
+
 async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
   const [flags, item] = await Promise.all([
     resolveCategoryFlags(),
     db.onecStockItem.findUnique({
       where: { slug },
-      select: { ...SELECT_FIELDS, article: true, barcode: true, isHidden: true },
+      select: { ...SELECT_FIELDS, ...DETAIL_ONLY_FIELDS },
     }),
   ])
   // A hidden row (admin permanently unwanted, e.g. a duplicate/unwanted 1C offer
   // variant) must 404 the same as a genuinely missing item — a direct link should
   // stop resolving, not just drop out of listings.
   if (!item || item.isHidden) return null
-  return { ...toCard(item, flags.latex, flags.foil), article: item.article, barcode: item.barcode }
+  return {
+    ...toCard(item, flags.latex, flags.foil),
+    article: item.article, barcode: item.barcode,
+    description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
+  }
 }
 
 export const getStockItemBySlug = unstable_cache(
@@ -485,12 +500,16 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
     resolveCategoryFlags(),
     db.onecStockItem.findUnique({
       where: { id },
-      select: { ...SELECT_FIELDS, article: true, barcode: true, isHidden: true },
+      select: { ...SELECT_FIELDS, ...DETAIL_ONLY_FIELDS },
     }),
   ])
   // Same 404-not-just-delisted treatment as _getStockItemBySlug above.
   if (!item || item.isHidden) return null
-  return { ...toCard(item, flags.latex, flags.foil), article: item.article, barcode: item.barcode }
+  return {
+    ...toCard(item, flags.latex, flags.foil),
+    article: item.article, barcode: item.barcode,
+    description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
+  }
 }
 
 export const getStockItemById = unstable_cache(

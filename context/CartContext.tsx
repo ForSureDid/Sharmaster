@@ -82,7 +82,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             changed = true;
             return acc;
           }
-          const maxQty = item.packSize ? Math.floor(fresh.stock / item.packSize) : fresh.stock;
+          // Mirrors app/order/page.tsx's checkout mapping and lib/pack.ts's
+          // getDisplayPrice(): only for actual balloons is `stock` tracked in raw
+          // pieces (divide by packSize to get sellable packs). For every other
+          // packQty category (перья, шпажки, свечи, топперы, etc.) 1C's stock
+          // number already IS the pack/set count — dividing again undercounts it
+          // to zero for any realistic on-hand quantity.
+          const maxQty = item.packSize && item.isBalloon !== false
+            ? Math.floor(fresh.stock / item.packSize)
+            : fresh.stock;
           if (maxQty <= 0) {
             notices.push(`«${item.name}» закончился на складе и был убран из корзины`);
             changed = true;

@@ -8,6 +8,12 @@ import { useLikes } from "@/context/LikesContext";
 import type { StockDetail } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
+// mm (1C's unit) -> cm for display, e.g. 160 -> "16", 5 -> "0.5".
+function formatCm(mm: number): string {
+  const cm = mm / 10;
+  return Number.isInteger(cm) ? String(cm) : cm.toFixed(1);
+}
+
 function Gallery({ images, name }: { images: string[]; name: string }) {
   const [active, setActive] = useState(0);
 
@@ -98,6 +104,9 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
+  const dimensions = item.lengthMm && item.widthMm && item.heightMm
+    ? `${formatCm(item.lengthMm)}×${formatCm(item.widthMm)}×${formatCm(item.heightMm)} см`
+    : null;
   const basePrice = getDisplayPrice(item);
   const salePrice = item.onSale && item.salePercent
     ? Math.round(basePrice * (1 - item.salePercent / 100))
@@ -257,7 +266,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         </div>
 
         {/* Details table */}
-        {(item.article || item.barcode || item.material || item.sizeInches || item.model || packSize) && (
+        {(item.article || item.barcode || item.material || item.sizeInches || item.model || packSize || dimensions) && (
           <div className="border border-gray-100 rounded-2xl overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-600">Характеристики</h2>
@@ -293,6 +302,12 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                   <dd className="text-sm font-medium text-gray-700">{packSize} шт</dd>
                 </div>
               )}
+              {dimensions && (
+                <div className="flex px-4 py-2.5 gap-4">
+                  <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Габариты</dt>
+                  <dd className="text-sm font-medium text-gray-700">{dimensions}</dd>
+                </div>
+              )}
               {item.barcode && (
                 <div className="flex px-4 py-2.5 gap-4">
                   <dt className="text-xs text-gray-400 w-28 flex-shrink-0 pt-0.5">Штрихкод</dt>
@@ -300,6 +315,14 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                 </div>
               )}
             </dl>
+          </div>
+        )}
+
+        {/* Description */}
+        {item.description && (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-600 mb-2">Описание</h2>
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{item.description}</p>
           </div>
         )}
       </div>
