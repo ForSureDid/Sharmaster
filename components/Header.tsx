@@ -285,8 +285,15 @@ export default function Header() {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50" ref={catalogRef}>
-      {/* Utility bar */}
-      <div className="bg-gray-100 border-b border-gray-200">
+      {/* Utility bar — hidden below sm: every column here was already gated to
+          sm/md except the phone+socials one, which had no breakpoint at all.
+          On a real phone width that squeezed it into the grid's 3rd column
+          (the other two collapse to nothing but grid-cols-3 still reserves
+          their space), wrapping "+7 776 951 0282" onto a 2nd line that the
+          bar's fixed h-8 then clipped. Hiding the whole bar below sm is the
+          same treatment its own siblings already got; the phone number stays
+          reachable via the mobile menu below. */}
+      <div className="hidden sm:block bg-gray-100 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 items-center h-8 text-xs text-gray-500">
           <div className="hidden sm:flex items-center gap-4 justify-self-start">
             <a href="/delivery" className="hover:text-gray-800 transition-colors">Доставка и оплата</a>
@@ -659,6 +666,15 @@ export default function Header() {
               {likedCount > 0 && (
                 <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{likedCount}</span>
               )}
+            </a>
+            <a href="/helium"
+              className="px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-sky-50 hover:text-sky-600 border-b border-gray-100 transition-colors flex items-center gap-2"
+              onClick={() => setMenuOpen(false)}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-2.5-3-6-3-6-3s0 3.5 3 6l3 3 3-3c3-2.5 3-6 3-6s-3.5 0-6 3z" />
+                <line x1="12" y1="14" x2="12" y2="22" />
+              </svg>
+              Расход гелия
             </a>
             {categories.map((cat) => (
               <div key={cat.id}>
