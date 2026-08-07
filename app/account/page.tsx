@@ -23,7 +23,7 @@ const statusColor: Record<string, string> = {
   "Принят":         "bg-yellow-100 text-yellow-700",
   "Обрабатывается": "bg-sky-100 text-sky-700",
   "В пути":         "bg-blue-100 text-blue-700",
-  "Доставлен":      "bg-green-100 text-green-700",
+  "Отгружен":       "bg-green-100 text-green-700",
   "Отменён":        "bg-red-100 text-red-700",
 };
 
@@ -110,7 +110,7 @@ export default function AccountPage() {
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 p-3 sm:p-4 text-center">
               <p className="text-xl sm:text-2xl font-extrabold text-green-500">
-                {orders.filter(o => o.status === "Доставлен").length}
+                {orders.filter(o => o.status === "Отгружен").length}
               </p>
               <p className="text-xs text-gray-400 mt-1">Выполнено</p>
             </div>

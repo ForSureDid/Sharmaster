@@ -67,13 +67,13 @@ type StockItem = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ORDER_STATUSES = ["Принят", "Обрабатывается", "В пути", "Доставлен", "Отменён"];
+const ORDER_STATUSES = ["Принят", "Обрабатывается", "В пути", "Отгружен", "Отменён"];
 
 const STATUS_COLOR: Record<string, string> = {
   "Принят":         "bg-yellow-100 text-yellow-700",
   "Обрабатывается": "bg-sky-100 text-sky-700",
   "В пути":         "bg-blue-100 text-blue-700",
-  "Доставлен":      "bg-green-100 text-green-700",
+  "Отгружен":       "bg-green-100 text-green-700",
   "Отменён":        "bg-red-100 text-red-700",
 };
 

@@ -46,7 +46,7 @@ export async function getAllOrders() {
 
 export async function updateOrderStatus(orderId: number, status: string) {
   await requireAdmin()
-  const VALID_STATUSES = ['Принят', 'Обрабатывается', 'В пути', 'Доставлен', 'Отменён']
+  const VALID_STATUSES = ['Принят', 'Обрабатывается', 'В пути', 'Отгружен', 'Отменён']
   if (!VALID_STATUSES.includes(status)) throw new Error('Invalid status')
   await db.order.update({ where: { id: orderId }, data: { status } })
   revalidatePath('/admin')

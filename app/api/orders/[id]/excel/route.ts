@@ -41,7 +41,11 @@ export async function GET(
 
   // Same rule as getMyOrders: own by userId, or by phone only for legacy
   // orders with no userId — prevents cross-user leakage via shared phones.
+  // Admins bypass ownership entirely — this route also backs the admin
+  // panel's per-order "Скачать Excel" button, which needs every order,
+  // not just ones the admin happens to have placed themselves.
   const owns =
+    session.role === 'admin' ||
     order.userId === session.userId ||
     (order.userId === null && !!session.phone && order.phone === session.phone)
   if (!owns) return new NextResponse('Forbidden', { status: 403 })
