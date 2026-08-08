@@ -40,10 +40,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const expandedCategoryIds = multiCatRoots && multiCatRoots.length > 0
     ? (await Promise.all(multiCatRoots.map(r => getDescendantCategoryIds(r.id)))).flat()
     : undefined;
-  const brandParam = str(sp.brand);
-  const brandList = brandParam ? brandParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
-  const brand = brandList && brandList.length === 1 ? brandList[0] : undefined;
-  const brands = brandList && brandList.length > 1 ? brandList : undefined;
+  const brand = str(sp.brand);
   const size = str(sp.size);
   const shade = str(sp.shade);
   const color = str(sp.color);
@@ -67,7 +64,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);

@@ -50,7 +50,6 @@ export type StockFilters = {
   categoryId?: number
   categoryIds?: number[]
   brand?: string
-  brands?: string[]
   sizeInches?: string
   shade?: string
   colorGroup?: string
@@ -271,7 +270,6 @@ export async function getOnecCategoryBySlug(slug: string): Promise<{ id: number;
 function buildStockWhere(opts: {
   categoryIds?: number[]
   brand?: string
-  brands?: string[]
   sizeInches?: string
   shade?: string
   colorGroup?: string
@@ -283,7 +281,7 @@ function buildStockWhere(opts: {
   isNewPending?: boolean
   onSale?: boolean
 }) {
-  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
+  const { categoryIds, brand, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
 
   // Collected into one shared AND array (rather than each spreading its own top-level
   // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
@@ -316,7 +314,7 @@ function buildStockWhere(opts: {
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
     ...(onSale ? { onSale: true } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
-    ...(brands && brands.length > 0 ? { brand: { in: brands } } : brand ? { brand } : {}),
+    ...(brand ? { brand } : {}),
     ...(sizeInches ? { sizeInches } : {}),
     ...(shade ? { shade } : {}),
     ...(colorGroup ? { colorGroup } : {}),
@@ -330,7 +328,6 @@ function buildStockWhere(opts: {
 type SmartSortKey = {
   categoryIds: number[] | null
   brand: string | null
-  brands: string[] | null
   sizeInches: string | null
   shade: string | null
   colorGroup: string | null
@@ -347,7 +344,6 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
   const where = buildStockWhere({
     categoryIds: key.categoryIds ?? undefined,
     brand: key.brand ?? undefined,
-    brands: key.brands ?? undefined,
     sizeInches: key.sizeInches ?? undefined,
     shade: key.shade ?? undefined,
     colorGroup: key.colorGroup ?? undefined,
@@ -377,7 +373,7 @@ const cachedFetchAllForSmartSort = unstable_cache(
 // payload transfer, not caching). Every category-filtered view is comfortably
 // under the limit and gets the normal 5-minute cache.
 async function fetchAllForSmartSort(key: SmartSortKey) {
-  const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.brands == null && key.sizeInches == null && key.shade == null
+  const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.sizeInches == null && key.shade == null
     && key.colorGroup == null && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
     && !key.inStockOnly && !key.isNewPending && !key.onSale
   if (isFullyUnfiltered) {
@@ -389,7 +385,7 @@ async function fetchAllForSmartSort(key: SmartSortKey) {
 export async function getStockItems(filters: StockFilters = {}): Promise<{ items: StockCard[]; total: number }> {
   const {
     page = 1, pageSize = 48,
-    categoryId, categoryIds: explicitCategoryIds, brand, brands,
+    categoryId, categoryIds: explicitCategoryIds, brand,
     sizeInches, shade, colorGroup, occasions,
     minPrice, maxPrice, search,
     inStockOnly = false, isNewPending = false, onSale = false, sort = 'smart',
@@ -399,7 +395,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
+  const where = buildStockWhere({ categoryIds, brand, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -409,7 +405,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
     const allRows = [...(await fetchAllForSmartSort({
-      categoryIds: stableCatIds, brand: brand ?? null, brands: brands ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
+      categoryIds: stableCatIds, brand: brand ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
       colorGroup: colorGroup ?? null,
       occasions: occasions ?? null, minPrice: minPrice ?? null, maxPrice: maxPrice ?? null, search: search ?? null,
       inStockOnly, isNewPending, onSale,
