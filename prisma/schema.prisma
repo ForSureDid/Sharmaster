@@ -128,6 +128,13 @@ model User {
   sessions  Session[]
   likes     Like[]
 
+  // Server-side mirror of the localStorage cart, synced only for logged-in
+  // users — survives a cleared browser/new device, and lets admin see what's
+  // sitting in a customer's cart. Null/empty until they add something while
+  // logged in. Shape: CartItem[] from context/CartContext.tsx.
+  cart      Json?
+  cartUpdatedAt DateTime?
+
   @@index([email])
 }
 

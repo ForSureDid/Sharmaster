@@ -44,6 +44,28 @@ export async function getAllOrders() {
   })
 }
 
+// Server-side cart mirror is only kept for logged-in users (see app/cart/actions.ts /
+// User.cart) — guest carts stay localStorage-only and aren't visible here.
+export async function getUserCarts() {
+  await requireAdmin()
+  const users = await db.user.findMany({
+    where: { cartUpdatedAt: { not: null } },
+    select: { id: true, name: true, email: true, phone: true, cart: true, cartUpdatedAt: true },
+    orderBy: { cartUpdatedAt: 'desc' },
+  })
+  type CartItem = { id: number; name: string; qty: number; price: number; salePrice: number | null }
+  return users
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      cartUpdatedAt: u.cartUpdatedAt!,
+      items: (Array.isArray(u.cart) ? (u.cart as unknown as CartItem[]) : []),
+    }))
+    .filter((u) => u.items.length > 0)
+}
+
 export async function updateOrderStatus(orderId: number, status: string) {
   await requireAdmin()
   const VALID_STATUSES = ['Принят', 'Обрабатывается', 'В пути', 'Отгружен', 'Отменён']

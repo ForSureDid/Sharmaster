@@ -28,6 +28,7 @@ import {
   getSyncStatus,
   getOnecCategoryTree,
   getOnecItemsByCategory,
+  getUserCarts,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -435,6 +436,87 @@ type SearchResult = {
   id: number; name: string; article: string | null; brand: string | null;
   pricePerPc: number; onSale: boolean; salePercent: number | null;
 };
+
+type UserCart = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  cartUpdatedAt: Date | string;
+  items: { id: number; name: string; qty: number; price: number; salePrice: number | null }[];
+};
+
+function CartsTab() {
+  const [carts, setCarts]   = useState<UserCart[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    getUserCarts().then((c) => setCarts(c as UserCart[])).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="flex justify-center py-16">
+      <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+        <h2 className="font-bold text-gray-800">Корзины покупателей</h2>
+        <p className="text-xs text-gray-400 mt-0.5">Только у вошедших в аккаунт — гостевые корзины хранятся в браузере и здесь не видны.</p>
+      </div>
+      {!carts || carts.length === 0 ? (
+        <div className="px-6 py-10 text-center text-sm text-gray-400">Пока ни у кого нет непустой корзины</div>
+      ) : (
+        <div className="divide-y divide-gray-50">
+          {carts.map((c) => {
+            const total = c.items.reduce((s, i) => s + (i.salePrice ?? i.price) * i.qty, 0);
+            const itemCount = c.items.reduce((s, i) => s + i.qty, 0);
+            const isOpen = expandedId === c.id;
+            return (
+              <div key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(isOpen ? null : c.id)}
+                  className="w-full flex flex-wrap items-start justify-between gap-2 px-4 sm:px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start gap-2">
+                    <svg
+                      className={`w-4 h-4 flex-shrink-0 mt-0.5 text-gray-400 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">
+                        {c.name} <span className="text-xs text-gray-400 font-normal">({c.email}{c.phone ? `, ${c.phone}` : ""})</span>
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {itemCount} {itemCount === 1 ? "товар" : "товара"} · обновлено {fmtDate(c.cartUpdatedAt)}, {fmtTime(c.cartUpdatedAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-gray-800">{total.toLocaleString("ru-RU")} ₸</p>
+                </button>
+                {isOpen && (
+                  <ul className="px-4 sm:px-6 pb-4 pl-11 space-y-0.5">
+                    {c.items.map((item) => (
+                      <li key={item.id} className="text-xs text-gray-500">
+                        {item.name} × {item.qty} — {((item.salePrice ?? item.price) * item.qty).toLocaleString("ru-RU")} ₸
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SaleTab() {
   const [search, setSearch]         = useState("");
@@ -1936,7 +2018,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "stock" | "arrivals" | "sale" | "export" | "new" | "onec" | "onecTree">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "carts" | "stock" | "arrivals" | "sale" | "export" | "new" | "onec" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2045,7 +2127,7 @@ export default function AdminPage() {
 
               {/* Mobile tab bar (hidden on lg+) */}
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
-                {([ ["orders","Заказы","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
+                {([ ["orders","Заказы","sky"], ["carts","Корзины","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
                     ["sale","Акции","purple"], ["export","Экспорт","sky"],
                     ["new","+ Товар","sky"], ["onec","Синхр. 1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
@@ -2207,6 +2289,9 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* ─── Carts tab ─── */}
+          {activeTab === "carts" && <CartsTab />}
+
           {/* ─── Stock tab ─── */}
           {activeTab === "stock" && <StockTab />}
 
@@ -2248,6 +2333,11 @@ export default function AdminPage() {
                       {pendingOrders.length}
                     </span>
                   )}
+                </button>
+
+                <button onClick={() => setActiveTab("carts")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "carts" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  Корзины
                 </button>
 
                 <button onClick={() => setActiveTab("stock")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "stock" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>

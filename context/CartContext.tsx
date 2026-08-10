@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ProductCard } from "@/lib/products";
 import { getOneTimeDiscountPercent } from "@/lib/discounts";
+import { useAuth } from "@/context/AuthContext";
+import { saveCart, loadCart } from "@/app/cart/actions";
 
 export type CartItem = {
   id: number;
@@ -41,6 +43,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const [syncNotices, setSyncNotices] = useState<string[]>([]);
   const syncedKeyRef = useRef<string>("");
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
     const stored = localStorage.getItem("sharmaster_cart");
@@ -52,6 +55,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!loaded) return;
     localStorage.setItem("sharmaster_cart", JSON.stringify(items));
   }, [items, loaded]);
+
+  // Server-side cart mirror (logged-in users only, see app/cart/actions.ts) —
+  // survives a cleared browser or a new device, and gives admin visibility
+  // into what's in a customer's cart. On login, the server cart only wins if
+  // the local one is empty (simple last-write-wins, not a true merge).
+  // `serverLoadDone` gates the save effect below so it can't fire — and
+  // overwrite the just-fetched server cart with a stale empty array — before
+  // the load for this login has actually resolved.
+  const [serverLoadDone, setServerLoadDone] = useState(false);
+  const loadedForEmailRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!loaded || authLoading) return;
+    if (!user) { setServerLoadDone(true); return; }
+    if (loadedForEmailRef.current === user.email) return;
+    loadedForEmailRef.current = user.email;
+    setServerLoadDone(false);
+    loadCart()
+      .then((serverItems) => {
+        if (serverItems && serverItems.length > 0) {
+          setItems((prev) => (prev.length === 0 ? serverItems : prev));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setServerLoadDone(true));
+  }, [loaded, authLoading, user]);
+
+  useEffect(() => {
+    if (!loaded || authLoading || !user || !serverLoadDone) return;
+    const timer = setTimeout(() => {
+      saveCart(items).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [items, loaded, authLoading, user, serverLoadDone]);
 
   // Ghost-item guard: a localStorage snapshot goes stale the moment a product is
   // deleted/hidden or sells out — without this, the stale row sits in the cart
