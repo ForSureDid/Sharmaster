@@ -42,6 +42,12 @@ const SLIDES: Slide[] = [
     image: `/banners/banner-4-sempertex.png?v=${IMG_VERSION}`,
     alt: "Sempertex — The World's Best Balloons",
   },
+  {
+    key: "512",
+    href: `/catalog?brand=${encodeURIComponent("512")}`,
+    image: `/banners/banner-5-512.png?v=${IMG_VERSION}`,
+    alt: "512 Шар — универсальный шар и полимерный гель для обработки",
+  },
 ];
 
 const SWIPE_THRESHOLD_PX = 40;
