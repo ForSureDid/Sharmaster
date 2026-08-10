@@ -294,7 +294,7 @@ export default function Header() {
           same treatment its own siblings already got; the phone number stays
           reachable via the mobile menu below. */}
       <div className="hidden sm:block bg-gray-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 items-center h-8 text-xs text-gray-500">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-3 items-center h-8 text-xs text-gray-500">
           <div className="hidden sm:flex items-center gap-4 justify-self-start">
             <a href="/delivery" className="hover:text-gray-800 transition-colors">Доставка и оплата</a>
             <a href="/discounts" className="hover:text-gray-800 transition-colors">Скидки</a>
@@ -328,7 +328,7 @@ export default function Header() {
 
       {/* Main bar: Logo + Catalog btn + Search + Icons */}
       <div className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-3 h-14">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-3 h-14">
           {/* Logo */}
           <a href="/" className="flex-shrink-0">
             <Image src="/logo-header.png" alt="Sharmaster" width={320} height={96} className="h-8 sm:h-11 w-auto" priority />
@@ -512,7 +512,7 @@ export default function Header() {
       {/* ── Mega-menu dropdown ── */}
       {catalogOpen && categories.length > 0 && (
         <div className="hidden md:block absolute left-0 right-0 top-full bg-white shadow-2xl border-t border-gray-100 z-40">
-          <div className="max-w-7xl mx-auto flex" style={{ minHeight: 320 }}>
+          <div className="max-w-[90rem] mx-auto flex" style={{ minHeight: 320 }}>
             {/* Left column — L1 categories */}
             <div className="w-60 flex-shrink-0 bg-gray-50 border-r border-gray-100 py-2">
               {categories.map((cat) => (

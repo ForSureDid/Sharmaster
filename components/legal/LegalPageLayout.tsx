@@ -30,7 +30,7 @@ export default function LegalPageLayout({
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-1.5 text-xs text-gray-400">
               <Link href="/" className="hover:text-sky-500 transition-colors">Главная</Link>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,7 +41,7 @@ export default function LegalPageLayout({
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
           <article className="legal-content mx-auto max-w-[760px] bg-white rounded-3xl border border-gray-100 p-6 sm:p-10">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
               {markdown}

@@ -23,7 +23,7 @@ export default async function NovinkaPage() {
       <main className="pt-[88px] min-h-screen bg-gray-50">
         {/* Breadcrumb */}
         <div className="bg-white border-b border-gray-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-1.5 text-xs text-gray-400">
               <a href="/" className="hover:text-sky-500 transition-colors">Главная</a>
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -34,7 +34,7 @@ export default async function NovinkaPage() {
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Header */}
           <div className="flex flex-wrap items-baseline gap-3 mb-2">
             <h1 className="text-xl font-bold text-gray-800">Новинки</h1>

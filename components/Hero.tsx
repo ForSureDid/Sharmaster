@@ -1,63 +1,148 @@
+"use client";
+
+import { useRef, useState } from "react";
 import Image from "next/image";
 
+type Slide = {
+  key: string;
+  href: string;
+  image: string;
+  alt: string;
+};
+
+// Banner artwork is final, pre-designed (see "All the Files with material
+// here/1.png..4.png") — this component only handles the slider mechanics
+// (slides, arrows, dots, links), not the visual design of each banner.
+// `v=` cache-busts the static /public asset so a re-uploaded banner with the
+// same filename doesn't keep serving a stale cached copy — bump it whenever
+// any of these images is replaced.
+const IMG_VERSION = 2;
+const SLIDES: Slide[] = [
+  {
+    key: "main",
+    href: "#catalog",
+    image: `/banners/banner-1-main.png?v=${IMG_VERSION}`,
+    alt: "Sharmaster.kz — воздушные шары оптом в Казахстане",
+  },
+  {
+    key: "sentyabr",
+    href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
+    image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
+    alt: "Снова в школу! Коллекция ко Дню Знаний",
+  },
+  {
+    key: "donballon",
+    href: `/catalog?brand=${encodeURIComponent("Falali,Волна веселья,Дон Баллон")}`,
+    image: `/banners/banner-2-donballon.png?v=${IMG_VERSION}`,
+    alt: "Официальные партнёры торговой компании «Дон Баллон»",
+  },
+  {
+    key: "sempertex",
+    href: `/catalog?brand=${encodeURIComponent("Sempertex S.A.")}`,
+    image: `/banners/banner-4-sempertex.png?v=${IMG_VERSION}`,
+    alt: "Sempertex — The World's Best Balloons",
+  },
+];
+
+const SWIPE_THRESHOLD_PX = 40;
+
 export default function Hero() {
+  const [index, setIndex] = useState(0);
+  const touchStartX = useRef<number | null>(null);
+
+  function prev() {
+    setIndex((i) => (i - 1 + SLIDES.length) % SLIDES.length);
+  }
+  function next() {
+    setIndex((i) => (i + 1) % SLIDES.length);
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current == null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (delta > SWIPE_THRESHOLD_PX) prev();
+    else if (delta < -SWIPE_THRESHOLD_PX) next();
+  }
+
   return (
     <section className="pt-[90px]">
-      {/* Main banner — pastel gradient matching logo colors */}
-      <div className="bg-gradient-to-r from-sky-100 via-pink-50 to-green-50 relative overflow-hidden">
-        {/* Decorative soft circles */}
-        <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-sky-200/40 pointer-events-none" />
-        <div className="absolute -bottom-10 right-40 w-48 h-48 rounded-full bg-pink-200/30 pointer-events-none" />
-        <div className="absolute top-6 left-1/3 w-24 h-24 rounded-full bg-yellow-100/50 pointer-events-none" />
-
-        {/* Right: logo — absolute, spans full banner height, centered in right half */}
-        <div className="hidden lg:block absolute left-[38%] right-0 top-0 bottom-0 pointer-events-none select-none">
-          <Image
-            src="/logo-nobg.png"
-            alt="Sharmaster"
-            fill
-            className="object-contain object-center"
-            priority
-          />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
-          {/* Left content */}
-          <div className="z-10 max-w-xl">
-            <p className="text-sky-500 text-sm font-semibold mb-3 uppercase tracking-widest">
-              Оптовый магазин
-            </p>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-gray-800 leading-tight mb-5">
-              Воздушные шары<br className="hidden sm:block" /> оптом в Казахстане
-            </h1>
-            <p className="text-gray-500 text-base md:text-lg mb-8 leading-relaxed max-w-lg">
-              Более 10000 наименований для любого праздника —<br className="hidden md:block" />
-              латексные, фольгированные, аксессуары.<br className="hidden md:block" />
-              Быстрая доставка по всему Казахстану.
-            </p>
-            <div className="flex flex-wrap gap-3">
+      <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+        <div className="relative rounded-2xl overflow-hidden border-2 border-gray-300/50">
+          <div
+            className="flex transition-transform duration-500 ease-out"
+            style={{ transform: `translateX(-${index * 100}%)` }}
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            {SLIDES.map((slide) => (
               <a
-                href="#catalog"
-                className="px-6 py-3 bg-sky-400 hover:bg-sky-500 text-white font-bold rounded-xl transition-colors shadow-sm"
+                key={slide.key}
+                href={slide.href}
+                className="relative block w-full flex-shrink-0 aspect-[1680/720]"
               >
-                Перейти в каталог
+                <Image
+                  src={slide.image}
+                  alt={slide.alt}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 1280px) 100vw, 1280px"
+                  priority={slide.key === "main"}
+                />
               </a>
-              <a
-                href="https://wa.me/77769510282"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-6 py-3 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition-colors border border-gray-200 shadow-sm"
-              >
-                Написать нам
-              </a>
-            </div>
+            ))}
+          </div>
+
+          {/* Navigation — separate DOM elements layered over the banner image,
+              not part of the artwork; sibling of the slide links so a click here
+              never triggers the banner's own href. */}
+          <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 flex gap-2 z-10">
+            <button
+              type="button"
+              onClick={prev}
+              aria-label="Предыдущий баннер"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-800 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={next}
+              aria-label="Следующий баннер"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center text-gray-800 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Pagination dots — current slide indicator, also directly clickable. */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 sm:bottom-4 flex gap-1.5 z-10">
+            {SLIDES.map((slide, i) => (
+              <button
+                key={slide.key}
+                type="button"
+                onClick={() => setIndex(i)}
+                aria-label={`Баннер ${i + 1}`}
+                aria-current={i === index}
+                className={`h-2 rounded-full transition-all ring-2 ring-white/80 shadow-sm ${
+                  i === index ? "w-5 bg-gray-700" : "w-2 bg-gray-300 hover:bg-gray-400"
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>
 
       {/* Info strip — white */}
       <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap justify-center md:justify-between gap-4 py-3 text-sm text-gray-500">
             <span className="flex items-center gap-2">
               <span className="text-sky-400 font-bold">✓</span> Более 10000 наименований

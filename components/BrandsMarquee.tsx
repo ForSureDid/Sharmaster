@@ -44,14 +44,16 @@ export default function BrandsMarquee() {
   const track = [...BRANDS, ...BRANDS];
 
   return (
-    <section className="py-3 bg-white border-t border-gray-100 overflow-hidden">
-      <div className="group overflow-hidden">
-        <div
-          className="flex w-max animate-[brands-marquee_32s_linear_infinite] group-hover:[animation-play-state:paused]"
-        >
-          {track.map((brand, i) => (
-            <BrandCard key={`${brand.file}-${i}`} brand={brand} />
-          ))}
+    <section className="py-3 bg-white border-t border-gray-100">
+      <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="group overflow-hidden">
+          <div
+            className="flex w-max animate-[brands-marquee_32s_linear_infinite] group-hover:[animation-play-state:paused]"
+          >
+            {track.map((brand, i) => (
+              <BrandCard key={`${brand.file}-${i}`} brand={brand} />
+            ))}
+          </div>
         </div>
       </div>
     </section>

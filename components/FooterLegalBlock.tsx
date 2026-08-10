@@ -47,7 +47,7 @@ export default function FooterLegalBlock() {
     <>
       {/* Legal */}
       <div className="border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-3">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-3">
           <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3">
             <p className="text-xs text-gray-500 text-center sm:text-left">{dict.footer.disclaimer}</p>
             <LocaleSwitch />
@@ -76,7 +76,7 @@ export default function FooterLegalBlock() {
 
       {/* Bottom bar */}
       <div className="border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-600">
+        <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-600">
           <p>© {yearLabel} {dict.footer.copyrightHolder}. {dict.footer.copyrightRights}</p>
           <p>Казахстан</p>
         </div>
