@@ -19,16 +19,22 @@ type Slide = {
 const IMG_VERSION = 2;
 const SLIDES: Slide[] = [
   {
-    key: "main",
-    href: "#catalog",
-    image: `/banners/banner-1-main.png?v=${IMG_VERSION}`,
-    alt: "Sharmaster.kz — воздушные шары оптом в Казахстане",
-  },
-  {
     key: "sentyabr",
     href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
     image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
     alt: "Снова в школу! Коллекция ко Дню Знаний",
+  },
+  {
+    key: "512",
+    href: `/catalog?brand=${encodeURIComponent("512")}`,
+    image: `/banners/banner-5-512.png?v=${IMG_VERSION}`,
+    alt: "512 Шар — универсальный шар и полимерный гель для обработки",
+  },
+  {
+    key: "main",
+    href: "#catalog",
+    image: `/banners/banner-1-main.png?v=${IMG_VERSION}`,
+    alt: "Sharmaster.kz — воздушные шары оптом в Казахстане",
   },
   {
     key: "donballon",
@@ -41,12 +47,6 @@ const SLIDES: Slide[] = [
     href: `/catalog?brand=${encodeURIComponent("Sempertex S.A.")}`,
     image: `/banners/banner-4-sempertex.png?v=${IMG_VERSION}`,
     alt: "Sempertex — The World's Best Balloons",
-  },
-  {
-    key: "512",
-    href: `/catalog?brand=${encodeURIComponent("512")}`,
-    image: `/banners/banner-5-512.png?v=${IMG_VERSION}`,
-    alt: "512 Шар — универсальный шар и полимерный гель для обработки",
   },
 ];
 
