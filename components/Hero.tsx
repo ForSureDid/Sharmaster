@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 type Slide = {
@@ -45,9 +45,11 @@ const SLIDES: Slide[] = [
 ];
 
 const SWIPE_THRESHOLD_PX = 40;
+const AUTOPLAY_MS = 3000;
 
 export default function Hero() {
   const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   function prev() {
@@ -56,6 +58,16 @@ export default function Hero() {
   function next() {
     setIndex((i) => (i + 1) % SLIDES.length);
   }
+
+  // Auto-advance every 3s, looping back to the first slide; pauses on
+  // hover/touch and restarts from a manual arrow/dot click or swipe.
+  useEffect(() => {
+    if (paused) return;
+    const id = setInterval(() => {
+      setIndex((i) => (i + 1) % SLIDES.length);
+    }, AUTOPLAY_MS);
+    return () => clearInterval(id);
+  }, [paused, index]);
 
   function onTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
@@ -71,7 +83,11 @@ export default function Hero() {
   return (
     <section className="pt-[90px]">
       <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
-        <div className="relative rounded-2xl overflow-hidden border-2 border-gray-300/50">
+        <div
+          className="relative rounded-2xl overflow-hidden border-2 border-gray-300/50"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
           <div
             className="flex transition-transform duration-500 ease-out"
             style={{ transform: `translateX(-${index * 100}%)` }}
