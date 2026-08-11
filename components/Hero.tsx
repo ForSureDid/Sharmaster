@@ -19,6 +19,12 @@ type Slide = {
 const IMG_VERSION = 2;
 const SLIDES: Slide[] = [
   {
+    key: "bk-sale",
+    href: `/catalog?brand=${encodeURIComponent("БиКей")}&akcii=1`,
+    image: `/banners/banner-6-bk-sale.png?v=${IMG_VERSION}`,
+    alt: "Большая распродажа — 25% на всю шёлкографию БиКей",
+  },
+  {
     key: "sentyabr",
     href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
     image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
