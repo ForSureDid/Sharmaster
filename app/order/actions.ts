@@ -95,6 +95,14 @@ export async function placeOrder(input: {
   // ── Atomic check-and-decrement inside one transaction ─────────────────────
   // updateMany with stock >= qty is a single conditional UPDATE in the DB —
   // if another request already consumed the stock, count === 0 and we abort.
+  //
+  // One updateMany per cart line, awaited in sequence, on a single connection
+  // — Prisma's interactive-transaction default timeout is 5s, and a cart with
+  // 40+ distinct line items (a real large order, not an edge case) can take
+  // longer than that to get through every round trip, aborting the whole
+  // transaction with P2028 ("query cannot be executed on an expired
+  // transaction") right as the customer submits. Bumped generously — even the
+  // 500-line-item cap (see the check above) stays well under this.
   let order: { id: number }
   try {
     order = await db.$transaction(async (tx) => {
@@ -130,7 +138,7 @@ export async function placeOrder(input: {
           },
         },
       })
-    })
+    }, { timeout: 60_000 })
   } catch (err) {
     if (err instanceof StockError) return { ok: false, error: err.message }
     throw err
