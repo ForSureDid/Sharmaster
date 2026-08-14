@@ -152,8 +152,8 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
               Ожидайте
             </span>
           ) : item.isNew ? (
-            <span className="bg-sky-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
-              New
+            <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              Новинка
             </span>
           ) : null}
         </div>

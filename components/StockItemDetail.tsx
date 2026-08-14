@@ -162,7 +162,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
               Ожидайте поступления
             </span>
           ) : item.isNew ? (
-            <span className="text-xs bg-sky-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
+            <span className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
               Новинка
             </span>
           ) : null}
