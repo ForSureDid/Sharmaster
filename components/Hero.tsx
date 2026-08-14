@@ -19,6 +19,12 @@ type Slide = {
 const IMG_VERSION = 2;
 const SLIDES: Slide[] = [
   {
+    key: "giant-heart",
+    href: "/catalog/gigant-serdtse-2-5-m-krasnyy-g",
+    image: `/banners/banner-7-giant-heart.png?v=${IMG_VERSION}`,
+    alt: "Гигантское сердце 2.5 м — спец размер для ярких событий и фотозон",
+  },
+  {
     key: "bk-sale",
     href: `/catalog?brand=${encodeURIComponent("БиКей")}&akcii=1`,
     image: `/banners/banner-6-bk-sale.png?v=${IMG_VERSION}`,

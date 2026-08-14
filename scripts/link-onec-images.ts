@@ -56,7 +56,18 @@ import { sanitize } from './lib/oborudovanie-groups'
 dotenv.config()
 
 const APPLY = process.argv.includes('--apply')
-const BACKUP_PATH = resolve(process.cwd(), 'scripts/backup-onec-stockitems-images.json')
+// --novinka-only: restrict the rows this script is allowed to touch to the "новинки"
+// zone — same union lib/onecStock.ts's getNovinkaItems() uses for the /novinka page
+// (isNewPending=true OR isNew=true). Everything else (bucket scanning, matching
+// logic, conflict/fuzzy passes) is untouched; only the onecRows query that seeds
+// `allArticles`/`plans` is filtered, so regular catalog rows are never read or
+// written in this mode. Separate backup file so it never collides with a full-run
+// backup.
+const NOVINKA_ONLY = process.argv.includes('--novinka-only')
+const BACKUP_PATH = resolve(
+  process.cwd(),
+  NOVINKA_ONLY ? 'scripts/backup-onec-stockitems-images-novinka.json' : 'scripts/backup-onec-stockitems-images.json'
+)
 
 const SUPABASE_URL = process.env.SUPABASE_URL!
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -341,7 +352,7 @@ async function scanBucket(cfg: BucketConfig): Promise<BucketGroups> {
 }
 
 async function main() {
-  console.log(`Mode: ${APPLY ? 'APPLY (writes DB)' : 'PREVIEW (no writes)'}\n`)
+  console.log(`Mode: ${APPLY ? 'APPLY (writes DB)' : 'PREVIEW (no writes)'}${NOVINKA_ONLY ? ' | SCOPE: novinka-only (isNewPending OR isNew)' : ' | SCOPE: full catalog'}\n`)
 
   console.log('Scanning buckets (recursive)...')
   const perBucket = new Map<string, BucketGroups>()
@@ -349,9 +360,12 @@ async function main() {
     perBucket.set(cfg.name, await scanBucket(cfg))
   }
 
-  console.log('\nLoading OnecStockItem rows with article...')
+  console.log(`\nLoading OnecStockItem rows with article${NOVINKA_ONLY ? ' (novinka zone only)' : ''}...`)
   const onecRows = await prisma.onecStockItem.findMany({
-    where: { article: { not: null } },
+    where: {
+      article: { not: null },
+      ...(NOVINKA_ONLY ? { OR: [{ isNewPending: true }, { isNew: true }] } : {}),
+    },
     select: { id: true, article: true, imageUrl: true, images: true },
   })
   console.log(`  ${onecRows.length} rows (${new Set(onecRows.map(r => r.article!.trim())).size} unique articles)`)
@@ -475,6 +489,18 @@ async function main() {
   }
   const replacing = plans.filter(p => p.oldImageUrl).length
   console.log(`\nRows to update: ${plans.length} (already had a non-null imageUrl: ${replacing})`)
+  if (NOVINKA_ONLY) {
+    const fillingGap = plans.filter(p => !p.oldImageUrl)
+    console.log(`  Of which filling a NULL imageUrl gap: ${fillingGap.length}`)
+    fillingGap.forEach(p => console.log(`    id=${p.id} article="${p.article}" [${p.win.bucket}]`))
+    const stillNullUnmatched = onecRows.filter(r => r.imageUrl === null && !winners.has(r.article!.trim()))
+    console.log(`  Still-NULL rows with no match found: ${stillNullUnmatched.length}`)
+    const relinking = plans.filter(p => p.oldImageUrl)
+    const relinkingChanged = relinking.filter(p => p.oldImageUrl !== p.win.head)
+    const relinkingSame = relinking.filter(p => p.oldImageUrl === p.win.head)
+    console.log(`  Of the ${relinking.length} already-imaged rows matched: ${relinkingSame.length} identical (no-op), ${relinkingChanged.length} would actually CHANGE`)
+    relinkingChanged.slice(0, 10).forEach(p => console.log(`    CHANGE id=${p.id} article="${p.article}" old=${p.oldImageUrl?.split('/').pop()} new=${p.win.head.split('/').pop()}`))
+  }
 
   console.log('\nSample plan (first 15):')
   plans.slice(0, 15).forEach(p => console.log(
