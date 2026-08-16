@@ -62,6 +62,7 @@ export type StockFilters = {
   inStockOnly?: boolean
   isNewPending?: boolean
   onSale?: boolean
+  isHit?: boolean
   sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart' | 'hit'
   page?: number
   pageSize?: number
@@ -283,8 +284,9 @@ function buildStockWhere(opts: {
   inStockOnly?: boolean
   isNewPending?: boolean
   onSale?: boolean
+  isHit?: boolean
 }) {
-  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false } = opts
+  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false, isHit = false } = opts
 
   // Collected into one shared AND array (rather than each spreading its own top-level
   // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
@@ -316,6 +318,7 @@ function buildStockWhere(opts: {
     isHidden: false,
     ...(inStockOnly ? { stock: { gt: 0 } } : {}),
     ...(onSale ? { onSale: true } : {}),
+    ...(isHit ? { isHit: true } : {}),
     ...(categoryIds ? { categoryId: { in: categoryIds } } : {}),
     ...(brands && brands.length > 0 ? { brand: { in: brands } } : brand ? { brand } : {}),
     ...(sizeInches ? { sizeInches } : {}),
@@ -342,6 +345,7 @@ type SmartSortKey = {
   inStockOnly: boolean
   isNewPending: boolean
   onSale: boolean
+  isHit: boolean
 }
 
 async function _fetchAllForSmartSort(key: SmartSortKey) {
@@ -359,6 +363,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     inStockOnly: key.inStockOnly,
     isNewPending: key.isNewPending,
     onSale: key.onSale,
+    isHit: key.isHit,
   })
   return db.onecStockItem.findMany({
     where,
@@ -380,7 +385,7 @@ const cachedFetchAllForSmartSort = unstable_cache(
 async function fetchAllForSmartSort(key: SmartSortKey) {
   const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.brands == null && key.sizeInches == null && key.shade == null
     && key.colorGroup == null && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
-    && !key.inStockOnly && !key.isNewPending && !key.onSale
+    && !key.inStockOnly && !key.isNewPending && !key.onSale && !key.isHit
   if (isFullyUnfiltered) {
     return _fetchAllForSmartSort(key)
   }
@@ -393,14 +398,14 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     categoryId, categoryIds: explicitCategoryIds, brand, brands,
     sizeInches, shade, colorGroup, occasions,
     minPrice, maxPrice, search,
-    inStockOnly = false, isNewPending = false, onSale = false, sort = 'smart',
+    inStockOnly = false, isNewPending = false, onSale = false, isHit = false, sort = 'smart',
   } = filters
 
   const categoryIds = explicitCategoryIds
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale })
+  const where = buildStockWhere({ categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale, isHit })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -413,7 +418,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
       categoryIds: stableCatIds, brand: brand ?? null, brands: brands ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
       colorGroup: colorGroup ?? null,
       occasions: occasions ?? null, minPrice: minPrice ?? null, maxPrice: maxPrice ?? null, search: search ?? null,
-      inStockOnly, isNewPending, onSale,
+      inStockOnly, isNewPending, onSale, isHit,
     }))]
 
     if (search) {

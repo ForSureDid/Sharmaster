@@ -60,6 +60,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const inStockOnly = str(sp.instock) === "1";
   const novinki = str(sp.novinki) === "1";
   const akcii = str(sp.akcii) === "1";
+  const hit = str(sp.hit) === "1";
 
   // Same category scope the item query uses — keeps filter option lists (brand/size/
   // shade/occasion) scoped to the active category's subtree instead of the whole catalog.
@@ -67,13 +68,14 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
 
   const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii, isHit: hit }),
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);
 
   const totalPages = Math.ceil(total / per);
-  const zoneTitle = novinki && akcii ? "Новинки и акции" : novinki ? "Новинки" : akcii ? "Акции" : null;
+  const activeZones = [novinki && "Новинки", akcii && "Акции", hit && "Хиты продаж"].filter(Boolean) as string[];
+  const zoneTitle = activeZones.length > 0 ? activeZones.join(" и ") : null;
 
   return (
     <>

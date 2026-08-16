@@ -141,9 +141,10 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
   const inStockOnly = sp.get("instock") === "1";
   const novinki = sp.get("novinki") === "1";
   const akcii = sp.get("akcii") === "1";
+  const hit = sp.get("hit") === "1";
 
   const activeCount = [activeCat, activeBrand, activeSize, activeShade, activeColor, minPrice, maxPrice].filter(Boolean).length
-    + activeOccasions.length + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0);
+    + activeOccasions.length + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0) + (hit ? 1 : 0);
 
   // When a category is active, scope the category nav to just that branch (its own
   // top-level parent + siblings) instead of showing the whole catalog tree — same
@@ -243,6 +244,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
         <div className="space-y-1">
           <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-amber-500" />
           <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" />
+          <ToggleRow label="Хиты продаж" checked={hit} onChange={(v) => update("hit", v ? "1" : null)} activeColor="bg-orange-500" />
           <ToggleRow label="Наличие" checked={inStockOnly} onChange={(v) => update("instock", v ? "1" : null)} />
         </div>
       </Section>
