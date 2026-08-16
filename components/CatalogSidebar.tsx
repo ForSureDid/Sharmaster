@@ -97,12 +97,12 @@ function Toggle({ checked, onChange, activeColor = "bg-sky-500" }: {
   );
 }
 
-function ToggleRow({ label, checked, onChange, activeColor }: {
-  label: string; checked: boolean; onChange: (v: boolean) => void; activeColor?: string;
+function ToggleRow({ label, checked, onChange, activeColor, labelColor = "text-gray-600" }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void; activeColor?: string; labelColor?: string;
 }) {
   return (
     <label className="flex items-center justify-between py-1 cursor-pointer">
-      <span className="text-xs text-gray-600">{label}</span>
+      <span className={`text-xs font-medium ${labelColor}`}>{label}</span>
       <Toggle checked={checked} onChange={onChange} activeColor={activeColor} />
     </label>
   );
@@ -240,12 +240,22 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
         )}
       </Section>
 
-      <Section title="Зоны и наличие">
+      <Section title="Наличие">
         <div className="space-y-1">
-          <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-amber-500" />
-          <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" />
-          <ToggleRow label="Хиты продаж" checked={hit} onChange={(v) => update("hit", v ? "1" : null)} activeColor="bg-orange-500" />
           <ToggleRow label="Наличие" checked={inStockOnly} onChange={(v) => update("instock", v ? "1" : null)} />
+        </div>
+      </Section>
+
+      <Section title="Зоны">
+        <div className="space-y-1">
+          <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" labelColor="text-red-600" />
+          <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-green-500" labelColor="text-green-600" />
+        </div>
+      </Section>
+
+      <Section title="Хиты продаж">
+        <div className="space-y-1">
+          <ToggleRow label="Хиты продаж" checked={hit} onChange={(v) => update("hit", v ? "1" : null)} activeColor="bg-orange-500" labelColor="text-orange-600" />
         </div>
       </Section>
 
