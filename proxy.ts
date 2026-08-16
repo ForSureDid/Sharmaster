@@ -36,11 +36,14 @@ async function isAdmin(request: NextRequest): Promise<boolean> {
 
 // 1C's own exchange client and the internal cache-revalidation webhook are
 // both already gated by their own auth checks (Basic Auth / secret header).
-// Never rate-limit them here — 1C can legitimately fire many chunked
-// requests in a row during a catalog sync, and blocking it breaks the real
-// business flow (see project_onec_exchange memory), which is worse than the
-// abuse this file defends against.
-const RATE_LIMIT_EXEMPT_PREFIXES = ['/api/1c-exchange', '/api/revalidate']
+// /admin and /api/admin are exempt too — they're already gated by the JWT
+// session check further down, and an authenticated admin doing normal heavy
+// work (bulk edits, uploads, clicking through many pages while testing)
+// shouldn't be flood-limited like anonymous traffic. Never rate-limit any of
+// these — for 1C specifically, blocking it breaks the real business flow
+// (see project_onec_exchange memory), which is worse than the abuse this
+// file defends against.
+const RATE_LIMIT_EXEMPT_PREFIXES = ['/api/1c-exchange', '/api/revalidate', '/admin', '/api/admin']
 
 // Cheap-to-spam, costly-to-us POST endpoints: login/register (credential
 // stuffing / brute force — see the per-account limit in app/auth/actions.ts,
@@ -62,12 +65,14 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     const ip = ipFromHeaders(request.headers)
 
     // Site-wide flood guard: generous enough for one real visitor's normal
-    // browsing (page loads pull in several RSC/data fetches each), tight
+    // browsing (Next.js Link prefetching alone can fire dozens of background
+    // requests while scrolling/hovering a catalog page — 300/min turned out
+    // to be too tight and blocked real users, bumped 2026-08-16), tight
     // enough to blunt a single IP hammering the app.
-    if (!check(`flood:${ip}`, 300, 60_000)) return tooManyRequests()
+    if (!check(`flood:${ip}`, 1000, 60_000)) return tooManyRequests()
 
     if (request.method === 'POST' && STRICT_POST_PREFIXES.some((p) => pathname.startsWith(p))) {
-      if (!check(`strict:${ip}:${pathname}`, 20, 60_000)) return tooManyRequests()
+      if (!check(`strict:${ip}:${pathname}`, 60, 60_000)) return tooManyRequests()
     }
   }
 
