@@ -15,9 +15,9 @@ const COMMON_PASSWORDS = new Set([
 ])
 
 export async function login(email: string, password: string): Promise<string | null> {
-  if (!await checkAuthRateLimit('login')) return 'Слишком много попыток. Подождите 15 минут.'
-
   const trimEmail = email.trim().toLowerCase()
+  if (!await checkAuthRateLimit('login', trimEmail || undefined)) return 'Слишком много попыток. Подождите 15 минут.'
+
   if (!trimEmail || !password) return 'Укажите email и пароль'
 
   const user = await db.user.findUnique({ where: { email: trimEmail } })
@@ -36,10 +36,10 @@ export async function register(
   phone: string,
   password: string
 ): Promise<string | null> {
-  if (!await checkAuthRateLimit('register')) return 'Слишком много попыток. Подождите 15 минут.'
+  const trimEmail = email.trim().toLowerCase()
+  if (!await checkAuthRateLimit('register', trimEmail || undefined)) return 'Слишком много попыток. Подождите 15 минут.'
 
   const trimName  = name.trim()
-  const trimEmail = email.trim().toLowerCase()
   const trimPhone = phone.trim()
 
   if (!trimName)  return 'Укажите имя'
