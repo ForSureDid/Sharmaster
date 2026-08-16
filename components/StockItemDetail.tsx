@@ -165,6 +165,10 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             <span className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
               Новинка
             </span>
+          ) : item.isHit ? (
+            <span className="text-xs bg-orange-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
+              Хит
+            </span>
           ) : null}
           {item.brand && (
             <span className="text-xs bg-sky-50 text-sky-600 border border-sky-100 px-2.5 py-1 rounded-full font-medium">

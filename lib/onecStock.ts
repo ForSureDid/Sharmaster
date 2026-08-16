@@ -29,6 +29,7 @@ export type StockCard = {
   salePercent: number | null
   isNew: boolean
   isNewPending: boolean
+  isHit: boolean
 }
 
 export type StockDetail = StockCard & {
@@ -61,7 +62,7 @@ export type StockFilters = {
   inStockOnly?: boolean
   isNewPending?: boolean
   onSale?: boolean
-  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart'
+  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart' | 'hit'
   page?: number
   pageSize?: number
 }
@@ -69,14 +70,14 @@ export type StockFilters = {
 const SELECT_FIELDS = {
   id: true, slug: true, name: true, brand: true, sizeInches: true, packQty: true,
   stock: true, pricePerPc: true, imageUrl: true, images: true,
-  onSale: true, salePercent: true, isNew: true, isNewPending: true, categoryId: true,
+  onSale: true, salePercent: true, isNew: true, isNewPending: true, isHit: true, categoryId: true,
 } as const
 
 type RawItem = {
   id: number; slug: string | null; name: string; brand: string | null
   sizeInches: string | null; packQty: number | null; stock: number; pricePerPc: unknown
   imageUrl: string | null; images: string[]; onSale: boolean; salePercent: number | null; isNew: boolean
-  isNewPending: boolean; categoryId: number | null
+  isNewPending: boolean; isHit: boolean; categoryId: number | null
 }
 
 // OnecStockItem.images[] holds only the *extra* photos (scripts/link-onec-images.ts
@@ -112,7 +113,7 @@ function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<
     isBalloon: isLatex || isFoil,
     sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
-    isNew: i.isNew, isNewPending: i.isNewPending,
+    isNew: i.isNew, isNewPending: i.isNewPending, isHit: i.isHit,
   }
 }
 
@@ -464,6 +465,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
   }
 
   const orderBy =
+    sort === 'hit' ? [{ isHit: 'desc' as const }, { pricePerPc: 'asc' as const }] :
     sort === 'price_desc' ? { pricePerPc: 'desc' as const } :
     sort === 'name_asc' ? { name: 'asc' as const } :
     { pricePerPc: 'asc' as const }

@@ -51,9 +51,9 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const minPrice = safeFloat(str(sp.min));
   const maxPrice = safeFloat(str(sp.max));
-  const SORT_OPTS = ["smart", "price_asc", "price_desc", "name_asc"] as const;
+  const SORT_OPTS = ["smart", "hit", "price_asc", "price_desc", "name_asc"] as const;
   const rawSort = str(sp.sort);
-  const sort = (SORT_OPTS.includes(rawSort as typeof SORT_OPTS[number]) ? rawSort : "smart") as "smart" | "price_asc" | "price_desc" | "name_asc";
+  const sort = (SORT_OPTS.includes(rawSort as typeof SORT_OPTS[number]) ? rawSort : "smart") as "smart" | "hit" | "price_asc" | "price_desc" | "name_asc";
   const page = Math.max(safeInt(str(sp.page), 1), 1);
   const per = Math.min(Math.max(safeInt(str(sp.per), 48), 1), 200);
   const q = str(sp.q);

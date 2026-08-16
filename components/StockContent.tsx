@@ -155,6 +155,10 @@ function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean
             <span className="bg-green-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
               Новинка
             </span>
+          ) : item.isHit ? (
+            <span className="bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              Хит
+            </span>
           ) : null}
         </div>
         <LikeButton id={item.id} />
@@ -459,6 +463,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
             className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-sky-300 bg-white text-gray-700 cursor-pointer"
           >
             <option value="smart">По умолчанию</option>
+            <option value="hit">Хиты продаж</option>
             <option value="price_asc">Сначала дешевле</option>
             <option value="price_desc">Сначала дороже</option>
             <option value="name_asc">По названию А–Я</option>
