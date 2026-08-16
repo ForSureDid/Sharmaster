@@ -271,7 +271,21 @@ function StockTab() {
                         className={`hover:bg-gray-50 transition-colors ${item.stock === 0 ? "bg-red-50/30" : ""}`}
                       >
                         <td className="px-6 py-3">
-                          <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
+                          <div className="flex items-center gap-3">
+                            {item.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={item.imageUrl}
+                                alt=""
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0 bg-gray-50"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg border border-gray-100 flex-shrink-0 bg-gray-50 flex items-center justify-center text-gray-300 text-xs">
+                                —
+                              </div>
+                            )}
+                            <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{item.brand ?? "—"}</td>
                         <td className="px-4 py-3 text-center">
