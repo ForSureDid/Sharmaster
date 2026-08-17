@@ -30,6 +30,7 @@ type Props = {
   page: number;
   totalPages: number;
   per: number;
+  basePath?: string;
 };
 
 type ViewMode = "grid" | "list";
@@ -371,7 +372,7 @@ function StockCardList({ item }: { item: StockCard }) {
   );
 }
 
-export default function StockContent({ items, total, page, totalPages, per }: Props) {
+export default function StockContent({ items, total, page, totalPages, per, basePath = "/catalog" }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [view, setView] = useState<ViewMode>("grid");
@@ -387,7 +388,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
     const params = new URLSearchParams(sp.toString());
     params.set(key, value);
     if (key !== "page") params.delete("page");
-    router.push(`/catalog?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   }
 
   function submitSearch(e: React.FormEvent) {
@@ -396,7 +397,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
     const q = searchDraft.trim();
     if (q) params.set("q", q); else params.delete("q");
     params.delete("page");
-    router.push(`/catalog?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   }
 
   function clearSearch() {
@@ -404,7 +405,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
     const params = new URLSearchParams(sp.toString());
     params.delete("q");
     params.delete("page");
-    router.push(`/catalog?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   }
 
   const sort = sp.get("sort") ?? "smart";
@@ -497,7 +498,7 @@ export default function StockContent({ items, total, page, totalPages, per }: Pr
       {items.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 py-20 text-center">
           <p className="text-gray-400 text-sm">Товары не найдены. Попробуйте изменить фильтры.</p>
-          <a href="/catalog" className="mt-3 inline-block text-sky-500 hover:text-sky-600 text-sm font-medium">Сбросить фильтры</a>
+          <a href={basePath} className="mt-3 inline-block text-sky-500 hover:text-sky-600 text-sm font-medium">Сбросить фильтры</a>
         </div>
       ) : view === "grid" ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">

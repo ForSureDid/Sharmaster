@@ -57,6 +57,10 @@ function colorSwatchStyle(name: string): React.CSSProperties {
 type Props = {
   categories: Category[];
   filterOptions: FilterOptions;
+  basePath?: string;
+  // Zone this page is pinned to (e.g. /novinka is always novinki=1) — hides that
+  // toggle from "Зоны" since it's implied, not a filter the user can turn off here.
+  lockedZone?: "novinki" | "akcii";
 };
 
 function Section({ title, children, defaultOpen = true }: {
@@ -108,7 +112,7 @@ function ToggleRow({ label, checked, onChange, activeColor, labelColor = "text-g
   );
 }
 
-export default function CatalogSidebar({ categories, filterOptions }: Props) {
+export default function CatalogSidebar({ categories, filterOptions, basePath = "/catalog", lockedZone }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -121,7 +125,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
       params.set(key, value);
     }
     params.delete("page");
-    router.push(`/catalog?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   }
 
   function toggleInList(key: string, value: string) {
@@ -144,7 +148,10 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
   const hit = sp.get("hit") === "1";
 
   const activeCount = [activeCat, activeBrand, activeSize, activeShade, activeColor, minPrice, maxPrice].filter(Boolean).length
-    + activeOccasions.length + (inStockOnly ? 1 : 0) + (novinki ? 1 : 0) + (akcii ? 1 : 0) + (hit ? 1 : 0);
+    + activeOccasions.length + (inStockOnly ? 1 : 0)
+    + (novinki && lockedZone !== "novinki" ? 1 : 0)
+    + (akcii && lockedZone !== "akcii" ? 1 : 0)
+    + (hit ? 1 : 0);
 
   // When a category is active, scope the category nav to just that branch (its own
   // top-level parent + siblings) instead of showing the whole catalog tree — same
@@ -216,23 +223,6 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
                   >
                     {cat.name}
                   </button>
-                  {cat.children.length > 0 && (
-                    <ul className="ml-3 mt-0.5 space-y-0.5">
-                      {cat.children.map((sub) => {
-                        const subKey = sub.slug ?? String(sub.id);
-                        return (
-                          <li key={sub.id}>
-                            <button
-                              onClick={() => update("cat", activeCat === subKey ? null : subKey)}
-                              className={`w-full text-left px-2 py-1 rounded-lg text-xs transition-colors ${activeCat === subKey ? "bg-sky-50 text-sky-600 font-semibold" : "text-gray-500 hover:bg-gray-50 hover:text-sky-500"}`}
-                            >
-                              {sub.name}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
                 </li>
               );
             })}
@@ -248,8 +238,12 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
 
       <Section title="Зоны">
         <div className="space-y-1">
-          <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" labelColor="text-red-600" />
-          <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-green-500" labelColor="text-green-600" />
+          {lockedZone !== "akcii" && (
+            <ToggleRow label="Акции" checked={akcii} onChange={(v) => update("akcii", v ? "1" : null)} activeColor="bg-red-500" labelColor="text-red-600" />
+          )}
+          {lockedZone !== "novinki" && (
+            <ToggleRow label="Новинки" checked={novinki} onChange={(v) => update("novinki", v ? "1" : null)} activeColor="bg-green-500" labelColor="text-green-600" />
+          )}
         </div>
       </Section>
 
@@ -400,7 +394,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-800">Фильтры</h2>
           {activeCount > 0 && (
-            <button onClick={() => router.push("/catalog")} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
+            <button onClick={() => router.push(basePath)} className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -432,7 +426,7 @@ export default function CatalogSidebar({ categories, filterOptions }: Props) {
                 <div className="flex items-center gap-3">
                   {activeCount > 0 && (
                     <button
-                      onClick={() => { router.push("/catalog"); setMobileOpen(false); }}
+                      onClick={() => { router.push(basePath); setMobileOpen(false); }}
                       className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
