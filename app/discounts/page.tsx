@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import { CUMULATIVE_DISCOUNT_TIERS, ONE_TIME_DISCOUNT_TIERS, type DiscountTier } from "@/lib/discounts";
+
+export const metadata: Metadata = {
+  title: "Скидки — оптовые цены на воздушные шары",
+  description: "Система скидок Sharmaster.kz: накопительная скидка по итогам заказов за 30 дней и прогрессивная скидка на разовый заказ. Выгодные оптовые цены на шары в Казахстане.",
+  alternates: { canonical: "/discounts" },
+};
 
 function TierScale({ tiers }: { tiers: DiscountTier[] }) {
   return (

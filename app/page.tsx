@@ -24,6 +24,7 @@ export default async function Home() {
       <Header />
       <main>
         <Hero />
+        <h1 className="sr-only">Воздушные шары оптом и в розницу в Казахстане</h1>
         <BrandsMarquee />
         <Categories />
         <NovinkaSection items={novinkaItems.slice(0, 6)} />

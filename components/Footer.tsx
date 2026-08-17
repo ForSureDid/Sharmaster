@@ -28,7 +28,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li><Link href="/catalog" className="hover:text-white transition-colors">Шары латексные</Link></li>
               <li><Link href="/catalog" className="hover:text-white transition-colors">Шары фольгированные</Link></li>
-              <li><Link href="/catalog" className="hover:text-white transition-colors">Гелий и оборудование</Link></li>
+              <li><Link href="/catalog?cat=geliy-i-ballony" className="hover:text-white transition-colors">Гелий оптом и в аренду</Link></li>
               <li><Link href="/catalog" className="hover:text-white transition-colors">Аксессуары</Link></li>
               <li><Link href="/sale" className="hover:text-white transition-colors">Акции</Link></li>
             </ul>

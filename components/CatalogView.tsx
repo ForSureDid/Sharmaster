@@ -85,6 +85,18 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   const zoneTitle = activeZones.length > 0 ? activeZones.join(" и ") : null;
   const lockedZone = forceNovinki ? "novinki" as const : forceAkcii ? "akcii" as const : undefined;
 
+  // Keyword-bearing paragraph per category/zone — the grid above is all widgets and
+  // images, this is the only real indexable text Google/Yandex see on these pages.
+  const seoText = activeCategory?.slug === "geliy-i-ballony" || activeCategory?.slug === "geliy"
+    ? "Гелий в Астане без примесей и разбавок: продажа и аренда баллонов 10 и 40 литров для салонов, флористов и организаторов праздников. Всегда в наличии, большой объём на складе. Быстрая доставка день в день или по записи, в черте Астаны."
+    : activeCategory
+    ? `Купить ${activeCategory.name.toLowerCase()} в интернет-магазине Sharmaster.kz — доступные оптовые и розничные цены, доставка по всему Казахстану. В наличии латексные и фольгированные шары, шары-сферы, ШДМ, цифры, буквы и аксессуары для оформления праздников.`
+    : akcii
+    ? "Акции и скидки на воздушные шары в Sharmaster.kz: латексные и фольгированные шары, шары-сферы и аксессуары по сниженным ценам. Ассортимент акционных товаров обновляется регулярно — успейте купить шары со скидкой."
+    : novinki
+    ? "Новинки Sharmaster.kz — свежие поступления воздушных шаров: новые модели латексных и фольгированных шаров, шаров-сфер, цифр и фигур. Опт и розница, доставка по Казахстану."
+    : "Sharmaster.kz — оптовый и розничный магазин воздушных шаров в Казахстане. Латексные шары, фольгированные шары, шары-сферы, ШДМ, цифры и буквы, гирлянды и аксессуары для оформления дня рождения, выписки из роддома, свадьбы, юбилея, выпускного и Нового года. Доставка по всему Казахстану.";
+
   return (
     <main className="pt-[88px] min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-100">
@@ -138,6 +150,10 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
               basePath={basePath}
             />
           </Suspense>
+        </div>
+
+        <div className="mt-8 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 max-w-4xl text-sm text-gray-500 leading-relaxed">
+          {seoText}
         </div>
       </div>
     </main>

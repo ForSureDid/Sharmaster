@@ -39,6 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
+const SITE_URL = "https://www.sharmaster.kz";
+
 export default async function ItemPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
@@ -53,8 +55,46 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
   const isIdLookup = Number.isFinite(asId) && asId > 0 && String(asId) === slug;
   if (isIdLookup && item.slug) redirect(`/catalog/${item.slug}`);
 
+  const canonicalUrl = `${SITE_URL}/catalog/${item.slug ?? item.id}`;
+
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: item.name,
+    description: item.description || `${item.name}${item.brand ? ` от ${item.brand}` : ""} — купить в Sharmaster.kz`,
+    image: item.images.length > 0 ? item.images : item.imageUrl ? [item.imageUrl] : undefined,
+    sku: item.article ?? String(item.id),
+    ...(item.brand ? { brand: { "@type": "Brand", name: item.brand } } : {}),
+    offers: {
+      "@type": "Offer",
+      url: canonicalUrl,
+      priceCurrency: "KZT",
+      price: item.pricePerPc,
+      availability: item.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
+
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Главная", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Каталог", item: `${SITE_URL}/catalog` },
+      { "@type": "ListItem", position: 3, name: item.name, item: canonicalUrl },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
         {/* Breadcrumb */}

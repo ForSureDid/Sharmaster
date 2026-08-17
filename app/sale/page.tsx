@@ -8,8 +8,9 @@ import CatalogView from "@/components/CatalogView";
 type SP = { [key: string]: string | string[] | undefined };
 
 export const metadata = {
-  title: "Акции — Sharmaster",
-  description: "Все акционные товары со скидками",
+  title: "Акции и скидки на воздушные шары",
+  description: "Товары со скидками в Sharmaster.kz: латексные и фольгированные шары, шары-сферы и аксессуары по акционным ценам. Доставка по всему Казахстану.",
+  alternates: { canonical: "/sale" },
 };
 
 export default async function SalePage({ searchParams }: { searchParams: Promise<SP> }) {

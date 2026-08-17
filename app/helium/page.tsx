@@ -100,11 +100,56 @@ function TableCard({ title, children }: { title: string; children: React.ReactNo
   );
 }
 
+const faqItems = [
+  {
+    q: "Сколько стоит гелий в Астане?",
+    a: "У нас в наличии баллоны 10 и 40 литров — цена зависит от объёма баллона и от того, покупаете вы гелий или берёте баллон в аренду. Актуальные цены смотрите в каталоге «Гелий и баллоны» или уточните по телефону +7 776 951 0282.",
+  },
+  {
+    q: "Как быстро вы доставляете гелий по Астане?",
+    a: "Доставляем гелий в черте города день в день, а если мероприятие запланировано заранее — согласуем удобную дату и время доставки. Позвоните или напишите в WhatsApp, чтобы уточнить детали.",
+  },
+  {
+    q: "Продаёте ли вы гелий оптом?",
+    a: "Да, работаем с салонами, флористами, организаторами праздников и магазинами в Астане — баллоны 10 и 40 литров, накопительные скидки при регулярных заказах.",
+  },
+  {
+    q: "Можно ли арендовать баллон гелия, а не покупать?",
+    a: "Да, баллоны 10 и 40 литров можно взять в аренду — удобно для разового мероприятия без покупки собственного оборудования.",
+  },
+  {
+    q: "Какой гелий вы используете?",
+    a: "Сертифицированный гелий без примесей и разбавок воздухом — шары дольше держатся в воздухе и не теряют форму.",
+  },
+  {
+    q: "Гелий всегда есть в наличии?",
+    a: "Да, держим большой объём баллонов 10 и 40 литров на складе — гелий в наличии постоянно, без ожидания поставки.",
+  },
+  {
+    q: "Сколько шаров можно надуть из одного баллона гелия?",
+    a: "Зависит от размера шаров и объёма баллона — смотрите таблицы расхода гелия ниже для латексных, фольгированных шаров и шаров-сфер.",
+  },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqItems.map((item) => ({
+    "@type": "Question",
+    name: item.q,
+    acceptedAnswer: { "@type": "Answer", text: item.a },
+  })),
+};
+
 export default function HeliumPage() {
   const [tab, setTab] = useState<TabKey>("latex");
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-100">
@@ -114,18 +159,80 @@ export default function HeliumPage() {
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              <span className="text-gray-600 font-medium">Расход гелия</span>
+              <span className="text-gray-600 font-medium">Гелий</span>
             </nav>
           </div>
         </div>
 
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
           <div className="mb-6">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Расход гелия</h1>
-            <p className="text-sm text-gray-400 max-w-2xl">
-              Сколько шаров можно надуть из одного баллона гелия — таблицы расхода для латексных
-              и фольгированных шаров, а также шаров-сфер.
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">
+              Гелий в Астане — продажа и аренда баллонов, быстрая доставка
+            </h1>
+            <p className="text-sm text-gray-500 max-w-2xl leading-relaxed">
+              Продаём и сдаём в аренду баллоны с сертифицированным гелием в Астане: 10 и 40
+              литров — для частных праздников, салонов, флористов и организаторов мероприятий.
+              Гелий без примесей и разбавок — шары дольше держатся в воздухе и не теряют форму.
+              Баллоны всегда в наличии, большой объём на складе. Быстрая доставка в черте города
+              день в день или по предварительной записи на нужную дату. Ниже — таблицы расхода
+              гелия на шары, чтобы точно рассчитать нужный объём.
             </p>
+          </div>
+
+          {/* Trust badges */}
+          <div className="flex flex-wrap gap-2 mb-6">
+            {[
+              "Без примесей и разбавок",
+              "Всегда в наличии — большой объём",
+              "Сертифицированный гелий",
+            ].map((label) => (
+              <span
+                key={label}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-700 bg-sky-50 rounded-full px-3 py-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {label}
+              </span>
+            ))}
+          </div>
+
+          {/* Commercial CTAs */}
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            <a
+              href="/catalog?cat=geliy-i-ballony"
+              className="block bg-white rounded-2xl border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all p-5"
+            >
+              <h2 className="text-sm font-bold text-gray-800 mb-1">Гелий оптом и в аренду</h2>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Баллоны 10 и 40 литров — продаём и сдаём в аренду для салонов, флористов и
+                организаторов праздников.
+              </p>
+            </a>
+            <a
+              href="https://wa.me/77769510282"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block bg-sky-500 hover:bg-sky-600 transition-colors rounded-2xl p-5 text-white"
+            >
+              <h2 className="text-sm font-bold mb-1">Быстрая доставка день в день</h2>
+              <p className="text-xs text-sky-50 leading-relaxed">
+                Нужен гелий срочно? Напишите в WhatsApp или позвоните — привезём баллон в тот же
+                день. +7 776 951 0282
+              </p>
+            </a>
+            <a
+              href="https://wa.me/77769510282"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block bg-white rounded-2xl border border-gray-100 hover:border-sky-200 hover:shadow-md transition-all p-5"
+            >
+              <h2 className="text-sm font-bold text-gray-800 mb-1">Доставка по записи</h2>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Планируете мероприятие заранее — согласуем удобную дату и время доставки гелия.
+              </p>
+            </a>
           </div>
 
           {/* Tab bar */}
@@ -229,6 +336,26 @@ export default function HeliumPage() {
               </table>
             </TableCard>
           )}
+
+          {/* FAQ */}
+          <div className="mt-10 bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 max-w-4xl">
+            <h2 className="text-sm sm:text-base font-bold text-gray-800 mb-3">
+              Вопросы о покупке гелия
+            </h2>
+            <div className="divide-y divide-gray-50">
+              {faqItems.map((item) => (
+                <details key={item.q} className="group py-3">
+                  <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-sm font-semibold text-gray-800">
+                    {item.q}
+                    <svg className="w-4 h-4 shrink-0 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </summary>
+                  <p className="text-sm text-gray-500 leading-relaxed mt-2">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </div>
         </div>
       </main>
       <Footer />

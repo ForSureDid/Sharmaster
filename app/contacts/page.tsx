@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
+
+export const metadata: Metadata = {
+  title: "Контакты",
+  description: "Свяжитесь с Sharmaster.kz: телефон, WhatsApp, Instagram, 2ГИС. Магазин воздушных шаров в Астане, пр. Мәңгілік Ел, 36. Режим работы ежедневно 10:00–19:00.",
+  alternates: { canonical: "/contacts" },
+};
 
 const hours = [
   { day: "Пн", time: "10:00–19:00" },
