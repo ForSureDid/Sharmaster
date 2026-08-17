@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
@@ -338,22 +339,36 @@ export default function HeliumPage() {
           )}
 
           {/* FAQ */}
-          <div className="mt-10 bg-white rounded-3xl border border-gray-100 p-5 sm:p-6 max-w-4xl">
-            <h2 className="text-sm sm:text-base font-bold text-gray-800 mb-3">
-              Вопросы о покупке гелия
-            </h2>
-            <div className="divide-y divide-gray-50">
-              {faqItems.map((item) => (
-                <details key={item.q} className="group py-3">
-                  <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-sm font-semibold text-gray-800">
-                    {item.q}
-                    <svg className="w-4 h-4 shrink-0 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </summary>
-                  <p className="text-sm text-gray-500 leading-relaxed mt-2">{item.a}</p>
-                </details>
-              ))}
+          <div className="mt-10 flex items-stretch gap-6">
+            <div className="w-full max-w-4xl flex-shrink-0 bg-white rounded-3xl border border-gray-100 p-5 sm:p-6">
+              <h2 className="text-sm sm:text-base font-bold text-gray-800 mb-3">
+                Вопросы о покупке гелия
+              </h2>
+              <div className="divide-y divide-gray-50">
+                {faqItems.map((item) => (
+                  <details key={item.q} className="group py-3">
+                    <summary className="cursor-pointer list-none flex items-center justify-between gap-4 text-sm font-semibold text-gray-800">
+                      {item.q}
+                      <svg className="w-4 h-4 shrink-0 text-gray-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </summary>
+                    <p className="text-sm text-gray-500 leading-relaxed mt-2">{item.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+
+            <div className="hidden lg:block flex-1">
+              <div className="relative h-full max-w-md mx-auto">
+                <Image
+                  src="/helium-qa.png"
+                  alt="Гелий — вопросы и ответы"
+                  fill
+                  className="object-contain"
+                  sizes="400px"
+                />
+              </div>
             </div>
           </div>
         </div>

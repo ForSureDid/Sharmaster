@@ -152,7 +152,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
           </Suspense>
         </div>
 
-        <div className="mt-8 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 max-w-4xl text-sm text-gray-500 leading-relaxed">
+        <div className="mt-8 bg-white rounded-2xl border border-gray-100 p-5 sm:p-6 text-sm text-gray-500 leading-relaxed">
           {seoText}
         </div>
       </div>

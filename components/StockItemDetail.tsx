@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLikes } from "@/context/LikesContext";
@@ -27,7 +27,7 @@ function formatMultiValue(raw: string): string {
   return raw.split(";").map((s) => s.trim()).filter(Boolean).join(", ");
 }
 
-function Gallery({ images, name }: { images: string[]; name: string }) {
+function Gallery({ images, name, badges }: { images: string[]; name: string; badges?: React.ReactNode }) {
   const [active, setActive] = useState(0);
 
   const prev = useCallback(() => setActive(i => (i - 1 + images.length) % images.length), [images.length]);
@@ -42,10 +42,15 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
           src={images[active]}
           alt={name}
           fill
-          className="object-contain p-3"
+          className="object-contain p-6"
           sizes="(max-width: 768px) 100vw, 50vw"
           priority
         />
+        {badges && (
+          <div className="absolute top-3 left-3 flex flex-col items-start gap-1.5 z-10">
+            {badges}
+          </div>
+        )}
         {images.length > 1 && (
           <>
             <button
@@ -66,32 +71,42 @@ function Gallery({ images, name }: { images: string[]; name: string }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-            {/* Dot counter */}
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
-              {images.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActive(i)}
-                  className={`rounded-full transition-all ${i === active ? "w-4 h-2 bg-sky-500" : "w-2 h-2 bg-gray-300 hover:bg-sky-300"}`}
-                />
-              ))}
-            </div>
           </>
         )}
       </div>
 
       {/* Thumbnail strip */}
       {images.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {images.map((src, i) => (
-            <button
-              key={i}
-              onClick={() => setActive(i)}
-              className={`relative flex-shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-white border-2 transition-all ${i === active ? "border-sky-400" : "border-transparent hover:border-sky-200"}`}
-            >
-              <Image src={src} alt={`${name} ${i + 1}`} fill className="object-contain p-1" sizes="64px" />
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={prev}
+            className="flex-shrink-0 w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-sky-500 hover:border-sky-200 transition-colors"
+            aria-label="Предыдущее фото"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {images.map((src, i) => (
+              <button
+                key={i}
+                onClick={() => setActive(i)}
+                className={`relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-white border-2 transition-all ${i === active ? "border-sky-400" : "border-gray-100 hover:border-sky-200"}`}
+              >
+                <Image src={src} alt={`${name} ${i + 1}`} fill className="object-contain p-1.5" sizes="80px" />
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={next}
+            className="flex-shrink-0 w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:text-sky-500 hover:border-sky-200 transition-colors"
+            aria-label="Следующее фото"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       )}
     </div>
@@ -141,53 +156,55 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
 
   const isPending = item.isNewPending && !inStock;
 
+  // Brief "added to cart" confirmation toast — the qty stepper replacing the
+  // button is already feedback, but a first-time add is otherwise silent.
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
+  const announceAdded = useCallback((label: string) => {
+    setToast(label);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 1800);
+  }, []);
+
+  const promoBadge = item.onSale
+    ? { text: item.salePercent ? `-${item.salePercent}%` : "Акция", className: "bg-red-500 text-white" }
+    : isPending
+    ? { text: "Ожидайте поступления", className: "bg-amber-400 text-white" }
+    : item.isNew
+    ? { text: "Новинка", className: "bg-green-500 text-white" }
+    : item.isHit
+    ? { text: "Хит", className: "bg-orange-500 text-white" }
+    : null;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
       {/* Gallery */}
       <div className="lg:sticky lg:top-28 self-start">
-        {item.images.length > 0 ? <Gallery images={item.images} name={item.name} /> : <NoImage />}
+        {item.images.length > 0 ? (
+          <Gallery
+            images={item.images}
+            name={item.name}
+            badges={promoBadge && (
+              <span className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wide shadow-sm ${promoBadge.className}`}>
+                {promoBadge.text}
+              </span>
+            )}
+          />
+        ) : (
+          <NoImage />
+        )}
       </div>
 
       {/* Info */}
       <div className="flex flex-col gap-5">
-        {/* Badges */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {item.onSale && (
-            <span className="text-xs bg-red-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
-              {item.salePercent ? `-${item.salePercent}%` : "Акция"}
-            </span>
-          )}
-          {isPending ? (
-            <span className="text-xs bg-amber-400 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
-              Ожидайте поступления
-            </span>
-          ) : item.isNew ? (
-            <span className="text-xs bg-green-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
-              Новинка
-            </span>
-          ) : item.isHit ? (
-            <span className="text-xs bg-orange-500 text-white px-2.5 py-1 rounded-full font-bold uppercase tracking-wide">
-              Хит
-            </span>
-          ) : null}
-          {item.brand && (
-            <span className="text-xs bg-sky-50 text-sky-600 border border-sky-100 px-2.5 py-1 rounded-full font-medium">
-              {item.brand}
-            </span>
-          )}
-          {inStock ? (
-            <span className="text-xs bg-green-50 text-green-600 border border-green-100 px-2.5 py-1 rounded-full font-medium">
-              В наличии{isAdmin ? ` · ${item.stock} шт` : ""}
-            </span>
-          ) : (
-            <span className="text-xs bg-gray-100 text-gray-400 px-2.5 py-1 rounded-full font-medium">
-              Нет в наличии
-            </span>
-          )}
-        </div>
+        {/* Meta line: brand */}
+        {item.brand && (
+          <span className="text-xs font-medium text-sky-600 uppercase tracking-wide">{item.brand}</span>
+        )}
 
         {/* Name */}
-        <h1 className="text-2xl font-extrabold text-gray-800 leading-snug">{displayName}</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800 leading-snug -mt-3">{displayName}</h1>
 
         {/* Price block */}
         <div className="bg-gray-50 rounded-2xl p-4 flex items-end gap-3">
@@ -261,7 +278,10 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
           ) : (
             <>
               <button
-                onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
+                onClick={() => {
+                  addToCart(asCartProduct, byPiece ? null : (packSize ?? null));
+                  announceAdded(displayName);
+                }}
                 disabled={!inStock}
                 className="w-full h-14 flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-colors shadow-sm"
               >
@@ -272,7 +292,10 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
               </button>
               {byPiece && packSize && inStock && (
                 <button
-                  onClick={() => addToCart(asCartProduct, null, packSize)}
+                  onClick={() => {
+                    addToCart(asCartProduct, null, packSize);
+                    announceAdded(displayName);
+                  }}
                   className="w-full py-2.5 text-sm border border-sky-200 text-sky-600 hover:bg-sky-50 rounded-xl transition-colors font-medium"
                 >
                   + упаковка ({packSize} шт)
@@ -280,6 +303,15 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
               )}
             </>
           )}
+        </div>
+
+        {/* Availability */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${inStock ? "bg-green-500" : "bg-gray-300"}`} />
+          <span className={inStock ? "text-gray-700 font-medium" : "text-gray-400"}>
+            {inStock ? "В наличии" : "Нет в наличии"}
+          </span>
+          {isAdmin && inStock && <span className="text-gray-400">· {item.stock} шт на складе</span>}
         </div>
 
         {/* Details table */}
@@ -358,6 +390,32 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             </dl>
           </div>
         )}
+
+        {/* Description */}
+        {item.description && (
+          <div>
+            <h2 className="text-sm font-semibold text-gray-600 mb-2">Описание</h2>
+            <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{item.description}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Added-to-cart toast */}
+      <div
+        aria-live="polite"
+        className={`fixed top-24 right-6 z-[60] max-w-[calc(100vw-3rem)] w-80 bg-white rounded-2xl shadow-xl border border-gray-100 px-4 py-3.5 flex items-start gap-3 transition-all duration-300 ${
+          toast ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"
+        }`}
+      >
+        <span className="w-8 h-8 flex-shrink-0 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-800">Добавлено в корзину</p>
+          <p className="text-xs text-gray-500 truncate">{toast}</p>
+        </div>
       </div>
     </div>
   );
