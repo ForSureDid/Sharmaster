@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   // ── Exact/contains search ─────────────────────────────────────────────────────
   const exactRows = await db.onecStockItem.findMany({
     where: {
+      isHidden: false,
       AND: words.map((word) => {
         const variants = [word, ...(WORD_SYNONYMS[word.toLowerCase()] ?? [])];
         return {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
 
     if (newIds.length > 0) {
       const fuzzyRows = await db.onecStockItem.findMany({
-        where: { id: { in: newIds } },
+        where: { id: { in: newIds }, isHidden: false },
         select: {
           id: true, slug: true, name: true, brand: true,
           stock: true, pricePerPc: true, sizeInches: true, packQty: true,
