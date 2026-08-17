@@ -586,8 +586,8 @@ async function _getSimilarStockItems(itemId: number, limit: number): Promise<Sto
   if (!source || source.categoryId == null) return []
 
   const candidates = await db.onecStockItem.findMany({
-    where: { isHidden: false, id: { not: itemId }, categoryId: source.categoryId },
-    select: { id: true, name: true, occasion: true, colorGroup: true, stock: true },
+    where: { isHidden: false, id: { not: itemId }, categoryId: source.categoryId, stock: { gt: 0 } },
+    select: { id: true, name: true, occasion: true, colorGroup: true },
     take: 500,
   })
   if (candidates.length === 0) return []
@@ -599,12 +599,8 @@ async function _getSimilarStockItems(itemId: number, limit: number): Promise<Sto
   }
 
   const ranked = candidates
-    .map((c) => ({ id: c.id, stock: c.stock, score: similarityScore(sourceScoring, c) }))
-    .sort((a, b) =>
-      b.score - a.score ||
-      (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
-      a.id - b.id
-    )
+    .map((c) => ({ id: c.id, score: similarityScore(sourceScoring, c) }))
+    .sort((a, b) => b.score - a.score || a.id - b.id)
     .slice(0, limit)
 
   const idOrder = new Map(ranked.map((r, i) => [r.id, i]))

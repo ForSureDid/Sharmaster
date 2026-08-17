@@ -325,6 +325,11 @@ async function upsertProductChunk(
   // scripts/backfill-onec-baseunit-weight-size-from-donballon.ts respectively —
   // absent from both this INSERT's column list and its ON CONFLICT DO UPDATE SET
   // clause, so a future 1C sync can never clobber them.
+  // description joined that list 2026-08-17: 1C's Описание is frequently garbled
+  // (encoding artifacts, half-copied spec dumps), so it's backfilled from donballon's
+  // YML feed instead (scripts/backfill-onec-description-from-donballon.ts) — still set
+  // on INSERT (from 1C, as a placeholder until backfilled) but no longer overwritten on
+  // UPDATE so the backfill survives every future sync.
   const result = await db.$queryRaw<{ id: number; onecId: string; inserted: boolean }[]>`
     INSERT INTO "OnecStockItem"
       ("onecId", "article", "name", "barcode", "brand", "countryOfOrigin", "description", "groupName", "categoryId", "stock", "pricePerPc", "isNew", "createdAt", "updatedAt")
@@ -334,7 +339,6 @@ async function upsertProductChunk(
       "name" = EXCLUDED."name",
       "barcode" = EXCLUDED."barcode",
       "countryOfOrigin" = EXCLUDED."countryOfOrigin",
-      "description" = EXCLUDED."description",
       "groupName" = EXCLUDED."groupName",
       "categoryId" = EXCLUDED."categoryId",
       "updatedAt" = now()
