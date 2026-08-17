@@ -94,7 +94,7 @@ function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }:
   );
 }
 
-function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean }) {
+export function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean }) {
   const { items, addToCart, updateQty } = useCart();
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;

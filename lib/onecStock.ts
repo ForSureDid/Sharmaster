@@ -542,6 +542,87 @@ export const getStockItemById = unstable_cache(
   { revalidate: 300, tags: ['onecStockItems'] }
 )
 
+// ─── "Похожие товары" (product-page recommendations) ────────────────────────
+//
+// Not sales-based (see project memory — only ~15 orders exist so far, far too
+// sparse for a real "bought together" signal). Content-based instead, scored
+// within the same category by: shared occasion tags, matching color group,
+// and overlapping meaningful words in the name. Padded with plain in-stock
+// same-category items if too few candidates score above zero, so the section
+// is never empty/thin in a sparsely-tagged category.
+
+const NAME_STOPWORDS = new Set([
+  'шар', 'шары', 'шарик', 'шарики', 'шт', 'уп', 'см', 'мм', 'ст', 'из', 'для', 'на', 'и', 'с', 'в', 'под', 'без',
+])
+
+function nameTokens(name: string): Set<string> {
+  const words = name.toLowerCase().match(/\p{L}+/gu) ?? []
+  return new Set(words.filter((w) => w.length >= 3 && !NAME_STOPWORDS.has(w)))
+}
+
+function similarityScore(
+  source: { tokens: Set<string>; occasions: string[]; colorGroup: string | null },
+  candidate: { name: string; occasion: string | null; colorGroup: string | null }
+): number {
+  let score = 0
+  const candTokens = nameTokens(candidate.name)
+  for (const t of candTokens) if (source.tokens.has(t)) score += 2
+
+  if (candidate.occasion) {
+    const candOccasions = candidate.occasion.split(';').map((o) => o.trim()).filter(Boolean)
+    for (const o of candOccasions) if (source.occasions.includes(o)) score += 4
+  }
+
+  if (source.colorGroup && candidate.colorGroup && source.colorGroup === candidate.colorGroup) score += 3
+
+  return score
+}
+
+async function _getSimilarStockItems(itemId: number, limit: number): Promise<StockCard[]> {
+  const source = await db.onecStockItem.findUnique({
+    where: { id: itemId },
+    select: { name: true, occasion: true, colorGroup: true, categoryId: true },
+  })
+  if (!source || source.categoryId == null) return []
+
+  const candidates = await db.onecStockItem.findMany({
+    where: { isHidden: false, id: { not: itemId }, categoryId: source.categoryId },
+    select: { id: true, name: true, occasion: true, colorGroup: true, stock: true },
+    take: 500,
+  })
+  if (candidates.length === 0) return []
+
+  const sourceScoring = {
+    tokens: nameTokens(source.name),
+    occasions: source.occasion ? source.occasion.split(';').map((o) => o.trim()).filter(Boolean) : [],
+    colorGroup: source.colorGroup,
+  }
+
+  const ranked = candidates
+    .map((c) => ({ id: c.id, stock: c.stock, score: similarityScore(sourceScoring, c) }))
+    .sort((a, b) =>
+      b.score - a.score ||
+      (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+      a.id - b.id
+    )
+    .slice(0, limit)
+
+  const idOrder = new Map(ranked.map((r, i) => [r.id, i]))
+  const [flags, rawItems] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findMany({ where: { id: { in: ranked.map((r) => r.id) } }, select: SELECT_FIELDS }),
+  ])
+  return rawItems
+    .map((i) => toCard(i, flags.latex, flags.foil))
+    .sort((a, b) => idOrder.get(a.id)! - idOrder.get(b.id)!)
+}
+
+export const getSimilarStockItems = unstable_cache(
+  (itemId: number) => _getSimilarStockItems(itemId, 12),
+  ['onecSimilarStockItems'],
+  { revalidate: 300, tags: ['onecStockItems'] }
+)
+
 async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   const [flags, rawItems] = await Promise.all([
     resolveCategoryFlags(),

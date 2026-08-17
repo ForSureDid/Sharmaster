@@ -4,7 +4,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import StockItemDetail from "@/components/StockItemDetail";
-import { getStockItemBySlug, getStockItemById } from "@/lib/onecStock";
+import SimilarProducts from "@/components/SimilarProducts";
+import { getStockItemBySlug, getStockItemById, getSimilarStockItems } from "@/lib/onecStock";
 
 // Resolves the same way the page body below does — both hit lib/onecStock.ts's
 // unstable_cache-wrapped fetchers, so calling it again here doesn't re-query the DB.
@@ -46,6 +47,8 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
 
   const item = await resolveItem(slug);
   if (!item) notFound();
+
+  const similarItems = await getSimilarStockItems(item.id);
 
   // Legacy numeric links, or an item whose slug hasn't been (re)generated yet —
   // resolve by id and redirect to the canonical slug URL. Slugs are always
@@ -116,6 +119,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
 
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <StockItemDetail item={item} />
+          <SimilarProducts items={similarItems} />
         </div>
       </main>
       <Footer />
