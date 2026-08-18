@@ -4,12 +4,15 @@ import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import CartSummaryCard from "@/components/CartSummaryCard";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { placeOrder } from "./actions";
 
+const FORM_ID = "order-form";
+
 export default function OrderPage() {
-  const { items, totalCount, totalPrice, discountPercent, discountAmount, finalTotal, clearCart, syncNotices, dismissSyncNotices } = useCart();
+  const { items, clearCart, syncNotices, dismissSyncNotices } = useCart();
   const { user, loading: authLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -60,10 +63,10 @@ export default function OrderPage() {
     <>
       <Header />
       <main className="pt-[88px] min-h-screen bg-gray-50">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-6">
+          <nav className="flex items-center gap-1.5 text-xs text-gray-400 mb-4">
             <Link href="/" className="hover:text-sky-500 transition-colors">Главная</Link>
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -75,8 +78,10 @@ export default function OrderPage() {
             <span className="text-gray-600 font-medium">Оформление заказа</span>
           </nav>
 
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-6">Оформление заказа</h1>
+
           {syncNotices.length > 0 && (
-            <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+            <div className="mb-4 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
               <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -93,34 +98,34 @@ export default function OrderPage() {
 
           {/* Success state */}
           {success ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h1 className="text-xl font-bold text-gray-800 mb-2">Заказ принят!</h1>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">Заказ принят!</h2>
               <p className="text-sm text-gray-500 mb-6">
                 Мы свяжемся с вами по номеру <span className="font-medium text-gray-700">{phone}</span> для подтверждения.
               </p>
               <Link
                 href="/catalog"
-                className="inline-block px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="inline-block px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-2xl transition-colors"
               >
                 Вернуться в каталог
               </Link>
             </div>
           ) : items.length === 0 ? (
             /* Empty cart state */
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
               <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
-              <h1 className="text-lg font-bold text-gray-700 mb-2">Корзина пуста</h1>
+              <h2 className="text-lg font-bold text-gray-700 mb-2">Корзина пуста</h2>
               <p className="text-sm text-gray-400 mb-6">Добавьте товары из каталога чтобы оформить заказ</p>
               <Link
                 href="/catalog"
-                className="inline-block px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                className="inline-block px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-2xl transition-colors"
               >
                 Перейти в каталог
               </Link>
@@ -132,131 +137,97 @@ export default function OrderPage() {
           ) : !user ? (
             /* Auth-required gate — cart is preserved (it lives in localStorage,
                independent of login), only placing the order needs an account. */
-            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
               <div className="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <h1 className="text-lg font-bold text-gray-700 mb-2">Войдите, чтобы оформить заказ</h1>
+              <h2 className="text-lg font-bold text-gray-700 mb-2">Войдите, чтобы оформить заказ</h2>
               <p className="text-sm text-gray-400 mb-6">
-                {totalCount} {totalCount === 1 ? "товар" : "товара"} ждёт в корзине — она никуда не пропадёт,
-                просто войдите в аккаунт или зарегистрируйтесь, чтобы подтвердить заказ.
+                Товары ждут в корзине — она никуда не пропадёт, просто войдите в аккаунт
+                или зарегистрируйтесь, чтобы подтвердить заказ.
               </p>
               <div className="flex items-center justify-center gap-3">
                 <Link
                   href="/login?redirect=/order"
-                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-2xl transition-colors"
                 >
                   Войти
                 </Link>
                 <Link
                   href="/register?redirect=/order"
-                  className="px-6 py-2.5 bg-white border border-sky-200 text-sky-600 hover:bg-sky-50 text-sm font-semibold rounded-xl transition-colors"
+                  className="px-6 py-2.5 bg-white border border-sky-200 text-sky-600 hover:bg-sky-50 text-sm font-semibold rounded-2xl transition-colors"
                 >
                   Зарегистрироваться
                 </Link>
               </div>
             </div>
           ) : (
-            <>
-              <h1 className="text-xl font-bold text-gray-800 mb-4">Оформление заказа</h1>
-
-              {/* Compact order summary */}
-              <div className="bg-white rounded-2xl border border-gray-100 px-5 py-4 mb-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500">{totalCount} {totalCount === 1 ? "товар" : "товара"} в заказе</p>
-                  <Link
-                    href="/cart"
-                    className="text-xs font-semibold text-sky-500 hover:text-sky-600 transition-colors"
-                  >
-                    Изменить
-                  </Link>
-                </div>
-                {discountPercent > 0 && (
-                  <div className="flex items-center justify-between text-sm text-gray-400 mt-2">
-                    <span>Скидка {discountPercent}%</span>
-                    <span>−{discountAmount.toLocaleString()} ₸</span>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              <form id={FORM_ID} onSubmit={handleSubmit} className="lg:col-span-2 flex flex-col gap-6">
+                <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">Контактные данные</h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ваше имя *</label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Иван Иванов"
+                        required
+                        className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1.5">Номер телефона *</label>
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="+7 777 000 00 00"
+                        required
+                        className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300"
+                      />
+                    </div>
                   </div>
-                )}
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm text-gray-500">Итого</span>
-                  <div className="flex items-baseline gap-1.5">
-                    {discountPercent > 0 && (
-                      <span className="text-sm text-gray-400 line-through">{totalPrice.toLocaleString()} ₸</span>
-                    )}
-                    <span className="text-xl font-bold text-gray-800">{finalTotal.toLocaleString()} ₸</span>
-                  </div>
                 </div>
-              </div>
 
-              <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ваше имя *</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="Иван Иванов"
-                    required
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Номер телефона *</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    placeholder="+7 777 000 00 00"
-                    required
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Адрес доставки *</label>
-                  <textarea
-                    value={address}
-                    onChange={e => setAddress(e.target.value)}
-                    placeholder="г. Алматы, ул. Абая 10, кв. 5"
-                    required
-                    rows={3}
-                    className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300 resize-none"
-                  />
+                <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4">Способ доставки</h2>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Адрес доставки *</label>
+                    <textarea
+                      value={address}
+                      onChange={e => setAddress(e.target.value)}
+                      placeholder="г. Алматы, ул. Абая 10, кв. 5"
+                      required
+                      rows={3}
+                      className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 transition-colors placeholder:text-gray-300 resize-none"
+                    />
+                  </div>
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-600">
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-600">
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {error}
                   </div>
                 )}
-
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="w-full py-3 bg-sky-500 hover:bg-sky-600 disabled:bg-sky-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-                >
-                  {isPending ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                      </svg>
-                      Оформляем...
-                    </>
-                  ) : (
-                    "Подтвердить заказ"
-                  )}
-                </button>
               </form>
 
-              <p className="text-xs text-gray-400 mt-3 text-center">
-                После подтверждения мы свяжемся с вами для уточнения деталей доставки
-              </p>
-            </>
+              <div className="lg:sticky lg:top-28 flex flex-col gap-3">
+                <CartSummaryCard
+                  primaryAction={{ kind: "submit", label: "Подтвердить заказ", formId: FORM_ID, loading: isPending, disabled: isPending }}
+                />
+                <p className="text-xs text-gray-400 text-center">
+                  После подтверждения мы свяжемся с вами для уточнения деталей доставки
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </main>
