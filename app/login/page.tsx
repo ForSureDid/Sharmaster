@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -13,6 +13,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // e.g. /login?redirect=/order — sends the customer back to checkout
+  // (guest carts are fine; only placing an order requires an account).
+  const redirect = searchParams.get("redirect") || "/account";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,7 +25,7 @@ export default function LoginPage() {
     const err = await login(email, password);
     setLoading(false);
     if (err) { setError(err); return; }
-    router.push("/account");
+    router.push(redirect);
   }
 
   return (
@@ -34,7 +38,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-extrabold text-gray-800 mb-1">Войти в аккаунт</h1>
             <p className="text-sm text-gray-400 mb-7">
               Нет аккаунта?{" "}
-              <a href="/register" className="text-sky-500 hover:text-sky-600 font-medium">Зарегистрироваться</a>
+              <a href={`/register?redirect=${encodeURIComponent(redirect)}`} className="text-sky-500 hover:text-sky-600 font-medium">Зарегистрироваться</a>
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">

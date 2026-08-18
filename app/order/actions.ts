@@ -26,6 +26,13 @@ export async function placeOrder(input: {
 }): Promise<PlaceOrderResult> {
   const { customerName, phone, address, items } = input
 
+  // Guests can browse and build a cart freely, but placing an order requires
+  // an account — enforced here too, not just by the /order page's UI gate,
+  // since this server action is directly callable regardless of what the
+  // client renders.
+  const session = await getSession()
+  if (!session) return { ok: false, error: 'Войдите или зарегистрируйтесь, чтобы оформить заказ' }
+
   // ── Input validation ──────────────────────────────────────────────────────
   if (!items.length) return { ok: false, error: 'Корзина пуста' }
   if (items.length > 500) return { ok: false, error: 'Слишком много позиций в заказе' }
@@ -90,8 +97,6 @@ export async function placeOrder(input: {
   const discountAmount = Math.round(subtotal * discountPercent / 100)
   const total = subtotal - discountAmount
 
-  const session = await getSession()
-
   // ── Atomic check-and-decrement inside one transaction ─────────────────────
   // updateMany with stock >= qty is a single conditional UPDATE in the DB —
   // if another request already consumed the stock, count === 0 and we abort.
@@ -121,9 +126,9 @@ export async function placeOrder(input: {
           )
         }
       }
-      return tx.order.create({
+      const newOrder = await tx.order.create({
         data: {
-          ...(session?.userId ? { userId: session.userId } : {}),
+          userId: session.userId,
           customerName: name,
           phone: ph,
           address: addr,
@@ -138,6 +143,17 @@ export async function placeOrder(input: {
           },
         },
       })
+
+      // Clear the server-side cart mirror (User.cart) right here, atomically
+      // with the order — don't rely on the client's clearCart() + debounced
+      // saveCart() round trip, which silently never fires if the tab
+      // closes/navigates away within the 800ms debounce window right after checkout.
+      await tx.user.update({
+        where: { id: session.userId },
+        data: { cart: [], cartUpdatedAt: new Date() },
+      })
+
+      return newOrder
     }, { timeout: 60_000 })
   } catch (err) {
     if (err instanceof StockError) return { ok: false, error: err.message }

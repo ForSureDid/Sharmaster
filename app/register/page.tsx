@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
@@ -37,6 +37,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") || "/account";
 
   function set(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -62,7 +64,7 @@ export default function RegisterPage() {
     const err = await register(fullName, form.email, form.phone, form.password);
     setLoading(false);
     if (err) { setError(err); return; }
-    router.push("/account");
+    router.push(redirect);
   }
 
   return (
@@ -75,7 +77,7 @@ export default function RegisterPage() {
             <h1 className="text-2xl font-extrabold text-gray-800 mb-1">Создать аккаунт</h1>
             <p className="text-sm text-gray-400 mb-7">
               Уже есть аккаунт?{" "}
-              <a href="/login" className="text-sky-500 hover:text-sky-600 font-medium">Войти</a>
+              <a href={`/login?redirect=${encodeURIComponent(redirect)}`} className="text-sky-500 hover:text-sky-600 font-medium">Войти</a>
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">

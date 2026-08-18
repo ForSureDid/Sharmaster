@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
 import { placeOrder } from "./actions";
 
 export default function OrderPage() {
   const { items, totalCount, totalPrice, discountPercent, discountAmount, finalTotal, clearCart, syncNotices, dismissSyncNotices } = useCart();
+  const { user, loading: authLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -16,6 +18,15 @@ export default function OrderPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+
+  // Guests can browse and build a cart freely — the account is only required
+  // at checkout. Prefill from the account once it's known so a logged-in
+  // customer isn't retyping their own name/phone.
+  useEffect(() => {
+    if (!user) return;
+    setName((prev) => prev || user.name);
+    setPhone((prev) => prev || user.phone || "");
+  }, [user]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +124,39 @@ export default function OrderPage() {
               >
                 Перейти в каталог
               </Link>
+            </div>
+          ) : authLoading ? (
+            <div className="flex justify-center py-24">
+              <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+            </div>
+          ) : !user ? (
+            /* Auth-required gate — cart is preserved (it lives in localStorage,
+               independent of login), only placing the order needs an account. */
+            <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+              <div className="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h1 className="text-lg font-bold text-gray-700 mb-2">Войдите, чтобы оформить заказ</h1>
+              <p className="text-sm text-gray-400 mb-6">
+                {totalCount} {totalCount === 1 ? "товар" : "товара"} ждёт в корзине — она никуда не пропадёт,
+                просто войдите в аккаунт или зарегистрируйтесь, чтобы подтвердить заказ.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <Link
+                  href="/login?redirect=/order"
+                  className="px-6 py-2.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Войти
+                </Link>
+                <Link
+                  href="/register?redirect=/order"
+                  className="px-6 py-2.5 bg-white border border-sky-200 text-sky-600 hover:bg-sky-50 text-sm font-semibold rounded-xl transition-colors"
+                >
+                  Зарегистрироваться
+                </Link>
+              </div>
             </div>
           ) : (
             <>
