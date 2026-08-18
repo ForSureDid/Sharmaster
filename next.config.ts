@@ -52,6 +52,9 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // sharp ships a native binary — must stay external to the server bundle
+  // (used in app/order/actions.ts to resize product photos for the order Excel).
+  serverExternalPackages: ["sharp"],
   async headers() {
     return [
       {

@@ -1,9 +1,27 @@
 import { NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
+import sharp from 'sharp'
 import path from 'path'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { amountInWords } from '@/lib/numberToWords'
+
+// Mirrors app/order/actions.ts's fetchThumbnail — kept as a separate copy since
+// this route and the Telegram notifier build the Excel at different times from
+// different data sources (live order items here vs. a fresh checkout there).
+async function fetchThumbnail(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const bytes = await res.arrayBuffer()
+    return await sharp(Buffer.from(bytes))
+      .resize(64, 64, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .jpeg({ quality: 70 })
+      .toBuffer()
+  } catch {
+    return null
+  }
+}
 
 const TEMPLATE_PATH = path.join(
   process.cwd(),
@@ -50,6 +68,27 @@ export async function GET(
     (order.userId === null && !!session.phone && order.phone === session.phone)
   if (!owns) return new NextResponse('Forbidden', { status: 403 })
 
+  // Article/photo aren't stored on OrderItem — look them up from the live
+  // catalog via onecStockItemId. Missing for deleted products or legacy rows
+  // with no link, which just leaves those two cells blank for that line.
+  const stockIds = order.items
+    .map((i) => i.onecStockItemId)
+    .filter((id): id is number => id !== null)
+  const stockRows = stockIds.length > 0
+    ? await db.onecStockItem.findMany({
+        where: { id: { in: stockIds } },
+        select: { id: true, article: true, imageUrl: true },
+      })
+    : []
+  const stockById = new Map(stockRows.map((s) => [s.id, s]))
+
+  const thumbnails = await Promise.all(
+    order.items.map((item) => {
+      const imageUrl = item.onecStockItemId ? stockById.get(item.onecStockItemId)?.imageUrl : null
+      return imageUrl ? fetchThumbnail(imageUrl) : Promise.resolve(null)
+    })
+  )
+
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.readFile(TEMPLATE_PATH)
   const sheet = workbook.worksheets[0]
@@ -66,22 +105,39 @@ export async function GET(
     sheet.duplicateRow(ITEMS_START_ROW + TEMPLATE_ITEM_ROWS - 1, extra, true)
   }
 
+  // Order.total already has the "Прогрессивная скидка" baked in but the percent
+  // itself isn't stored — this ratio reproduces the same effective discount per
+  // line without needing that field (see app/order/actions.ts for the original,
+  // exact-percent version computed at checkout time).
+  const subtotal = order.items.reduce((s, i) => s + Number(i.price) * i.qty, 0)
+  const total = Number(order.total)
+  const discountRatio = subtotal > 0 ? total / subtotal : 1
+
   order.items.forEach((item, idx) => {
     const r = ITEMS_START_ROW + idx
+    const stockRow = item.onecStockItemId ? stockById.get(item.onecStockItemId) : undefined
+    const price = Number(item.price)
     sheet.getCell(`A${r}`).value = idx + 1
-    sheet.getCell(`B${r}`).value = ''
-    sheet.getCell(`C${r}`).value = item.name
-    sheet.getCell(`D${r}`).value = item.qty
-    sheet.getCell(`E${r}`).value = 'шт'
-    sheet.getCell(`F${r}`).value = Number(item.price)
-    sheet.getCell(`G${r}`).value = Number(item.price) * item.qty
+    sheet.getCell(`B${r}`).value = stockRow?.article ?? ''
+    sheet.getCell(`D${r}`).value = item.name
+    sheet.getCell(`E${r}`).value = item.qty
+    sheet.getCell(`F${r}`).value = 'шт'
+    sheet.getCell(`G${r}`).value = price
+    sheet.getCell(`H${r}`).value = Math.round(price * discountRatio)
+    sheet.getCell(`I${r}`).value = price * item.qty
+
+    const thumb = thumbnails[idx]
+    if (thumb) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see fetchThumbnail's sibling in app/order/actions.ts
+      const imageId = workbook.addImage({ buffer: thumb as any, extension: 'jpeg' })
+      sheet.addImage(imageId, `C${r}:C${r}`)
+    }
   })
 
   // ── Footer (shifts down if extra rows were inserted) ─────────────────────────
   const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
-  const total = Number(order.total)
 
-  sheet.getCell(`G${TOTAL_ROW + shift}`).value = total
+  sheet.getCell(`I${TOTAL_ROW + shift}`).value = total
 
   sheet.getCell(`A${SUMMARY_ROW + shift}`).value =
     `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`

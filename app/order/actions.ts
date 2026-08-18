@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { revalidatePath } from 'next/cache'
 import ExcelJS from 'exceljs'
+import sharp from 'sharp'
 import path from 'path'
 import { amountInWords } from '@/lib/numberToWords'
 import { getOneTimeDiscountPercent } from '@/lib/discounts'
@@ -62,7 +63,7 @@ export async function placeOrder(input: {
 
   const stockRows = await db.onecStockItem.findMany({
     where: { OR: [{ id: { in: ids } }, { name: { in: names } }] },
-    select: { id: true, stock: true, name: true, pricePerPc: true },
+    select: { id: true, stock: true, name: true, pricePerPc: true, article: true, imageUrl: true },
   })
 
   // Resolve each cart item to its real OnecStockItem
@@ -164,7 +165,12 @@ export async function placeOrder(input: {
 
   notifyTelegram(order.id, name, ph, addr, resolved.map(({ item, stockRow }) => ({
     item,
-    stockRow: stockRow ? { name: stockRow.name, pricePerPc: Number(stockRow.pricePerPc) } : null,
+    stockRow: stockRow ? {
+      name: stockRow.name,
+      pricePerPc: Number(stockRow.pricePerPc),
+      article: stockRow.article,
+      imageUrl: stockRow.imageUrl,
+    } : null,
   })), subtotal, discountPercent, discountAmount, total).catch((err) => {
     console.error(`notifyTelegram failed for order #${order.id}:`, err)
   })
@@ -179,12 +185,32 @@ const TOTAL_ROW = 34
 const SUMMARY_ROW = 37
 const WORDS_ROW = 39
 
+// Fetches a product photo and re-encodes it as a small, fixed-size JPEG —
+// keeps the order Excel light regardless of the source image's real
+// dimensions/format (Supabase originals can be large PNG/WebP, see
+// supabase-image-loader.ts), and ExcelJS's addImage only accepts jpeg/png/gif.
+// Returns null on any failure (missing/broken image) so one bad photo never
+// breaks the whole export — the row just renders with an empty photo cell.
+async function fetchThumbnail(url: string): Promise<Buffer | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const bytes = await res.arrayBuffer()
+    return await sharp(Buffer.from(bytes))
+      .resize(64, 64, { fit: 'contain', background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .jpeg({ quality: 70 })
+      .toBuffer()
+  } catch {
+    return null
+  }
+}
+
 async function notifyTelegram(
   orderId: number,
   name: string,
   phone: string,
   address: string,
-  resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number } | null }[],
+  resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number; article: string | null; imageUrl: string | null } | null }[],
   subtotal: number,
   discountPercent: number,
   discountAmount: number,
@@ -213,11 +239,25 @@ async function notifyTelegram(
   // notification. Falls back to a text-only message if this throws.
   let buffer: Buffer | null = null
   try {
-    const items = resolved.map(({ item, stockRow }) => ({
-      name: item.name,
-      qty: item.qty,
-      price: stockRow ? Number(stockRow.pricePerPc) : 0,
-    }))
+    const items = resolved.map(({ item, stockRow }) => {
+      const price = stockRow ? Number(stockRow.pricePerPc) : 0
+      return {
+        name: item.name,
+        qty: item.qty,
+        price,
+        // Same order-wide percent applied to every line (see discountPercent above —
+        // it's a single "Прогрессивная скидка" tier, not a per-item sale discount).
+        discountedPrice: Math.round(price * (1 - discountPercent / 100)),
+        article: stockRow?.article ?? '',
+        imageUrl: stockRow?.imageUrl ?? null,
+      }
+    })
+
+    // Fetch/resize all photos up front, in parallel — the sheet is built
+    // synchronously below and addImage needs the buffer already in hand.
+    const thumbnails = await Promise.all(
+      items.map((item) => (item.imageUrl ? fetchThumbnail(item.imageUrl) : Promise.resolve(null)))
+    )
 
     const workbook = new ExcelJS.Workbook()
     await workbook.xlsx.readFile(TEMPLATE_PATH)
@@ -233,16 +273,26 @@ async function notifyTelegram(
     items.forEach((item, idx) => {
       const r = ITEMS_START_ROW + idx
       sheet.getCell(`A${r}`).value = idx + 1
-      sheet.getCell(`B${r}`).value = ''
-      sheet.getCell(`C${r}`).value = item.name
-      sheet.getCell(`D${r}`).value = item.qty
-      sheet.getCell(`E${r}`).value = 'шт'
-      sheet.getCell(`F${r}`).value = item.price
-      sheet.getCell(`G${r}`).value = item.price * item.qty
+      sheet.getCell(`B${r}`).value = item.article
+      sheet.getCell(`D${r}`).value = item.name
+      sheet.getCell(`E${r}`).value = item.qty
+      sheet.getCell(`F${r}`).value = 'шт'
+      sheet.getCell(`G${r}`).value = item.price
+      sheet.getCell(`H${r}`).value = item.discountedPrice
+      sheet.getCell(`I${r}`).value = item.price * item.qty
+
+      const thumb = thumbnails[idx]
+      if (thumb) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- sharp's
+        // Buffer<ArrayBuffer> vs ExcelJS's Buffer<ArrayBufferLike> is a real-node,
+        // type-only mismatch (see @types/node's newer generic Buffer); harmless at runtime.
+        const imageId = workbook.addImage({ buffer: thumb as any, extension: 'jpeg' })
+        sheet.addImage(imageId, `C${r}:C${r}`)
+      }
     })
 
     const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
-    sheet.getCell(`G${TOTAL_ROW + shift}`).value = subtotal
+    sheet.getCell(`I${TOTAL_ROW + shift}`).value = subtotal
     sheet.getCell(`A${SUMMARY_ROW + shift}`).value = discountPercent > 0
       ? `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг. Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг). Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`
       : `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
@@ -255,29 +305,61 @@ async function notifyTelegram(
   }
 
   if (buffer) {
-    const form = new FormData()
-    form.append('chat_id', chatId)
-    form.append('caption', caption)
-    form.append(
-      'document',
-      new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      `Заказ-${orderId}.xlsx`,
-    )
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
-      method: 'POST',
-      body: form,
+    const sent = await sendWithRetry(orderId, 'sendDocument', () => {
+      const form = new FormData()
+      form.append('chat_id', chatId)
+      form.append('caption', caption)
+      form.append(
+        'document',
+        new Blob([new Uint8Array(buffer!)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `Заказ-${orderId}.xlsx`,
+      )
+      return fetch(`https://api.telegram.org/bot${token}/sendDocument`, { method: 'POST', body: form })
     })
-    if (!res.ok) {
-      console.error(`notifyTelegram: sendDocument failed for order #${orderId}:`, res.status, await res.text())
+    // Document delivery never made it through (e.g. repeated Telegram 5xx/timeout)
+    // — fall back to a text-only message so the manager at least learns the order
+    // exists, rather than getting nothing at all.
+    if (!sent) {
+      await sendWithRetry(orderId, 'sendMessage (fallback after sendDocument failure)', () =>
+        fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, text: caption }),
+        })
+      )
     }
   } else {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: caption }),
-    })
-    if (!res.ok) {
-      console.error(`notifyTelegram: sendMessage fallback failed for order #${orderId}:`, res.status, await res.text())
-    }
+    await sendWithRetry(orderId, 'sendMessage', () =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: caption }),
+      })
+    )
   }
+}
+
+// Telegram's API occasionally 504s/times out on sendDocument (observed directly —
+// a trivial 1KB test upload took 8s and a real one once failed outright), so a
+// single failed attempt shouldn't mean the manager never hears about the order.
+// Returns whether any attempt succeeded; logs and swallows the final failure —
+// notifyTelegram is already fire-and-forget from placeOrder's perspective.
+async function sendWithRetry(
+  orderId: number,
+  label: string,
+  attempt: () => Promise<Response>,
+  maxAttempts = 3,
+  delaysMs = [2000, 5000],
+): Promise<boolean> {
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      const res = await attempt()
+      if (res.ok) return true
+      console.error(`notifyTelegram: ${label} failed for order #${orderId} (attempt ${i}/${maxAttempts}):`, res.status, await res.text())
+    } catch (err) {
+      console.error(`notifyTelegram: ${label} threw for order #${orderId} (attempt ${i}/${maxAttempts}):`, err)
+    }
+    if (i < maxAttempts) await new Promise((r) => setTimeout(r, delaysMs[i - 1] ?? delaysMs.at(-1)))
+  }
+  return false
 }
