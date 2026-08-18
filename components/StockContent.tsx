@@ -7,6 +7,7 @@ import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
+import QtyStepper from "@/components/QtyStepper";
 
 function LikeButton({ id, className }: { id: number; className?: string }) {
   const { isLiked, toggleLike } = useLikes();
@@ -207,19 +208,13 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
             </button>
           ) : cartItem ? (
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between border border-sky-300 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty - 1)}
-                  className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                >−</button>
-                <span className="flex-1 text-center text-sm font-bold text-sky-600">
-                  {cartItem.qty}{byPiece || !packSize ? " шт" : " уп"}
-                </span>
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + 1)}
-                  className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                >+</button>
-              </div>
+              <QtyStepper
+                qty={cartItem.qty}
+                onChange={(qty) => updateQty(item.id, qty)}
+                size="sm"
+                unit={byPiece || !packSize ? "шт" : "уп"}
+                fill
+              />
               {byPiece && packSize && (
                 <button
                   onClick={() => updateQty(item.id, cartItem.qty + packSize)}
@@ -235,10 +230,7 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
                 onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
                 className="w-full flex items-center justify-center gap-1.5 py-2 bg-sky-500 hover:bg-sky-600 text-white text-xs font-semibold rounded-lg transition-colors"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                </svg>
-                {byPiece ? "В корзину (1 шт)" : packSize ? "В корзину (1 уп)" : "В корзину"}
+                + В корзину
               </button>
               {byPiece && packSize && (
                 <button
@@ -332,11 +324,12 @@ function StockCardList({ item }: { item: StockCard }) {
           </button>
         ) : cartItem ? (
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
-            <div className="flex items-center border border-sky-300 rounded-lg overflow-hidden">
-              <button onClick={() => updateQty(item.id, cartItem.qty - 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">−</button>
-              <span className="w-12 text-center text-sm font-bold text-sky-600">{cartItem.qty}{byPiece || !packSize ? " шт" : " уп"}</span>
-              <button onClick={() => updateQty(item.id, cartItem.qty + 1)} className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 text-lg font-bold">+</button>
-            </div>
+            <QtyStepper
+              qty={cartItem.qty}
+              onChange={(qty) => updateQty(item.id, qty)}
+              size="sm"
+              unit={byPiece || !packSize ? "шт" : "уп"}
+            />
             {byPiece && packSize && (
               <button
                 onClick={() => updateQty(item.id, cartItem.qty + packSize)}
@@ -352,10 +345,7 @@ function StockCardList({ item }: { item: StockCard }) {
               onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
               className="flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-              </svg>
-              {byPiece ? "1 шт" : packSize ? "1 уп" : "В корзину"}
+              + В корзину
             </button>
             {byPiece && packSize && (
               <button

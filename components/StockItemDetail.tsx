@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLikes } from "@/context/LikesContext";
+import QtyStepper from "@/components/QtyStepper";
 import type { StockDetail } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
@@ -253,19 +254,13 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
         <div className="flex flex-col gap-2">
           {cartItem ? (
             <>
-              <div className="flex items-center border-2 border-sky-300 rounded-xl overflow-hidden w-full">
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty - 1)}
-                  className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
-                >−</button>
-                <span className="flex-1 text-center text-lg font-extrabold text-sky-700">
-                  {cartItem.qty} {byPiece || !packSize ? "шт" : "уп"}
-                </span>
-                <button
-                  onClick={() => updateQty(item.id, cartItem.qty + 1)}
-                  className="w-14 h-14 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-2xl font-bold"
-                >+</button>
-              </div>
+              <QtyStepper
+                qty={cartItem.qty}
+                onChange={(qty) => updateQty(item.id, qty)}
+                size="lg"
+                unit={byPiece || !packSize ? "шт" : "уп"}
+                fill
+              />
               {byPiece && packSize && inStock && (
                 <button
                   onClick={() => updateQty(item.id, cartItem.qty + packSize)}
@@ -285,10 +280,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
                 disabled={!inStock}
                 className="w-full h-14 flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:bg-gray-200 disabled:cursor-not-allowed text-white text-base font-bold rounded-xl transition-colors shadow-sm"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {!inStock ? "Нет в наличии" : byPiece ? "В корзину (1 шт)" : packSize ? "В корзину (1 уп)" : "В корзину"}
+                {!inStock ? "Нет в наличии" : "+ В корзину"}
               </button>
               {byPiece && packSize && inStock && (
                 <button

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
+import QtyStepper from "@/components/QtyStepper";
 import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
@@ -20,7 +21,7 @@ export default function ProductGrid({ items }: Props) {
       <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Акция</h2>
-          <Link href="/sale" className="text-sm text-sky-500 hover:text-sky-700 font-medium transition-colors">
+          <Link href="/sale" className="text-sm text-sky-500 hover:text-sky-700 font-medium bg-sky-50 hover:bg-sky-100 rounded-full px-4 py-2 transition-colors">
             Все акции →
           </Link>
         </div>
@@ -86,8 +87,8 @@ export default function ProductGrid({ items }: Props) {
                       {item.fullName ?? item.name}
                     </Link>
 
-                    <div className="flex items-end justify-between gap-2 mt-auto">
-                      <div>
+                    <div className="mt-auto">
+                      <div className="mb-2">
                         {salePrice ? (
                           <>
                             <span className="text-lg font-bold text-red-600">
@@ -109,29 +110,19 @@ export default function ProductGrid({ items }: Props) {
                       </div>
 
                       {cartItem ? (
-                        <div className="flex items-center border border-sky-300 rounded-lg overflow-hidden flex-shrink-0">
-                          <button
-                            onClick={() => updateQty(item.id, cartItem.qty - 1)}
-                            className="w-7 h-7 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors font-bold"
-                          >
-                            −
-                          </button>
-                          <span className="w-6 text-center text-xs font-bold text-sky-600">{cartItem.qty}</span>
-                          <button
-                            onClick={() => updateQty(item.id, cartItem.qty + 1)}
-                            className="w-7 h-7 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
+                        <QtyStepper
+                          qty={cartItem.qty}
+                          onChange={(qty) => updateQty(item.id, qty)}
+                          size="xs"
+                          unit={packSize ? "уп" : "шт"}
+                          fill
+                        />
                       ) : (
                         <button
                           onClick={() => addToCart(asCartProduct, packSize)}
-                          className="flex-shrink-0 w-8 h-8 bg-sky-400 hover:bg-sky-500 text-white rounded-lg flex items-center justify-center transition-colors"
+                          className="w-full py-1.5 bg-sky-400 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg transition-colors"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                          </svg>
+                          + В корзину
                         </button>
                       )}
                     </div>

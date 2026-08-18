@@ -632,7 +632,9 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
   return rawItems.map((i) => toCard(i, flags.latex, flags.foil))
 }
 
-export const getSaleItems = unstable_cache(() => _getSaleItems(8), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
+// 6, not 8 — the homepage "Акция" section is a single lg:grid-cols-6 row (see
+// ProductGrid.tsx); 8 items wrapped an ugly partial second row.
+export const getSaleItems = unstable_cache(() => _getSaleItems(6), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
 // Novelties tab shows the union of both novinka signals (user decision 2026-07-30 — every

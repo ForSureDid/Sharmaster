@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import { useLikes } from "@/context/LikesContext";
 import { useCart } from "@/context/CartContext";
+import QtyStepper from "@/components/QtyStepper";
 import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 
@@ -134,30 +135,19 @@ export default function LikedPage() {
                       </div>
 
                       {cartItem ? (
-                        <div className="flex-shrink-0 flex items-center border border-sky-300 rounded-lg overflow-hidden">
-                          <button
-                            onClick={() => updateQty(item.id, cartItem.qty - 1)}
-                            className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                          >
-                            −
-                          </button>
-                          <span className="w-8 text-center text-sm font-bold text-sky-600">{cartItem.qty}{byPiece || !packSize ? "" : " уп"}</span>
-                          <button
-                            onClick={() => updateQty(item.id, cartItem.qty + 1)}
-                            className="w-9 h-9 flex items-center justify-center text-sky-600 hover:bg-sky-50 transition-colors text-lg font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
+                        <QtyStepper
+                          qty={cartItem.qty}
+                          onChange={(qty) => updateQty(item.id, qty)}
+                          size="sm"
+                          unit={byPiece || !packSize ? undefined : "уп"}
+                          className="flex-shrink-0"
+                        />
                       ) : (
                         <button
                           onClick={() => addToCart(asCartProduct, byPiece ? null : (packSize ?? null))}
                           className="flex-shrink-0 hidden sm:flex items-center gap-1.5 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                          </svg>
-                          В корзину
+                          + В корзину
                         </button>
                       )}
 
