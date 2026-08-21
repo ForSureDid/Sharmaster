@@ -418,6 +418,42 @@ export type OnecOffer = {
   price: number | null
 }
 
+// TEMPORARY (2026-08-21): diagnosing a report that live prices don't match 1C's
+// intended retail price group — parseOffersXml below always takes prices[0], which
+// is only correct if 1C sends exactly one <Цена> per offer. This dumps the
+// ТипыЦен name→Ид map plus the first few multi-price offers so we can see what's
+// actually coming across, then pick the right ИдТипаЦены. Remove once diagnosed.
+export function debugOfferPrices(bytes: Uint8Array): string {
+  const xml = decodeXml(bytes)
+  const doc: XmlNode = parser.parse(xml)
+  const root = doc?.КоммерческаяИнформация ?? {}
+  const пакет = root?.ПакетПредложений ?? {}
+
+  const типыЦен = asArray<XmlNode>(пакет?.ТипыЦен?.ТипЦены).map((t) => ({
+    Ид: text(t?.Ид),
+    Наименование: text(t?.Наименование),
+    Валюта: text(t?.Валюта),
+  }))
+
+  const предложения = asArray<XmlNode>(пакет?.Предложения?.Предложение)
+  const samples: unknown[] = []
+  for (const o of предложения) {
+    const prices = asArray<XmlNode>(o?.Цены?.Цена)
+    if (prices.length > 1 && samples.length < 15) {
+      samples.push({
+        onecId: text(o?.Ид),
+        Наименование: text(o?.Наименование),
+        цены: prices.map((p) => ({
+          ИдТипаЦены: text(p?.ИдТипаЦены),
+          ЦенаЗаЕдиницу: text(p?.ЦенаЗаЕдиницу),
+        })),
+      })
+    }
+  }
+
+  return JSON.stringify({ всегоПредложений: предложения.length, типыЦен, samples }, null, 0)
+}
+
 export function parseOffersXml(bytes: Uint8Array): OnecOffer[] {
   const xml = decodeXml(bytes)
   const doc: XmlNode = parser.parse(xml)

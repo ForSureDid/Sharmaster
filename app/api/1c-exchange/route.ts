@@ -13,7 +13,7 @@
 import { NextRequest } from 'next/server'
 import { checkOnecAuth, onecUnauthorizedResponse } from '@/lib/onecAuth'
 import { appendOnecFile, clearOnecFiles, downloadOnecFile } from '@/lib/onecStorage'
-import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml, upsertOnecCategories } from '@/lib/onecImport'
+import { parseImportXml, applyImportXml, parseOffersXml, applyOffersXml, upsertOnecCategories, debugOfferPrices } from '@/lib/onecImport'
 import { buildSaleQueryXml, confirmSaleExport } from '@/lib/onecOrders'
 import { db } from '@/lib/db'
 
@@ -165,6 +165,12 @@ async function handleImport(filename: string): Promise<Response> {
     }
 
     if (/offers.*\.xml$/i.test(filename)) {
+      // TEMPORARY (2026-08-21): capture raw price-type data to diagnose wrong
+      // displayed prices. Remove alongside debugOfferPrices in lib/onecImport.ts.
+      await db.syncLog
+        .create({ data: { source: '1c-offers-debug', status: 'success', message: debugOfferPrices(bytes).slice(0, 4000) } })
+        .catch(() => {})
+
       const offers = parseOffersXml(bytes)
       const { updated, skipped, errors } = await applyOffersXml(offers)
       await db.syncLog.create({
