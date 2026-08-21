@@ -97,6 +97,24 @@ function walkGroups(nodes: XmlNode[], parentOnecId: string | null, out: OnecGrou
   }
 }
 
+// TEMPORARY (2026-08-21): each product's card in 1C carries a "ценовая группа"
+// (25/30/40/50/60) that picks which offers.xml <Цена ИдТипаЦены> is the real
+// selling price — parseImportXml currently doesn't read it at all. Dump raw
+// property definitions + a few raw <Товар> nodes to find where 1C puts it.
+// Remove alongside debugOfferPrices once diagnosed.
+export function debugCatalogProperties(bytes: Uint8Array): string {
+  const xml = decodeXml(bytes)
+  const doc: XmlNode = parser.parse(xml)
+  const root = doc?.КоммерческаяИнформация ?? {}
+  const каталог = root?.Каталог ?? {}
+
+  const свойства = каталог?.Свойства
+  const товары = asArray<XmlNode>(каталог?.Товары?.Товар)
+  const samples = товары.slice(0, 3)
+
+  return JSON.stringify({ свойства, sampleTovarKeys: samples.map((t) => Object.keys(t)), samples }, null, 0)
+}
+
 export function parseImportXml(bytes: Uint8Array): { products: OnecProduct[]; groups: OnecGroup[] } {
   const xml = decodeXml(bytes)
   const doc: XmlNode = parser.parse(xml)
