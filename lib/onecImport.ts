@@ -110,9 +110,43 @@ export function debugCatalogProperties(bytes: Uint8Array): string {
 
   const свойства = каталог?.Свойства
   const товары = asArray<XmlNode>(каталог?.Товары?.Товар)
-  const samples = товары.slice(0, 3)
 
-  return JSON.stringify({ свойства, sampleTovarKeys: samples.map((t) => Object.keys(t)), samples }, null, 0)
+  // Scan every product's ЗначенияРеквизитов across the whole catalog — not just a
+  // few samples — for any requisite whose name mentions "ценов"/"групп", and also
+  // collect the full distinct set of requisite names actually sent.
+  const requisiteNames = new Set<string>()
+  let priceGroupHits = 0
+  const priceGroupSamples: unknown[] = []
+  for (const t of товары) {
+    const reqs = asArray<XmlNode>(t?.ЗначенияРеквизитов?.ЗначениеРеквизита)
+    for (const r of reqs) {
+      const name = text(r?.Наименование)
+      requisiteNames.add(name)
+      if (/ценов|групп/i.test(name)) {
+        priceGroupHits++
+        if (priceGroupSamples.length < 5) {
+          priceGroupSamples.push({ товар: text(t?.Наименование), реквизит: name, значение: text(r?.Значение) })
+        }
+      }
+    }
+  }
+
+  // Specifically look for the Make&fun lion we've been using as the test case.
+  const lion = товары.find((t: XmlNode) => text(t?.Ид) === '8e09f41e-915d-11f1-89ac-525400b77635')
+
+  return JSON.stringify(
+    {
+      всегоТоваров: товары.length,
+      свойства,
+      requisiteNames: [...requisiteNames],
+      priceGroupHits,
+      priceGroupSamples,
+      lionFoundInThisFile: !!lion,
+      lionRaw: lion ?? null,
+    },
+    null,
+    0
+  )
 }
 
 export function parseImportXml(bytes: Uint8Array): { products: OnecProduct[]; groups: OnecGroup[] } {
