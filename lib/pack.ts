@@ -118,6 +118,20 @@ export function isSoldByPiece(item: PackItem): boolean {
   return false;
 }
 
+// Minimum order quantity for items that are sold per-piece (not bundled into a
+// priced pack) but still can't be ordered in less than N — e.g. thin foil
+// digits that need at least a few together to look right. Mirasbek 2026-08-22:
+// СмайлБерри's foil digits ("Цифры") must be ordered in 3s minimum.
+const MIN_QTY_RULES: { brand: string; namePattern: RegExp; minQty: number }[] = [
+  { brand: "смайлберри", namePattern: /цифр/i, minQty: 3 },
+];
+
+export function getMinQty(item: { brand?: string | null; name: string }): number {
+  const brand = (item.brand ?? "").toLowerCase();
+  const rule = MIN_QTY_RULES.find((r) => brand.includes(r.brand) && r.namePattern.test(item.name));
+  return rule?.minQty ?? 1;
+}
+
 // Pack price for display. For actual balloons (item.isBalloon), pricePerPc is
 // genuinely the price of one single balloon, so the pack price is pricePerPc*packSize.
 // For every other category (сервировка, свечи, топперы, перья, коробки, etc.) 1C's

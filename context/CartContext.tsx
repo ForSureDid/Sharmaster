@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ProductCard } from "@/lib/products";
 import { getOneTimeDiscountPercent } from "@/lib/discounts";
+import { getMinQty } from "@/lib/pack";
 import { useAuth } from "@/context/AuthContext";
 import { saveCart, loadCart } from "@/app/cart/actions";
 
@@ -17,6 +18,9 @@ export type CartItem = {
   // See ProductCard.isBalloon — carried over as-is from add time since it's a
   // static category property, not something that needs re-fetching on sync.
   isBalloon?: boolean;
+  // Floor for qty — see lib/pack.ts's getMinQty(). Undefined/1 means no floor
+  // beyond the normal "0 removes the item" rule.
+  minQty?: number;
 };
 
 type CartContextType = {
@@ -128,7 +132,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const maxQty = item.packSize && item.isBalloon !== false
             ? Math.floor(fresh.stock / item.packSize)
             : fresh.stock;
-          if (maxQty <= 0) {
+          if (maxQty <= 0 || (item.minQty && maxQty < item.minQty)) {
             notices.push(`«${item.name}» закончился на складе и был убран из корзины`);
             changed = true;
             return acc;
@@ -165,15 +169,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return prev.map((i) => i.id === product.id ? { ...i, qty: i.qty + 1 } : i);
       }
+      const minQty = getMinQty({ brand: product.manufacturer, name: product.name });
       return [...prev, {
         id: product.id,
         name: product.name,
         price: product.price,
         salePrice: product.salePrice,
         imageUrl: product.imageUrl,
-        qty: initialQty ?? 1,
+        qty: initialQty ?? minQty,
         packSize,
         isBalloon: product.isBalloon,
+        minQty: minQty > 1 ? minQty : undefined,
       }];
     });
   }, []);
@@ -182,12 +188,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
+  // Below minQty (default 1) drops the item entirely — same "decrement past
+  // the floor removes it" behavior the plain qty<=0 case already had.
   const updateQty = useCallback((id: number, qty: number) => {
-    if (qty <= 0) {
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    } else {
-      setItems((prev) => prev.map((i) => i.id === id ? { ...i, qty } : i));
-    }
+    setItems((prev) => {
+      const item = prev.find((i) => i.id === id);
+      const floor = item?.minQty ?? 1;
+      if (qty < floor) return prev.filter((i) => i.id !== id);
+      return prev.map((i) => i.id === id ? { ...i, qty } : i);
+    });
   }, []);
 
   const clearCart = useCallback(() => setItems([]), []);

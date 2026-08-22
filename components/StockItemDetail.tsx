@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useLikes } from "@/context/LikesContext";
 import QtyStepper from "@/components/QtyStepper";
 import type { StockDetail } from "@/lib/onecStock";
-import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
+import { getPackSize, isSoldByPiece, getDisplayPrice, getMinQty } from "@/lib/pack";
 
 // mm (1C's unit) -> cm for display, e.g. 160 -> "16", 5 -> "0.5".
 function formatCm(mm: number): string {
@@ -133,6 +133,7 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
   const inStock = item.stock > 0;
   const packSize = getPackSize(item);
   const byPiece = isSoldByPiece(item);
+  const minQty = getMinQty(item);
   const dimensions = item.lengthMm && item.widthMm && item.heightMm
     ? `${formatCm(item.lengthMm)}×${formatCm(item.widthMm)}×${formatCm(item.heightMm)} см`
     : null;
@@ -247,6 +248,16 @@ export default function StockItemDetail({ item }: { item: StockDetail }) {
             ) : (
               <><strong>{packSize} шт</strong> в упаковке · {item.pricePerPc.toLocaleString("ru-KZ")} ₸ / шт</>
             )}
+          </div>
+        )}
+
+        {/* Minimum order quantity note */}
+        {byPiece && minQty > 1 && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2.5">
+            <svg className="w-4 h-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            Минимальный заказ — <strong>{minQty} шт</strong>
           </div>
         )}
 
