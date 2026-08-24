@@ -17,6 +17,8 @@ export const WORD_SYNONYMS: Record<string, string[]> = {
   'шарик':          ['шар'],
   'шарики':         ['шары', 'шар'],
   'воздушный':      ['шар', 'латексный'],
+  'хантрикс':       ['кей поп', 'охотницы', 'девочки аниме'],
+  'huntrix':        ['кей поп', 'охотницы', 'девочки аниме'],
 }
 
 // Category quick-jump cards shown at top of the search dropdown.

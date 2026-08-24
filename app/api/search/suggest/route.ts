@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { scoreRelevance, getFuzzyItemIds } from "@/lib/onecStock";
+import { scoreRelevance, getFuzzyItemIds, getVectorItemIds } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece } from "@/lib/pack";
 import { WORD_SYNONYMS } from "@/lib/search-hints";
 
@@ -42,26 +42,31 @@ export async function GET(req: NextRequest) {
     .slice(0, 6);
 
   // ── Fuzzy fallback: fill up to 6 when exact results are sparse ───────────────
-  if (scored.length < 3 && q.length >= 3) {
-    const exactIds = new Set(scored.map((r) => r.id));
-    const fuzzyIds = await getFuzzyItemIds(q, 12);
-    const newIds = fuzzyIds.filter((id) => !exactIds.has(id)).slice(0, 6 - scored.length);
+  async function fillFrom(idsPromise: Promise<number[]>, take: number) {
+    const knownIds = new Set(scored.map((r) => r.id));
+    const ids = await idsPromise;
+    const newIds = ids.filter((id) => !knownIds.has(id)).slice(0, take);
+    if (newIds.length === 0) return;
 
-    if (newIds.length > 0) {
-      const fuzzyRows = await db.onecStockItem.findMany({
-        where: { id: { in: newIds }, isHidden: false },
-        select: {
-          id: true, slug: true, name: true, brand: true,
-          stock: true, pricePerPc: true, sizeInches: true, packQty: true,
-          imageUrl: true, images: true,
-        },
-      });
-      const ordered = newIds.map((id) => fuzzyRows.find((r) => r.id === id)!).filter(Boolean);
-      scored = [
-        ...scored,
-        ...ordered.map((r) => ({ ...r, _score: 0 })),
-      ];
-    }
+    const rows = await db.onecStockItem.findMany({
+      where: { id: { in: newIds }, isHidden: false },
+      select: {
+        id: true, slug: true, name: true, brand: true,
+        stock: true, pricePerPc: true, sizeInches: true, packQty: true,
+        imageUrl: true, images: true,
+      },
+    });
+    const ordered = newIds.map((id) => rows.find((r) => r.id === id)!).filter(Boolean);
+    scored = [...scored, ...ordered.map((r) => ({ ...r, _score: 0 }))];
+  }
+
+  if (scored.length < 3 && q.length >= 3) {
+    await fillFrom(getFuzzyItemIds(q, 12), 6 - scored.length);
+  }
+
+  // ── Vector fallback: last resort when neither exact nor trigram-fuzzy found enough ──
+  if (scored.length < 3 && q.length >= 3) {
+    await fillFrom(getVectorItemIds(q, 12), 6 - scored.length);
   }
 
   const items = scored.map((r) => {

@@ -8,6 +8,7 @@
 import { unstable_cache } from 'next/cache'
 import { db } from './db'
 import { WORD_SYNONYMS } from './search-hints'
+import { embedQuery } from './embeddings'
 
 export type StockCard = {
   id: number
@@ -254,6 +255,27 @@ export async function getFuzzyItemIds(query: string, limit = 200): Promise<numbe
   return rows.map((r) => Number(r.id))
 }
 
+// Semantic fallback via pgvector — last resort after exact and pg_trgm-fuzzy both come up
+// empty, e.g. descriptive queries that share no substring/spelling with any product name.
+// Requires migration 20260824000000's `embedding` column + HNSW index.
+const VECTOR_MAX_DISTANCE = 0.6 // cosine distance cutoff — tune after seeing real backfilled results
+
+export async function getVectorItemIds(query: string, limit = 200): Promise<number[]> {
+  const vector = await embedQuery(query)
+  const literal = `[${vector.join(',')}]`
+  const rows = await db.$queryRaw<Array<{ id: number }>>`
+    SELECT id
+    FROM "OnecStockItem"
+    WHERE
+      "isHidden" = false
+      AND embedding IS NOT NULL
+      AND (embedding <=> ${literal}::vector) < ${VECTOR_MAX_DISTANCE}
+    ORDER BY embedding <=> ${literal}::vector
+    LIMIT ${limit}
+  `
+  return rows.map((r) => Number(r.id))
+}
+
 export async function getDescendantCategoryIds(categoryId: number): Promise<number[]> {
   const cat = await db.onecCategory.findUnique({
     where: { id: categoryId },
@@ -458,6 +480,12 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
       const fuzzyIds = await getFuzzyItemIds(search, pageSize * 10)
       total = fuzzyIds.length
       pageIds = fuzzyIds.slice((page - 1) * pageSize, page * pageSize)
+    }
+
+    if (search && total === 0) {
+      const vectorIds = await getVectorItemIds(search, pageSize * 10)
+      total = vectorIds.length
+      pageIds = vectorIds.slice((page - 1) * pageSize, page * pageSize)
     }
 
     if (pageIds.length === 0) return { total, items: [] }

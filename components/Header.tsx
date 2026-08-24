@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
+import { getSearchHistory, addSearchHistory, clearSearchHistory } from "@/lib/searchHistory";
 
 type SubCategory = { id: number; name: string; slug: string | null };
 type TopCategory = { id: number; name: string; slug: string | null; children: SubCategory[] };
@@ -98,19 +99,54 @@ function SearchDropdown({
   items,
   query,
   isAdmin,
+  history,
   onSelect,
   onShowAll,
+  onSelectHistory,
+  onClearHistory,
 }: {
   items: SuggestItem[];
   query: string;
   isAdmin: boolean;
+  history: string[];
   onSelect: (item: SuggestItem) => void;
   onShowAll: () => void;
+  onSelectHistory: (term: string) => void;
+  onClearHistory: () => void;
 }) {
   const hint: CategoryHint | null = query.trim().length >= 2 ? getMatchingHint(query) : null;
-  if (items.length === 0 && !hint) return null;
+  const showHistory = query.trim().length < 2 && history.length > 0;
+  if (items.length === 0 && !hint && !showHistory) return null;
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+      {showHistory && (
+        <div className="border-b border-gray-100">
+          <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+            <p className="text-xs font-medium text-gray-400">История запросов</p>
+            <button
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onClearHistory(); }}
+              className="text-xs text-gray-400 hover:text-sky-500 transition-colors"
+            >
+              Очистить
+            </button>
+          </div>
+          <div className="pb-1.5">
+            {history.map((term) => (
+              <button
+                key={term}
+                onMouseDown={(e) => { e.preventDefault(); onSelectHistory(term); }}
+                className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-sky-50 transition-colors text-left"
+              >
+                <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm text-gray-600 truncate">{term}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {hint && (
         <a
           href={hint.url}
@@ -186,6 +222,7 @@ export default function Header() {
   const [categories, setCategories] = useState<TopCategory[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [activeL1, setActiveL1] = useState<number | null>(null);
+  const [history, setHistory] = useState<string[]>(() => getSearchHistory());
 
   const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
@@ -254,7 +291,20 @@ export default function Header() {
     e?.preventDefault();
     const q = search.trim();
     setShowSuggestions(false);
+    if (q) setHistory(addSearchHistory(q));
     router.push(q ? `/catalog?q=${encodeURIComponent(q)}` : "/catalog");
+  }
+
+  function handleSelectHistory(term: string) {
+    setShowSuggestions(false);
+    setSearch(term);
+    setHistory(addSearchHistory(term));
+    router.push(`/catalog?q=${encodeURIComponent(term)}`);
+  }
+
+  function handleClearHistory() {
+    clearSearchHistory();
+    setHistory([]);
   }
 
   function handleSuggestSelect(item: SuggestItem) {
@@ -274,7 +324,7 @@ export default function Header() {
   }
 
   function handleInputFocus() {
-    if (suggestions.length > 0) setShowSuggestions(true);
+    if (suggestions.length > 0 || (search.trim().length < 2 && history.length > 0)) setShowSuggestions(true);
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
@@ -381,8 +431,11 @@ export default function Header() {
                 items={suggestions}
                 query={search}
                 isAdmin={isAdmin}
+                history={history}
                 onSelect={handleSuggestSelect}
                 onShowAll={handleShowAll}
+                onSelectHistory={handleSelectHistory}
+                onClearHistory={handleClearHistory}
               />
             )}
           </div>
@@ -596,8 +649,11 @@ export default function Header() {
                 items={suggestions}
                 query={search}
                 isAdmin={isAdmin}
+                history={history}
                 onSelect={(item) => { setSearchOpen(false); handleSuggestSelect(item); }}
                 onShowAll={() => { setSearchOpen(false); handleShowAll(); }}
+                onSelectHistory={(term) => { setSearchOpen(false); handleSelectHistory(term); }}
+                onClearHistory={handleClearHistory}
               />
             )}
           </div>
@@ -628,8 +684,11 @@ export default function Header() {
                   items={suggestions}
                   query={search}
                   isAdmin={isAdmin}
+                  history={history}
                   onSelect={(item) => { setMenuOpen(false); handleSuggestSelect(item); }}
                   onShowAll={() => { setMenuOpen(false); handleShowAll(); }}
+                  onSelectHistory={(term) => { setMenuOpen(false); handleSelectHistory(term); }}
+                  onClearHistory={handleClearHistory}
                 />
               )}
             </div>
