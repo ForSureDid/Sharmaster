@@ -105,6 +105,16 @@ export const CATEGORY_HINTS: CategoryHint[] = [
   },
 ]
 
+// Empty-search discovery panel — hand-curated, no query-analytics backend to derive
+// these from. Revisit periodically based on what actually sells.
+export const QUICK_SEARCH_CHIPS: string[] = [
+  'гелий', 'цифра', 'сердце', 'шдм', 'фигура', 'конфетти', 'свадьба',
+]
+
+export const TRENDING_SEARCHES: string[] = [
+  'гелий 40', 'цифра 1', 'фигура лев', 'единорог',
+]
+
 // Returns the best matching category hint for a query string (or null).
 export function getMatchingHint(query: string): CategoryHint | null {
   const q = query.toLowerCase()

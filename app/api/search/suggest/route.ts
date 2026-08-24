@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { scoreRelevance, getFuzzyItemIds, getVectorItemIds } from "@/lib/onecStock";
-import { getPackSize, isSoldByPiece } from "@/lib/pack";
+import { scoreRelevance, getFuzzyItemIds, getVectorItemIds, toSearchResultItems } from "@/lib/onecStock";
 import { WORD_SYNONYMS } from "@/lib/search-hints";
 
 export async function GET(req: NextRequest) {
@@ -27,7 +26,7 @@ export async function GET(req: NextRequest) {
     select: {
       id: true, slug: true, name: true, brand: true,
       stock: true, pricePerPc: true, sizeInches: true, packQty: true,
-      imageUrl: true, images: true,
+      imageUrl: true, images: true, categoryId: true,
     },
     take: 24,
   });
@@ -53,7 +52,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, slug: true, name: true, brand: true,
         stock: true, pricePerPc: true, sizeInches: true, packQty: true,
-        imageUrl: true, images: true,
+        imageUrl: true, images: true, categoryId: true,
       },
     });
     const ordered = newIds.map((id) => rows.find((r) => r.id === id)!).filter(Boolean);
@@ -69,20 +68,8 @@ export async function GET(req: NextRequest) {
     await fillFrom(getVectorItemIds(q, 12), 6 - scored.length);
   }
 
-  const items = scored.map((r) => {
-    // Show the same price the catalog card shows: per pack when sold by pack
-    const packSize = isSoldByPiece(r) ? null : getPackSize(r);
-    return {
-      id: r.id,
-      slug: r.slug,
-      name: r.name,
-      brand: r.brand,
-      stock: r.stock,
-      price: Number(r.pricePerPc) * (packSize ?? 1),
-      packSize,
-      imageUrl: r.imageUrl ?? r.images[0] ?? null,
-    };
-  });
+  // Show the same isBalloon-aware price the catalog card shows (see toSearchResultItems)
+  const items = await toSearchResultItems(scored);
 
   return NextResponse.json({ items });
 }

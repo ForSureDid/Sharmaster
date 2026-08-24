@@ -202,9 +202,9 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
           {!inStock ? (
             <button
               disabled
-              className="w-full flex items-center justify-center gap-1.5 py-2 bg-emerald-500 text-white text-xs font-semibold rounded-lg cursor-default"
+              className={`w-full flex items-center justify-center gap-1.5 py-2 text-white text-xs font-semibold rounded-lg cursor-default ${isPending ? "bg-emerald-500" : "bg-gray-300"}`}
             >
-              Ожидайте поступления
+              {isPending ? "Ожидайте поступления" : "Нет в наличии"}
             </button>
           ) : cartItem ? (
             <div className="space-y-1.5">
@@ -273,6 +273,8 @@ function StockCardList({ item }: { item: StockCard }) {
     isBalloon: item.isBalloon,
   };
 
+  const isPending = item.isNewPending && !inStock;
+
   return (
     <div className="bg-white border border-gray-100 rounded-xl overflow-hidden hover:border-sky-200 hover:shadow-md transition-all flex group">
       <div className="relative w-28 flex-shrink-0 bg-gray-50">
@@ -319,8 +321,8 @@ function StockCardList({ item }: { item: StockCard }) {
           )}
         </div>
         {!inStock ? (
-          <button disabled className="flex-shrink-0 px-3 py-2 bg-emerald-500 text-white text-xs font-semibold rounded-lg cursor-default whitespace-nowrap">
-            Ожидайте поступления
+          <button disabled className={`flex-shrink-0 px-3 py-2 text-white text-xs font-semibold rounded-lg cursor-default whitespace-nowrap ${isPending ? "bg-emerald-500" : "bg-gray-300"}`}>
+            {isPending ? "Ожидайте поступления" : "Нет в наличии"}
           </button>
         ) : cartItem ? (
           <div className="flex-shrink-0 flex flex-col items-end gap-1">

@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
-import { getMatchingHint, type CategoryHint } from "@/lib/search-hints";
+import { getMatchingHint, QUICK_SEARCH_CHIPS, TRENDING_SEARCHES, type CategoryHint } from "@/lib/search-hints";
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from "@/lib/searchHistory";
 
 type SubCategory = { id: number; name: string; slug: string | null };
@@ -95,58 +95,132 @@ type SuggestItem = {
   imageUrl: string | null;
 };
 
+function TermRow({ term, icon, onClick }: { term: string; icon: "history" | "search"; onClick: () => void }) {
+  return (
+    <button
+      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+      className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-sky-50 transition-colors text-left"
+    >
+      <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {icon === "history" ? (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.85-5.15a7 7 0 11-14 0 7 7 0 0114 0z" />
+        )}
+      </svg>
+      <span className="text-sm text-gray-600 truncate">{term}</span>
+    </button>
+  );
+}
+
+function PopularProductRow({ item, onSelect }: { item: SuggestItem; onSelect: (item: SuggestItem) => void }) {
+  return (
+    <button
+      onMouseDown={(e) => { e.preventDefault(); onSelect(item); }}
+      className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-sky-50 transition-colors text-left"
+    >
+      <div className="w-9 h-9 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
+        {item.imageUrl ? (
+          <Image src={item.imageUrl} alt={item.name} width={36} height={36} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-gray-700 truncate">{item.name}</p>
+        <p className="text-xs font-bold text-sky-600">
+          {item.price.toLocaleString("ru-RU")} ₸{item.packSize ? <span className="font-normal text-gray-400"> / уп</span> : null}
+        </p>
+      </div>
+    </button>
+  );
+}
+
 function SearchDropdown({
   items,
   query,
   isAdmin,
   history,
+  popular,
   onSelect,
   onShowAll,
-  onSelectHistory,
+  onSearchTerm,
   onClearHistory,
 }: {
   items: SuggestItem[];
   query: string;
   isAdmin: boolean;
   history: string[];
+  popular: SuggestItem[];
   onSelect: (item: SuggestItem) => void;
   onShowAll: () => void;
-  onSelectHistory: (term: string) => void;
+  onSearchTerm: (term: string) => void;
   onClearHistory: () => void;
 }) {
-  const hint: CategoryHint | null = query.trim().length >= 2 ? getMatchingHint(query) : null;
-  const showHistory = query.trim().length < 2 && history.length > 0;
-  if (items.length === 0 && !hint && !showHistory) return null;
+  const isDiscovery = query.trim().length < 2;
+  const hint: CategoryHint | null = !isDiscovery ? getMatchingHint(query) : null;
+  if (!isDiscovery && items.length === 0 && !hint) return null;
+
+  if (isDiscovery) {
+    return (
+      <div className="absolute top-full left-0 mt-1 w-full md:w-[560px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+        <div className="flex flex-wrap gap-1.5 px-3 pt-3 pb-2 border-b border-gray-100">
+          {QUICK_SEARCH_CHIPS.map((term) => (
+            <button
+              key={term}
+              onMouseDown={(e) => { e.preventDefault(); onSearchTerm(term); }}
+              className="px-3 py-1 rounded-full bg-gray-100 hover:bg-sky-100 hover:text-sky-700 text-xs text-gray-600 transition-colors"
+            >
+              {term}
+            </button>
+          ))}
+        </div>
+        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
+          <div className="py-2">
+            {history.length > 0 && (
+              <div className="mb-1.5">
+                <div className="flex items-center justify-between px-3 pb-1">
+                  <p className="text-xs font-bold text-gray-500">История</p>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); onClearHistory(); }}
+                    className="text-xs text-gray-400 hover:text-sky-500 transition-colors"
+                  >
+                    Очистить
+                  </button>
+                </div>
+                {history.map((term) => (
+                  <TermRow key={term} term={term} icon="history" onClick={() => onSearchTerm(term)} />
+                ))}
+              </div>
+            )}
+            <div>
+              <p className="text-xs font-bold text-gray-500 px-3 pb-1">Часто ищут</p>
+              {TRENDING_SEARCHES.map((term) => (
+                <TermRow key={term} term={term} icon="search" onClick={() => onSearchTerm(term)} />
+              ))}
+            </div>
+          </div>
+          {popular.length > 0 && (
+            <div className="py-2">
+              <p className="text-xs font-bold text-gray-500 px-3 pb-1">Популярные товары</p>
+              {popular.map((item) => (
+                <PopularProductRow key={item.id} item={item} onSelect={onSelect} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-      {showHistory && (
-        <div className="border-b border-gray-100">
-          <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-            <p className="text-xs font-medium text-gray-400">История запросов</p>
-            <button
-              type="button"
-              onMouseDown={(e) => { e.preventDefault(); onClearHistory(); }}
-              className="text-xs text-gray-400 hover:text-sky-500 transition-colors"
-            >
-              Очистить
-            </button>
-          </div>
-          <div className="pb-1.5">
-            {history.map((term) => (
-              <button
-                key={term}
-                onMouseDown={(e) => { e.preventDefault(); onSelectHistory(term); }}
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 hover:bg-sky-50 transition-colors text-left"
-              >
-                <svg className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="text-sm text-gray-600 truncate">{term}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
       {hint && (
         <a
           href={hint.url}
@@ -223,6 +297,7 @@ export default function Header() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [activeL1, setActiveL1] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>(() => getSearchHistory());
+  const [popular, setPopular] = useState<SuggestItem[]>([]);
 
   const router = useRouter();
   const accountRef = useRef<HTMLDivElement>(null);
@@ -263,6 +338,13 @@ export default function Header() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    fetch("/api/search/popular")
+      .then((r) => r.json())
+      .then((data: { items: SuggestItem[] }) => setPopular(data.items ?? []))
+      .catch(() => {});
+  }, []);
+
   const fetchSuggestions = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (q.trim().length < 2) {
@@ -295,7 +377,7 @@ export default function Header() {
     router.push(q ? `/catalog?q=${encodeURIComponent(q)}` : "/catalog");
   }
 
-  function handleSelectHistory(term: string) {
+  function handleSearchTerm(term: string) {
     setShowSuggestions(false);
     setSearch(term);
     setHistory(addSearchHistory(term));
@@ -324,7 +406,7 @@ export default function Header() {
   }
 
   function handleInputFocus() {
-    if (suggestions.length > 0 || (search.trim().length < 2 && history.length > 0)) setShowSuggestions(true);
+    if (suggestions.length > 0 || search.trim().length < 2) setShowSuggestions(true);
   }
 
   function handleInputKeyDown(e: React.KeyboardEvent) {
@@ -432,9 +514,10 @@ export default function Header() {
                 query={search}
                 isAdmin={isAdmin}
                 history={history}
+                popular={popular}
                 onSelect={handleSuggestSelect}
                 onShowAll={handleShowAll}
-                onSelectHistory={handleSelectHistory}
+                onSearchTerm={handleSearchTerm}
                 onClearHistory={handleClearHistory}
               />
             )}
@@ -650,9 +733,10 @@ export default function Header() {
                 query={search}
                 isAdmin={isAdmin}
                 history={history}
+                popular={popular}
                 onSelect={(item) => { setSearchOpen(false); handleSuggestSelect(item); }}
                 onShowAll={() => { setSearchOpen(false); handleShowAll(); }}
-                onSelectHistory={(term) => { setSearchOpen(false); handleSelectHistory(term); }}
+                onSearchTerm={(term) => { setSearchOpen(false); handleSearchTerm(term); }}
                 onClearHistory={handleClearHistory}
               />
             )}
@@ -685,9 +769,10 @@ export default function Header() {
                   query={search}
                   isAdmin={isAdmin}
                   history={history}
+                  popular={popular}
                   onSelect={(item) => { setMenuOpen(false); handleSuggestSelect(item); }}
                   onShowAll={() => { setMenuOpen(false); handleShowAll(); }}
-                  onSelectHistory={(term) => { setMenuOpen(false); handleSelectHistory(term); }}
+                  onSearchTerm={(term) => { setMenuOpen(false); handleSearchTerm(term); }}
                   onClearHistory={handleClearHistory}
                 />
               )}

@@ -126,8 +126,8 @@ export default function NovinkaGrid({ items, gridClassName }: Props) {
                 </div>
 
                 {item.stock === 0 ? (
-                  <button disabled className="w-full py-1.5 bg-emerald-500 text-white text-[10px] font-semibold rounded-lg cursor-default text-center">
-                    Ожидайте поступления
+                  <button disabled className={`w-full py-1.5 text-white text-[10px] font-semibold rounded-lg cursor-default text-center ${isPending ? "bg-emerald-500" : "bg-gray-300"}`}>
+                    {isPending ? "Ожидайте поступления" : "Нет в наличии"}
                   </button>
                 ) : cartItem ? (
                   <QtyStepper

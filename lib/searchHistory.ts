@@ -1,8 +1,8 @@
-// Local-only search history — last 8 queries, stored in the browser's localStorage.
+// Local-only search history — last 4 queries, stored in the browser's localStorage.
 // No server round-trip, no DB table: purely a per-device convenience.
 
 const STORAGE_KEY = 'sharmaster_search_history'
-const MAX_ENTRIES = 8
+const MAX_ENTRIES = 4
 
 export function getSearchHistory(): string[] {
   if (typeof window === 'undefined') return []

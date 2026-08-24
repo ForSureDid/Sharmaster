@@ -9,6 +9,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from './db'
 import { WORD_SYNONYMS } from './search-hints'
 import { embedQuery } from './embeddings'
+import { getPackSize, isSoldByPiece, getDisplayPrice } from './pack'
 
 export type StockCard = {
   id: number
@@ -117,6 +118,53 @@ function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
     isNew: i.isNew, isNewPending: i.isNewPending, isHit: i.isHit,
   }
+}
+
+export type SearchResultItem = {
+  id: number
+  slug: string | null
+  name: string
+  brand: string | null
+  stock: number
+  price: number
+  packSize: number | null
+  imageUrl: string | null
+}
+
+type SearchResultRow = {
+  id: number
+  slug: string | null
+  name: string
+  brand: string | null
+  stock: number
+  pricePerPc: unknown // Prisma Decimal
+  sizeInches: string | null
+  packQty: number | null
+  imageUrl: string | null
+  images: string[]
+  categoryId: number | null
+}
+
+// Shared by /api/search/suggest and /api/search/popular — same isBalloon-aware price
+// as toCard()/getDisplayPrice(). Without this, non-balloon packaged items (сервировка,
+// пакеты, etc.) get pricePerPc wrongly multiplied by packQty a second time, since 1C's
+// price for those categories already IS the whole pack price (see lib/pack.ts).
+export async function toSearchResultItems(rows: SearchResultRow[]): Promise<SearchResultItem[]> {
+  const flags = await resolveCategoryFlags()
+  return rows.map((r) => {
+    const isLatex = r.categoryId != null && flags.latex.has(r.categoryId)
+    const isFoil = r.categoryId != null && flags.foil.has(r.categoryId)
+    const packItem = {
+      name: r.name, brand: r.brand, sizeInches: r.sizeInches, packQty: r.packQty,
+      material: isLatex ? 'латекс' : null, isBalloon: isLatex || isFoil,
+    }
+    return {
+      id: r.id, slug: r.slug, name: r.name, brand: r.brand, stock: r.stock,
+      price: getDisplayPrice({ ...packItem, pricePerPc: Number(r.pricePerPc) }),
+      packSize: isSoldByPiece(packItem) ? null : getPackSize(packItem),
+      imageUrl: r.imageUrl ?? r.images[0] ?? null,
+    }
+  })
 }
 
 // ─── Category name-based flags (replaces lib/stock.ts's hardcoded Category ids) ──
