@@ -98,7 +98,7 @@ export default function OrderPage() {
 
           {/* Success state */}
           {success ? (
-            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl mx-auto">
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -117,7 +117,7 @@ export default function OrderPage() {
             </div>
           ) : items.length === 0 ? (
             /* Empty cart state */
-            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl mx-auto">
               <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
@@ -137,7 +137,7 @@ export default function OrderPage() {
           ) : !user ? (
             /* Auth-required gate — cart is preserved (it lives in localStorage,
                independent of login), only placing the order needs an account. */
-            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl">
+            <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl mx-auto">
               <div className="w-16 h-16 rounded-full bg-sky-50 flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
