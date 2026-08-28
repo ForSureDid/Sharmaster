@@ -17,7 +17,22 @@ type Slide = {
 // same filename doesn't keep serving a stale cached copy — bump it whenever
 // any of these images is replaced.
 const IMG_VERSION = 2;
+// Order below is deliberate (not file-number order) — banner-8 leads, then
+// banner-3, then the rest in their prior relative order. Re-order here only
+// on explicit request.
 const SLIDES: Slide[] = [
+  {
+    key: "magicmax",
+    href: `/catalog?q=${encodeURIComponent("Magic Max")}`,
+    image: `/banners/banner-8-magicmax.png?v=${IMG_VERSION}`,
+    alt: "MagicMax — новая линейка полимерного геля для шаров, ожидайте поступления",
+  },
+  {
+    key: "sentyabr",
+    href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
+    image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
+    alt: "Снова в школу! Коллекция ко Дню Знаний",
+  },
   {
     key: "giant-heart",
     href: "/catalog/gigant-serdtse-2-5-m-krasnyy-g",
@@ -29,12 +44,6 @@ const SLIDES: Slide[] = [
     href: `/catalog?brand=${encodeURIComponent("БиКей")}&akcii=1`,
     image: `/banners/banner-6-bk-sale.png?v=${IMG_VERSION}`,
     alt: "Большая распродажа — 25% на всю шёлкографию БиКей",
-  },
-  {
-    key: "sentyabr",
-    href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
-    image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
-    alt: "Снова в школу! Коллекция ко Дню Знаний",
   },
   {
     key: "512",

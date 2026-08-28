@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useTransition } from "react";
-import { login as loginAction, register as registerAction, logout as logoutAction, getCurrentUser } from "@/app/auth/actions";
+import { login as loginAction, register as registerAction, logout as logoutAction, getCurrentUser, requestPasswordReset as requestPasswordResetAction, resetPassword as resetPasswordAction } from "@/app/auth/actions";
 
 export type User = {
   name: string;
@@ -17,6 +17,8 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<string | null>;
   register: (name: string, email: string, phone: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<string | null>;
+  resetPassword: (token: string, newPassword: string) => Promise<string | null>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -64,8 +66,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }
 
+  async function requestPasswordReset(email: string): Promise<string | null> {
+    return requestPasswordResetAction(email);
+  }
+
+  async function resetPassword(token: string, newPassword: string): Promise<string | null> {
+    const err = await resetPasswordAction(token, newPassword);
+    if (!err) {
+      const session = await getCurrentUser();
+      if (session) setUser({ name: session.name, email: session.email, phone: session.phone, role: session.role });
+    }
+    return err;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isAdmin, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAdmin, loading, login, register, logout, requestPasswordReset, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

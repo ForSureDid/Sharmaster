@@ -127,6 +127,7 @@ model User {
   orders    Order[]
   sessions  Session[]
   likes     Like[]
+  resetTokens PasswordResetToken[]
 
   // Server-side mirror of the localStorage cart, synced only for logged-in
   // users — survives a cleared browser/new device, and lets admin see what's
@@ -169,6 +170,22 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   expiresAt DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// One-time link sent by email to let a user set a new password. Only the
+// sha256 hash of the raw token is stored — like the password itself, the
+// usable secret never sits in the DB in a form a leak could replay.
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])
