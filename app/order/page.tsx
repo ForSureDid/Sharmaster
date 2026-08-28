@@ -11,8 +11,13 @@ import { placeOrder } from "./actions";
 
 const FORM_ID = "order-form";
 
+// Mirasbek 2026-08-28: wholesale minimum for customers outside Astana
+// (out-of-town or foreign) — Astana customers have no minimum. Mirrored
+// server-side in app/order/actions.ts, which is the authoritative check.
+const OUT_OF_TOWN_MIN_ORDER = 30_000;
+
 export default function OrderPage() {
-  const { items, clearCart, syncNotices, dismissSyncNotices } = useCart();
+  const { items, totalPrice, clearCart, syncNotices, dismissSyncNotices } = useCart();
   const { user, loading: authLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +26,9 @@ export default function OrderPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [deliveryZone, setDeliveryZone] = useState<"astana" | "other">("astana");
+
+  const belowMinimum = deliveryZone === "other" && totalPrice < OUT_OF_TOWN_MIN_ORDER;
 
   // Guests can browse and build a cart freely — the account is only required
   // at checkout. Prefill from the account once it's known so a logged-in
@@ -39,6 +47,7 @@ export default function OrderPage() {
         customerName: name,
         phone,
         address,
+        deliveryZone,
         // Server prices/decrements stock per piece (see actions.ts) — for balloons
         // (isBalloon !== false) a pack line's qty must be flattened to raw piece
         // count. For non-balloon packQty items the price/stock unit IS the pack
@@ -196,6 +205,35 @@ export default function OrderPage() {
 
                 <div className="bg-white rounded-3xl border border-gray-100 p-6 sm:p-8">
                   <h2 className="text-lg font-bold text-gray-800 mb-4">Способ доставки</h2>
+                  <div className="mb-4">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Город/страна доставки *</label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryZone("astana")}
+                        className={`flex-1 text-left px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                          deliveryZone === "astana" ? "border-sky-400 bg-sky-50 text-sky-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        Астана
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeliveryZone("other")}
+                        className={`flex-1 text-left px-3.5 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                          deliveryZone === "other" ? "border-sky-400 bg-sky-50 text-sky-700" : "border-gray-200 text-gray-600 hover:border-gray-300"
+                        }`}
+                      >
+                        Другой город / другая страна
+                      </button>
+                    </div>
+                    {belowMinimum && (
+                      <p className="mt-2 text-xs text-amber-600">
+                        Минимальный заказ для доставки за пределы Астаны — {OUT_OF_TOWN_MIN_ORDER.toLocaleString("ru-RU")} ₸.
+                        Добавьте товаров ещё на {(OUT_OF_TOWN_MIN_ORDER - totalPrice).toLocaleString("ru-RU")} ₸.
+                      </p>
+                    )}
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-1.5">Адрес доставки *</label>
                     <textarea
@@ -221,7 +259,7 @@ export default function OrderPage() {
 
               <div className="lg:sticky lg:top-28 flex flex-col gap-3">
                 <CartSummaryCard
-                  primaryAction={{ kind: "submit", label: "Подтвердить заказ", formId: FORM_ID, loading: isPending, disabled: isPending }}
+                  primaryAction={{ kind: "submit", label: "Подтвердить заказ", formId: FORM_ID, loading: isPending, disabled: isPending || belowMinimum }}
                 />
                 <p className="text-xs text-gray-400 text-center">
                   После подтверждения мы свяжемся с вами для уточнения деталей доставки

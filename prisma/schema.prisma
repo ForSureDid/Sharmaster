@@ -200,6 +200,11 @@ model Order {
   customerName String
   phone        String
   address      String
+  // Customer-declared delivery region, collected at checkout: "astana" |
+  // "other" — drives the 30 000 ₸ minimum-order rule for out-of-town/foreign
+  // customers in app/order/actions.ts. Nullable — orders placed before this
+  // field existed have no value.
+  deliveryZone String?
   total        Decimal     @db.Decimal(10, 2)
   status       String      @default("Принят")
   createdAt    DateTime    @default(now())

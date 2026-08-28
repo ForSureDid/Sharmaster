@@ -14,18 +14,26 @@ class StockError extends Error {
 }
 
 type OrderItem = { id: number; qty: number; name: string; price: number }
+type DeliveryZone = 'astana' | 'other'
 
 export type PlaceOrderResult =
   | { ok: true; orderId: number }
   | { ok: false; error: string }
 
+// Wholesale minimum for customers outside Astana (out-of-town or foreign) —
+// Mirasbek 2026-08-28: below this, per-order delivery/handling isn't worth it
+// for a non-local customer. Astana customers have no minimum.
+const OUT_OF_TOWN_MIN_ORDER = 30_000
+
 export async function placeOrder(input: {
   customerName: string
   phone: string
   address: string
+  deliveryZone: DeliveryZone
   items: OrderItem[]
 }): Promise<PlaceOrderResult> {
   const { customerName, phone, address, items } = input
+  const deliveryZone: DeliveryZone = input.deliveryZone === 'other' ? 'other' : 'astana'
 
   // Guests can browse and build a cart freely, but placing an order requires
   // an account — enforced here too, not just by the /order page's UI gate,
@@ -92,6 +100,13 @@ export async function placeOrder(input: {
     return sum + unitPrice * item.qty
   }, 0)
 
+  if (deliveryZone === 'other' && subtotal < OUT_OF_TOWN_MIN_ORDER) {
+    return {
+      ok: false,
+      error: `Минимальная сумма заказа для доставки за пределы Астаны — ${OUT_OF_TOWN_MIN_ORDER.toLocaleString('ru-RU')} ₸`,
+    }
+  }
+
   // "Прогрессивная скидка (разовая)" — see lib/discounts.ts / app/discounts.
   // Recomputed here from server-verified prices, never trusted from the client.
   const discountPercent = getOneTimeDiscountPercent(subtotal)
@@ -133,6 +148,7 @@ export async function placeOrder(input: {
           customerName: name,
           phone: ph,
           address: addr,
+          deliveryZone,
           total,
           items: {
             create: resolved.map(({ item, stockRow }) => ({
