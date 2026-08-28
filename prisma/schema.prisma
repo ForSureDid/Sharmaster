@@ -273,9 +273,11 @@ model OnecStockItem {
   priceOverride   Boolean  @default(false) // true = admin manually set price; same skip behavior as stockOverride
   isHidden        Boolean  @default(false) // admin permanently hides this row from the storefront (e.g. an unwanted 1C offer variant); survives 1C sync — never written by lib/onecImport.ts, filtered out of every public read path in lib/onecStock.ts
   isHit           Boolean  @default(false) // "Хит продаж" — bootstrapped from donballon.ru's storefront badge (their B2B export has no such column), later from our own weekly sales aggregation; hand-curated, never touched by 1C sync
+  reorderQtyOverride Int?  // admin-set "Купить, шт" in the Дозаказ report — null means use the calculated value (lib/reorderReport.ts); never touched by 1C sync
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   likes           Like[]
+  stockSnapshots  StockSnapshot[]
 
   @@index([article])
   @@index([barcode])
@@ -283,6 +285,22 @@ model OnecStockItem {
   @@index([isNewPending])
   @@index([isHit])
   @@index([categoryId])
+}
+
+// Daily point-in-time copy of OnecStockItem.stock. 1C stock is
+// channel-agnostic (updated ~2-3x/day regardless of whether a sale happened
+// on the site or offline/in-1C — see SyncLog source "1c-offers"), so
+// day-over-day drops here are used as a proxy for real consumption when
+// computing reorder recommendations (lib/reorderReport.ts). Written by
+// scripts/snapshot-stock.ts, pruned to the last 60 days by the same script.
+model StockSnapshot {
+  id              Int           @id @default(autoincrement())
+  onecStockItemId Int
+  onecStockItem   OnecStockItem @relation(fields: [onecStockItemId], references: [id], onDelete: Cascade)
+  stock           Int
+  capturedAt      DateTime      @default(now())
+
+  @@index([onecStockItemId, capturedAt])
 }
 
 // Mirrors 1C's Классификатор group tree (arbitrary depth) — isolated from the

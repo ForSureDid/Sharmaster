@@ -29,6 +29,9 @@ import {
   getOnecCategoryTree,
   getOnecItemsByCategory,
   getUserCarts,
+  getReorderReport,
+  updateReorderQtyOverride,
+  releaseReorderQtyOverride,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -934,6 +937,176 @@ function ExportTab() {
             color="purple"
           />
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Reorder ("Дозаказ") tab ───────────────────────────────────────────────────
+
+type ReorderRow = {
+  id: number;
+  article: string | null;
+  name: string;
+  brand: string | null;
+  currentStock: number;
+  avgDailyConsumption: number;
+  daysOfHistory: number;
+  targetStock: number;
+  reorderQty: number;
+  source: "stock" | "site";
+  overridden: boolean;
+};
+
+function ReorderTab() {
+  const [rows, setRows] = useState<ReorderRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editVal, setEditVal] = useState("");
+  const [isPending, startTx] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    getReorderReport().then(setRows).finally(() => setLoading(false));
+  }, []);
+
+  function startEdit(row: ReorderRow) {
+    setEditingId(row.id);
+    setEditVal(String(row.reorderQty));
+    setTimeout(() => inputRef.current?.select(), 30);
+  }
+  function saveEdit(id: number) {
+    const qty = parseInt(editVal);
+    setEditingId(null);
+    if (isNaN(qty) || qty < 0) return;
+    startTx(async () => {
+      await updateReorderQtyOverride(id, qty);
+      setRows(prev => prev ? prev.map(r => r.id === id ? { ...r, reorderQty: qty, overridden: true } : r) : null);
+    });
+  }
+  function releaseOverride(id: number) {
+    startTx(async () => {
+      await releaseReorderQtyOverride(id);
+      setRows(await getReorderReport());
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 px-5 py-3.5 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
+        <span className="text-base leading-none mt-0.5">ℹ️</span>
+        <span>
+          Расчёт основан на ежедневных снимках остатка склада (учитывает и офлайн/1С продажи, не только сайт) — становится доступен через ~неделю накопления истории по товару.
+          Пока история по товару короче недели, используется временная оценка по заказам сайта за последние 7 дней (столбец «Источник») — она не видит офлайн-продажи, поэтому может занижать реальный спрос.
+        </span>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center">
+          <div className="mr-auto">
+            <h2 className="font-bold text-gray-800">Рекомендации по закупке</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Активно продающиеся товары, которых осталось меньше целевого запаса</p>
+          </div>
+          <a
+            href="/api/admin/exports/reorder"
+            download
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-sky-500 hover:opacity-90 transition-opacity"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Скачать .xlsx
+          </a>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+          </div>
+        ) : !rows || rows.length === 0 ? (
+          <div className="px-6 py-16 text-center text-sm text-gray-400">
+            Пока нет товаров, требующих дозаказа — либо остатков достаточно, либо ещё недостаточно истории продаж.
+          </div>
+        ) : (
+          <div className="overflow-x-auto -mx-px">
+            <table className="w-full text-sm min-w-[720px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Название</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Бренд</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Артикул</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Остаток</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Продажи/день</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Дней истории</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Целевой запас</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Купить, шт</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Источник</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {rows.map(r => (
+                  <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-3 font-medium text-gray-800 leading-tight">{r.name}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{r.brand ?? "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{r.article ?? "—"}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{r.currentStock}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{r.avgDailyConsumption}</td>
+                    <td className="px-4 py-3 text-center text-gray-400">{r.daysOfHistory}</td>
+                    <td className="px-4 py-3 text-center text-gray-700">{r.targetStock}</td>
+                    <td className="px-6 py-3 text-right">
+                      {editingId === r.id ? (
+                        <input
+                          ref={inputRef}
+                          type="number"
+                          min={0}
+                          value={editVal}
+                          onChange={e => setEditVal(e.target.value)}
+                          onBlur={() => saveEdit(r.id)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter")  saveEdit(r.id);
+                            if (e.key === "Escape") setEditingId(null);
+                          }}
+                          className="w-20 text-right px-2 py-1 border-2 border-sky-400 rounded-lg focus:outline-none text-sm font-bold"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => startEdit(r)}
+                            disabled={isPending}
+                            title="Нажмите, чтобы изменить количество вручную"
+                            className="font-bold text-sky-700 hover:bg-sky-50 px-2 py-1 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {r.reorderQty}
+                          </button>
+                          {r.overridden && (
+                            <button
+                              onClick={() => releaseOverride(r.id)}
+                              disabled={isPending}
+                              title="Вернуть автоматический расчёт"
+                              className="text-xs disabled:opacity-50"
+                            >
+                              🔒
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {r.overridden ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700">Вручную</span>
+                      ) : r.source === "stock" ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Склад</span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Сайт (оценка)</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2032,7 +2205,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "carts" | "stock" | "arrivals" | "sale" | "export" | "new" | "onec" | "onecTree">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "carts" | "stock" | "arrivals" | "sale" | "export" | "reorder" | "new" | "onec" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2142,7 +2315,7 @@ export default function AdminPage() {
               {/* Mobile tab bar (hidden on lg+) */}
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
                 {([ ["orders","Заказы","sky"], ["carts","Корзины","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
-                    ["sale","Акции","purple"], ["export","Экспорт","sky"],
+                    ["sale","Акции","purple"], ["export","Экспорт","sky"], ["reorder","Дозаказ","sky"],
                     ["new","+ Товар","sky"], ["onec","Синхр. 1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
                     key={tab}
@@ -2318,6 +2491,9 @@ export default function AdminPage() {
           {/* ─── Export tab ─── */}
           {activeTab === "export" && <ExportTab />}
 
+          {/* ─── Reorder tab ─── */}
+          {activeTab === "reorder" && <ReorderTab />}
+
           {/* ─── New item tab ─── */}
           {activeTab === "new" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -2378,6 +2554,11 @@ export default function AdminPage() {
                 <button onClick={() => setActiveTab("export")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "export" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   Экспорт
+                </button>
+
+                <button onClick={() => setActiveTab("reorder")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "reorder" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
+                  Дозаказ
                 </button>
 
                 <button onClick={() => setActiveTab("new")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "new" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>

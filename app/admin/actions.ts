@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { revalidatePath, updateTag } from 'next/cache'
 import { assignSlugsForNewRows } from '@/lib/onecImport'
+import { getReorderRecommendations } from '@/lib/reorderReport'
 
 // Synthetic onecId prefix for items an admin creates directly (not from 1C, not from
 // the donballon-novelties agent — that one uses "donballon-novelty-"). Never collides
@@ -404,6 +405,25 @@ export async function getSyncStatus() {
       createdAt: l.createdAt,
     })),
   }
+}
+
+export async function getReorderReport() {
+  await requireAdmin()
+  return getReorderRecommendations()
+}
+
+// Manual correction of the Дозаказ report's "Купить, шт" for one item — see
+// lib/reorderReport.ts's use of reorderQtyOverride. Never touched by 1C sync.
+export async function updateReorderQtyOverride(id: number, qty: number) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id }, data: { reorderQtyOverride: Math.max(0, Math.round(qty)) } })
+  revalidatePath('/admin')
+}
+
+export async function releaseReorderQtyOverride(id: number) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id }, data: { reorderQtyOverride: null } })
+  revalidatePath('/admin')
 }
 
 export type OnecCategoryNode = {
