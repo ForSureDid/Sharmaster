@@ -3,6 +3,7 @@ import Image from "next/image";
 type Brand = { name: string; file: string; color: string; logoMaxHeight?: number };
 
 const BRANDS: Brand[] = [
+  { name: "MagicMax", file: "magicmax.png", color: "#8B5CF6" },
   { name: "Agura", file: "agura.jpeg", color: "#EC4899" },
   { name: "Qualatex", file: "qualatex.jpeg", color: "#0EA5E9" },
   { name: "Sempertex", file: "sempertex.png", color: "#7C3AED" },

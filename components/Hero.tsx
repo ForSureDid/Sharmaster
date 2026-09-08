@@ -16,7 +16,7 @@ type Slide = {
 // `v=` cache-busts the static /public asset so a re-uploaded banner with the
 // same filename doesn't keep serving a stale cached copy — bump it whenever
 // any of these images is replaced.
-const IMG_VERSION = 2;
+const IMG_VERSION = 3;
 // Order below is deliberate (not file-number order) — banner-8 leads, then
 // banner-3, then the rest in their prior relative order. Re-order here only
 // on explicit request.
