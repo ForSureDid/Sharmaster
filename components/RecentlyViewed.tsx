@@ -28,13 +28,13 @@ export default function RecentlyViewed({ current }: { current: RecentlyViewedIte
           <a
             key={item.id}
             href={`/catalog/${item.slug ?? item.id}`}
-            className="relative flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden border border-gray-100 bg-white hover:border-sky-300 hover:shadow-md transition-all"
+            className="relative flex-shrink-0 aspect-square w-[62%] sm:w-[38%] md:w-[29%] lg:w-[calc((100%-4*1rem)/5)] rounded-xl overflow-hidden border border-gray-100 bg-white hover:border-sky-300 hover:shadow-md transition-all"
           >
             {item.imageUrl ? (
-              <Image src={item.imageUrl} alt="" fill className="object-contain p-1.5" sizes="96px" />
+              <Image src={item.imageUrl} alt="" fill className="object-contain p-1.5" sizes="(max-width: 640px) 62vw, (max-width: 768px) 38vw, (max-width: 1024px) 29vw, 20vw" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-sky-50">
-                <svg className="w-6 h-6 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-16 h-16 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
               </div>
