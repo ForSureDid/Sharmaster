@@ -28,10 +28,10 @@ export default function RecentlyViewed({ current }: { current: RecentlyViewedIte
           <a
             key={item.id}
             href={`/catalog/${item.slug ?? item.id}`}
-            className="relative flex-shrink-0 aspect-square w-[62%] sm:w-[38%] md:w-[29%] lg:w-[calc((100%-4*1rem)/5)] rounded-xl overflow-hidden border border-gray-100 bg-white hover:border-sky-300 hover:shadow-md transition-all"
+            className="relative flex-shrink-0 aspect-square w-[43%] sm:w-[27%] md:w-[20%] lg:w-[calc((100%-4*1rem)/5*0.7)] rounded-xl overflow-hidden border border-gray-100 bg-white hover:border-sky-300 hover:shadow-md transition-all"
           >
             {item.imageUrl ? (
-              <Image src={item.imageUrl} alt="" fill className="object-contain p-1.5" sizes="(max-width: 640px) 62vw, (max-width: 768px) 38vw, (max-width: 1024px) 29vw, 20vw" />
+              <Image src={item.imageUrl} alt="" fill className="object-contain p-1.5" sizes="(max-width: 640px) 43vw, (max-width: 768px) 27vw, (max-width: 1024px) 20vw, 14vw" />
             ) : (
               <div className="w-full h-full flex items-center justify-center bg-sky-50">
                 <svg className="w-16 h-16 text-sky-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
