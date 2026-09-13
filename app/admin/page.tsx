@@ -32,6 +32,7 @@ import {
   getReorderReport,
   updateReorderQtyOverride,
   releaseReorderQtyOverride,
+  getSearchAnalyticsReport,
 } from "./actions";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1108,6 +1109,152 @@ function ReorderTab() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Search analytics ("Поиск") tab ────────────────────────────────────────────
+
+type PopularQueryRow = { normalizedQuery: string; sampleQuery: string; count: number; avgResults: number; clicks: number; lastSearchedAt: string | Date };
+type ZeroResultQueryRow = { normalizedQuery: string; sampleQuery: string; count: number; lastSearchedAt: string | Date };
+type TopClickedRow = { itemId: number; itemName: string; clicks: number };
+
+function SearchTab() {
+  const [popular, setPopular] = useState<PopularQueryRow[] | null>(null);
+  const [zeroResult, setZeroResult] = useState<ZeroResultQueryRow[] | null>(null);
+  const [topClicked, setTopClicked] = useState<TopClickedRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [days, setDays] = useState(30);
+
+  useEffect(() => {
+    setLoading(true);
+    getSearchAnalyticsReport(days)
+      .then((r) => { setPopular(r.popular); setZeroResult(r.zeroResult); setTopClicked(r.topClicked); })
+      .finally(() => setLoading(false));
+  }, [days]);
+
+  function fmtDate(d: string | Date) {
+    return new Date(d).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 px-5 py-3.5 bg-blue-50 border border-blue-100 rounded-2xl text-sm text-blue-700">
+        <span className="text-base leading-none">ℹ️</span>
+        <span>Логируется каждый поиск в каталоге (первая страница результатов). Живые подсказки при вводе сюда не попадают.</span>
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="ml-auto px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-gray-700"
+        >
+          <option value={7}>7 дней</option>
+          <option value={30}>30 дней</option>
+          <option value={90}>90 дней</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">Популярные запросы</h2>
+              <p className="text-xs text-gray-400 mt-0.5">За последние {days} дней, по количеству поисков</p>
+            </div>
+            {!popular || popular.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-gray-400">Пока нет данных за этот период.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[420px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Запрос</th>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Поисков</th>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Переходов</th>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ср. результатов</th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Последний раз</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {popular.map((r) => (
+                      <tr key={r.normalizedQuery} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-800">{r.sampleQuery}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{r.count}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">{r.clicks}</td>
+                        <td className="px-3 py-3 text-center text-gray-500">{r.avgResults}</td>
+                        <td className="px-5 py-3 text-right text-gray-400 whitespace-nowrap">{fmtDate(r.lastSearchedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">Товары, на которые чаще всего переходят из поиска</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Клики по подсказкам в поиске и по карточкам в результатах — за последние {days} дней</p>
+            </div>
+            {!topClicked || topClicked.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-gray-400">Пока нет кликов за этот период.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[320px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Товар</th>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Переходов</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {topClicked.map((r) => (
+                      <tr key={r.itemId} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-800">{r.itemName}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{r.clicks}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden lg:col-span-2">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h2 className="font-bold text-gray-800">Запросы без результатов</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Что искали и не нашли — подсказка, чего не хватает в каталоге или в словаре синонимов</p>
+            </div>
+            {!zeroResult || zeroResult.length === 0 ? (
+              <div className="px-6 py-12 text-center text-sm text-gray-400">Пусто — за этот период все поиски что-то находили.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[380px]">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Запрос</th>
+                      <th className="text-center px-3 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Раз</th>
+                      <th className="text-right px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Последний раз</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {zeroResult.map((r) => (
+                      <tr key={r.normalizedQuery} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-800">{r.sampleQuery}</td>
+                        <td className="px-3 py-3 text-center text-gray-700">{r.count}</td>
+                        <td className="px-5 py-3 text-right text-gray-400 whitespace-nowrap">{fmtDate(r.lastSearchedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2205,7 +2352,7 @@ export default function AdminPage() {
   const [search, setSearch]         = useState("");
   const [statusFilter, setStatusFilter] = useState("Все");
   const [dateFilter, setDateFilter] = useState<"all" | "today" | "week">("all");
-  const [activeTab, setActiveTab]   = useState<"orders" | "carts" | "stock" | "arrivals" | "sale" | "export" | "reorder" | "new" | "onec" | "onecTree">("orders");
+  const [activeTab, setActiveTab]   = useState<"orders" | "carts" | "stock" | "arrivals" | "sale" | "export" | "reorder" | "search" | "new" | "onec" | "onecTree">("orders");
   const [isPending, startTx]        = useTransition();
 
   useEffect(() => {
@@ -2315,7 +2462,7 @@ export default function AdminPage() {
               {/* Mobile tab bar (hidden on lg+) */}
               <div className="lg:hidden flex flex-wrap gap-1.5 mb-5">
                 {([ ["orders","Заказы","sky"], ["carts","Корзины","sky"], ["stock","Склад","sky"], ["arrivals","Новинки","amber"],
-                    ["sale","Акции","purple"], ["export","Экспорт","sky"], ["reorder","Дозаказ","sky"],
+                    ["sale","Акции","purple"], ["export","Экспорт","sky"], ["reorder","Дозаказ","sky"], ["search","Поиск","sky"],
                     ["new","+ Товар","sky"], ["onec","Синхр. 1С","sky"], ["onecTree","Дерево 1С","sky"] ] as const).map(([tab, label, color]) => (
                   <button
                     key={tab}
@@ -2494,6 +2641,9 @@ export default function AdminPage() {
           {/* ─── Reorder tab ─── */}
           {activeTab === "reorder" && <ReorderTab />}
 
+          {/* ─── Search analytics tab ─── */}
+          {activeTab === "search" && <SearchTab />}
+
           {/* ─── New item tab ─── */}
           {activeTab === "new" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -2559,6 +2709,11 @@ export default function AdminPage() {
                 <button onClick={() => setActiveTab("reorder")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "reorder" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
                   <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
                   Дозаказ
+                </button>
+
+                <button onClick={() => setActiveTab("search")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "search" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>
+                  <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 10a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  Поиск
                 </button>
 
                 <button onClick={() => setActiveTab("new")} className={`flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-colors ${activeTab === "new" ? "bg-sky-50 text-sky-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"}`}>

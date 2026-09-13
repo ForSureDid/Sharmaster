@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CatalogSidebar from "@/components/CatalogSidebar";
 import StockContent from "@/components/StockContent";
 import { getStockItems, getDescendantCategoryIds, getOnecCategories, getOnecFilterOptions, getOnecCategoryBySlug } from "@/lib/onecStock";
+import { logSearch } from "@/lib/searchAnalytics";
 import { db } from "@/lib/db";
 
 type SP = { [key: string]: string | string[] | undefined };
@@ -79,6 +80,10 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);
+
+  // Logged once per search (first page only) — paging through the same query's
+  // results isn't a new search intent, and would otherwise inflate its count.
+  if (q && page === 1) await logSearch(q, total);
 
   const totalPages = Math.ceil(total / per);
   const activeZones = [novinki && "Новинки", akcii && "Акции", hit && "Хиты продаж"].filter(Boolean) as string[];

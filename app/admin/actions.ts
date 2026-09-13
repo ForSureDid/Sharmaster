@@ -6,6 +6,7 @@ import { getSession } from '@/lib/session'
 import { revalidatePath, updateTag } from 'next/cache'
 import { assignSlugsForNewRows } from '@/lib/onecImport'
 import { getReorderRecommendations } from '@/lib/reorderReport'
+import { getPopularSearchQueries, getZeroResultSearchQueries, getTopClickedSearchItems } from '@/lib/searchAnalytics'
 
 // Synthetic onecId prefix for items an admin creates directly (not from 1C, not from
 // the donballon-novelties agent — that one uses "donballon-novelty-"). Never collides
@@ -410,6 +411,16 @@ export async function getSyncStatus() {
 export async function getReorderReport() {
   await requireAdmin()
   return getReorderRecommendations()
+}
+
+export async function getSearchAnalyticsReport(days = 30) {
+  await requireAdmin()
+  const [popular, zeroResult, topClicked] = await Promise.all([
+    getPopularSearchQueries(days),
+    getZeroResultSearchQueries(days),
+    getTopClickedSearchItems(days),
+  ])
+  return { popular, zeroResult, topClicked }
 }
 
 // Manual correction of the Дозаказ report's "Купить, шт" for one item — see

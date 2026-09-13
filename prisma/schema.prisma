@@ -334,6 +334,43 @@ model SyncLog {
   @@index([createdAt])
 }
 
+// One row per shopper-initiated catalog search (a /catalog?q=... page view —
+// not every autocomplete keystroke, which would flood this table). Written by
+// lib/searchAnalytics.ts's logSearch(), called from CatalogView. Powers the
+// admin "Поиск" tab: popular queries and, especially, zero-result queries
+// (what people typed that the catalog couldn't answer).
+model SearchEvent {
+  id              Int      @id @default(autoincrement())
+  query           String   // as typed
+  normalizedQuery String   // lowercased/trimmed — the grouping key for reports
+  resultCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([normalizedQuery])
+  @@index([createdAt])
+  @@index([resultCount])
+}
+
+// One row per click on a product that happened while a search query was
+// active — either an autocomplete suggestion (source "suggest") or a card in
+// the /catalog?q=... results grid (source "catalog"). Written by
+// lib/searchAnalytics.ts's logSearchClick(), fired from the client via
+// /api/search/track-click. Correlated to SearchEvent by normalizedQuery, not
+// a foreign key — a search "view" and its later click are two independent,
+// best-effort beacons, not one transaction.
+model SearchClickEvent {
+  id              Int      @id @default(autoincrement())
+  query           String
+  normalizedQuery String
+  itemId          Int
+  source          String   // "suggest" | "catalog"
+  createdAt       DateTime @default(now())
+
+  @@index([normalizedQuery])
+  @@index([itemId])
+  @@index([createdAt])
+}
+
 // ─── Reviews ──────────────────────────────────────────────────────────────────
 
 model Review {

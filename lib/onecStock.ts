@@ -8,6 +8,7 @@
 import { unstable_cache } from 'next/cache'
 import { db } from './db'
 import { WORD_SYNONYMS } from './search-hints'
+import { parseSearchQuery, stemRu, AUDIENCE_COLOR_BOOST, type ParsedSearchQuery } from './searchQuery'
 import { embedQuery } from './embeddings'
 import { getPackSize, isSoldByPiece, getDisplayPrice } from './pack'
 
@@ -262,7 +263,21 @@ function foilDigitGroupKey(name: string): [string, number] {
   return [(prefix + '\x00' + suffix).toLowerCase(), digit]
 }
 
-export function scoreRelevance(name: string, brand: string | null, words: string[]): number {
+export function scoreRelevance(
+  name: string,
+  brand: string | null,
+  words: string[],
+  extra?: {
+    article?: string | null
+    barcode?: string | null
+    articleQuery?: string | null
+    colorGroup?: string | null
+    shade?: string | null
+    boostColorGroups?: string[]
+    stock?: number
+    quantity?: number | null
+  }
+): number {
   let score = 0
   const short = name.toLowerCase()
   const bLow = (brand ?? '').toLowerCase()
@@ -272,12 +287,34 @@ export function scoreRelevance(name: string, brand: string | null, words: string
     if (short === w) score += 12
     else if (short.startsWith(w + ' ') || short.startsWith(w)) score += 6
     else if (short.includes(' ' + w)) score += 3
-    else score += 1
+    else if (short.includes(w)) score += 1
 
     if (bLow === w) score += 4
     else if (bLow.startsWith(w)) score += 2
     else if (bLow.includes(w)) score += 1
   }
+
+  // Article match dominates everything else — a shopper who typed an article
+  // number wants that exact product first (spec: "артикул должен иметь
+  // максимальный приоритет").
+  if (extra?.articleQuery) {
+    const q = extra.articleQuery.toLowerCase()
+    const article = (extra.article ?? '').toLowerCase().replace(/-/g, '')
+    const barcode = (extra.barcode ?? '').toLowerCase()
+    if (article && article === q) score += 1000
+    else if (article && article.includes(q)) score += 500
+    else if (barcode && barcode === q) score += 400
+    else if (barcode && barcode.includes(q)) score += 150
+  }
+
+  if (extra?.boostColorGroups?.length && extra.colorGroup && extra.boostColorGroups.includes(extra.colorGroup)) {
+    score += 30
+  }
+
+  if (extra?.quantity && extra.stock !== undefined && extra.stock >= extra.quantity) {
+    score += 15
+  }
+
   return score
 }
 
@@ -340,7 +377,7 @@ export async function getOnecCategoryBySlug(slug: string): Promise<{ id: number;
   return db.onecCategory.findUnique({ where: { slug }, select: { id: true, name: true, slug: true } })
 }
 
-function buildStockWhere(opts: {
+export function buildStockWhere(opts: {
   categoryIds?: number[]
   brand?: string
   brands?: string[]
@@ -372,13 +409,24 @@ function buildStockWhere(opts: {
   }
   if (search) {
     andConditions.push(...search.trim().split(/\s+/).filter(Boolean).map((word) => {
-      const variants = [word, ...(WORD_SYNONYMS[word.toLowerCase()] ?? [])]
+      const stem = stemRu(word.toLowerCase())
+      // Try the word as typed, its crude stem (bridges "шаров" -> "шар" against
+      // product names built from the singular), and any hand-curated synonyms
+      // of either form.
+      const variants = [...new Set([
+        word, stem,
+        ...(WORD_SYNONYMS[word.toLowerCase()] ?? []),
+        ...(WORD_SYNONYMS[stem] ?? []),
+      ])]
       return {
         OR: variants.flatMap((w) => [
           { name: { contains: w, mode: 'insensitive' as const } },
           { brand: { contains: w, mode: 'insensitive' as const } },
           { article: { contains: w, mode: 'insensitive' as const } },
           { barcode: { contains: w, mode: 'insensitive' as const } },
+          { occasion: { contains: w, mode: 'insensitive' as const } },
+          { colorGroup: { contains: w, mode: 'insensitive' as const } },
+          { shade: { contains: w, mode: 'insensitive' as const } },
         ]),
       }
     }))
@@ -437,7 +485,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
   })
   return db.onecStockItem.findMany({
     where,
-    select: { id: true, name: true, brand: true, stock: true, categoryId: true },
+    select: { id: true, name: true, brand: true, stock: true, categoryId: true, article: true, barcode: true, colorGroup: true },
   })
 }
 
@@ -475,7 +523,44 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     ? explicitCategoryIds
     : categoryId ? await getDescendantCategoryIds(categoryId) : undefined
 
-  const where = buildStockWhere({ categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly, isNewPending, onSale, isHit })
+  // Natural-language layer: pull structured filters (color/shade/brand/size/
+  // price/occasion) out of the free-text query. Explicit filters from the
+  // catalog sidebar always win — the parsed query only fills in gaps the
+  // sidebar left open, so combining a sidebar filter with a typed query never
+  // fights itself.
+  const parsed: ParsedSearchQuery | null = search ? parseSearchQuery(search) : null
+  const explicitBrandSet = (brands && brands.length > 0) || !!brand
+  const effBrands = !explicitBrandSet && parsed && parsed.brands.length > 0 ? parsed.brands : brands
+  const effBrand = !explicitBrandSet && parsed && parsed.brands.length > 0 ? undefined : brand
+  const effColorGroup = colorGroup ?? parsed?.colorGroups[0]
+  const effShade = shade ?? parsed?.shades[0]
+  const effOccasions = occasions && occasions.length > 0 ? occasions : (parsed && parsed.occasions.length > 0 ? parsed.occasions : occasions)
+  const effSizeInches = sizeInches ?? parsed?.sizeInches ?? undefined
+  const effMinPrice = minPrice ?? parsed?.minPrice ?? undefined
+  const effMaxPrice = maxPrice ?? parsed?.maxPrice ?? undefined
+  // Leftover free-text words after entities are pulled out — this is what
+  // actually drives the per-word name/brand/article contains-match, so a
+  // stray filler word (parsed out already) can no longer zero out results
+  // just because it doesn't literally appear in any product name. Guarded so
+  // a query that parses down to *nothing at all* (no structured filter, no
+  // leftover words — e.g. "для мальчика" on its own) still falls back to the
+  // raw text rather than silently dropping every constraint and returning
+  // the whole catalog.
+  const parsedHasStructure = !!parsed && (
+    parsed.colorGroups.length > 0 || parsed.shades.length > 0 || parsed.brands.length > 0 ||
+    parsed.occasions.length > 0 || parsed.sizeInches !== null || parsed.minPrice !== null || parsed.maxPrice !== null
+  )
+  const textSearch = parsed
+    ? (parsed.words.join(' ') || (parsedHasStructure ? undefined : search))
+    : search
+  const articleQuery = parsed?.articleCandidates[0]
+  const boostColorGroups = parsed?.audience && !effColorGroup ? AUDIENCE_COLOR_BOOST[parsed.audience] : undefined
+
+  const where = buildStockWhere({
+    categoryIds, brand: effBrand, brands: effBrands, sizeInches: effSizeInches, shade: effShade, colorGroup: effColorGroup,
+    occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch,
+    inStockOnly, isNewPending, onSale, isHit,
+  })
 
   if (sort === 'smart') {
     const flags = await resolveCategoryFlags()
@@ -485,16 +570,22 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
     const allRows = [...(await fetchAllForSmartSort({
-      categoryIds: stableCatIds, brand: brand ?? null, brands: brands ?? null, sizeInches: sizeInches ?? null, shade: shade ?? null,
-      colorGroup: colorGroup ?? null,
-      occasions: occasions ?? null, minPrice: minPrice ?? null, maxPrice: maxPrice ?? null, search: search ?? null,
+      categoryIds: stableCatIds, brand: effBrand ?? null, brands: effBrands ?? null, sizeInches: effSizeInches ?? null, shade: effShade ?? null,
+      colorGroup: effColorGroup ?? null,
+      occasions: effOccasions ?? null, minPrice: effMinPrice ?? null, maxPrice: effMaxPrice ?? null, search: textSearch ?? null,
       inStockOnly, isNewPending, onSale, isHit,
     }))]
 
-    if (search) {
-      const words = search.trim().split(/\s+/).filter(Boolean)
+    if (textSearch && textSearch.trim().length > 0) {
+      const words = textSearch.trim().split(/\s+/).filter(Boolean)
       allRows.sort((a, b) =>
-        scoreRelevance(b.name, b.brand, words) - scoreRelevance(a.name, a.brand, words) ||
+        scoreRelevance(b.name, b.brand, words, {
+          article: b.article, barcode: b.barcode, articleQuery, colorGroup: b.colorGroup, boostColorGroups,
+          quantity: parsed?.quantity, stock: b.stock,
+        }) - scoreRelevance(a.name, a.brand, words, {
+          article: a.article, barcode: a.barcode, articleQuery, colorGroup: a.colorGroup, boostColorGroups,
+          quantity: parsed?.quantity, stock: a.stock,
+        }) ||
         (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
         a.name.localeCompare(b.name, 'ru')
       )
@@ -523,6 +614,48 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 
     let total = allRows.length
     let pageIds = allRows.slice((page - 1) * pageSize, page * pageSize).map((r) => r.id)
+
+    // "Розовые хром 18" with no exact match: drop the two dimensions most
+    // likely to over-constrain (size, then finish) — a size or shade parsed
+    // out of free text — before giving up on structure entirely and falling
+    // to trigram/vector fuzzy matching below (spec: "точных совпадений нет,
+    // но мы нашли похожие варианты"). Only relaxes what the *query* implied,
+    // never a filter the shopper explicitly picked in the sidebar.
+    if (total === 0 && parsed && (parsed.sizeInches || parsed.shades.length > 0) && (sizeInches === undefined || shade === undefined)) {
+      const relaxedWhere = buildStockWhere({
+        categoryIds,
+        brand: effBrand, brands: effBrands,
+        sizeInches: sizeInches, // keep only if the shopper explicitly picked it
+        shade: shade,
+        colorGroup: effColorGroup,
+        occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch,
+        inStockOnly, isNewPending, onSale, isHit,
+      })
+      const relaxedRows = await db.onecStockItem.findMany({ where: relaxedWhere, select: { id: true }, take: pageSize * 10 })
+      if (relaxedRows.length > 0) {
+        total = relaxedRows.length
+        pageIds = relaxedRows.map((r) => r.id).slice((page - 1) * pageSize, page * pageSize)
+      }
+    }
+
+    // Descriptive, intent-shaped queries ("шары для фотозоны", "что купить на
+    // день рождения мальчика") rarely have a strong color/size/brand signal
+    // and their leftover words often don't literally appear in any product
+    // name either — trigram fuzzy matching won't rescue that. This is
+    // exactly what the pgvector embedding search (getVectorItemIds) already
+    // exists for, so hand it the query as soon as the structured+text pass
+    // looks thin, instead of waiting for a hard zero further down.
+    const looksDescriptive = !!parsed && parsed.words.length >= 2 &&
+      !effColorGroup && !effShade && !effSizeInches && parsed.brands.length === 0 && parsed.occasions.length === 0
+    if (search && looksDescriptive && total < 3) {
+      const vectorIds = await getVectorItemIds(search, pageSize * 5)
+      const known = new Set(allRows.map((r) => r.id))
+      const extraIds = vectorIds.filter((id) => !known.has(id))
+      if (extraIds.length > 0) {
+        pageIds = [...pageIds, ...extraIds].slice(0, pageSize)
+        total = Math.max(total, allRows.length + extraIds.length)
+      }
+    }
 
     if (search && total === 0) {
       const fuzzyIds = await getFuzzyItemIds(search, pageSize * 10)

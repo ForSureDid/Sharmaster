@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
 import StockItemDetail from "@/components/StockItemDetail";
 import SimilarProducts from "@/components/SimilarProducts";
+import RecentlyViewed from "@/components/RecentlyViewed";
 import { getStockItemBySlug, getStockItemById, getSimilarStockItems } from "@/lib/onecStock";
 
 // Resolves the same way the page body below does — both hit lib/onecStock.ts's
@@ -120,6 +121,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <StockItemDetail item={item} />
           <SimilarProducts items={similarItems} />
+          <RecentlyViewed current={{ id: item.id, slug: item.slug, imageUrl: item.imageUrl }} />
         </div>
       </main>
       <Footer />

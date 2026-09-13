@@ -8,6 +8,7 @@ import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import { getMatchingHint, QUICK_SEARCH_CHIPS, TRENDING_SEARCHES, type CategoryHint } from "@/lib/search-hints";
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from "@/lib/searchHistory";
+import { trackSearchClick } from "@/lib/searchClientTrack";
 
 type SubCategory = { id: number; name: string; slug: string | null };
 type TopCategory = { id: number; name: string; slug: string | null; children: SubCategory[] };
@@ -390,6 +391,7 @@ export default function Header() {
   }
 
   function handleSuggestSelect(item: SuggestItem) {
+    trackSearchClick(search, item.id, "suggest");
     setShowSuggestions(false);
     setSearch("");
     setSuggestions([]);

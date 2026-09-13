@@ -8,6 +8,7 @@ import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
 import { useLikes } from "@/context/LikesContext";
 import QtyStepper from "@/components/QtyStepper";
+import { trackSearchClick } from "@/lib/searchClientTrack";
 
 function LikeButton({ id, className }: { id: number; className?: string }) {
   const { isLiked, toggleLike } = useLikes();
@@ -96,6 +97,7 @@ function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }:
 }
 
 export function StockCardGrid({ item, priority }: { item: StockCard; priority?: boolean }) {
+  const searchQuery = useSearchParams().get("q");
   const { items, addToCart, updateQty } = useCart();
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
@@ -123,7 +125,7 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
   const isPending = item.isNewPending && !inStock;
 
   return (
-    <div className={`border rounded-xl overflow-hidden transition-all flex flex-col group ${
+    <div className={`h-full border rounded-xl overflow-hidden transition-all flex flex-col group ${
       isPending
         ? "bg-gray-50 border-gray-200"
         : inStock ? "bg-white border-gray-100 hover:border-sky-200 hover:shadow-md" : "bg-white border-gray-100 opacity-60"
@@ -172,7 +174,11 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
             <span className="text-[10px] bg-sky-50 text-sky-500 px-1.5 py-0.5 rounded font-medium">{item.brand}</span>
           )}
         </div>
-        <a href={`/catalog/${item.slug ?? item.id}`} className="hover:text-sky-600 transition-colors">
+        <a
+          href={`/catalog/${item.slug ?? item.id}`}
+          onClick={() => trackSearchClick(searchQuery, item.id, "catalog")}
+          className="hover:text-sky-600 transition-colors"
+        >
           <h3 className="text-xs font-semibold text-gray-800 leading-snug flex-1 mb-3 line-clamp-3">{displayName}</h3>
         </a>
 
@@ -249,6 +255,7 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
 }
 
 function StockCardList({ item }: { item: StockCard }) {
+  const searchQuery = useSearchParams().get("q");
   const { items, addToCart, updateQty } = useCart();
   const cartItem = items.find((i) => i.id === item.id);
   const inStock = item.stock > 0;
@@ -302,7 +309,11 @@ function StockCardList({ item }: { item: StockCard }) {
               <span className="text-[10px] text-amber-600 font-medium">Ожидайте поступления</span>
             )}
           </div>
-          <a href={`/catalog/${item.slug ?? item.id}`} className="hover:text-sky-600 transition-colors">
+          <a
+            href={`/catalog/${item.slug ?? item.id}`}
+            onClick={() => trackSearchClick(searchQuery, item.id, "catalog")}
+            className="hover:text-sky-600 transition-colors"
+          >
             <h3 className="text-sm font-semibold text-gray-800 leading-snug line-clamp-2">{displayName}</h3>
           </a>
         </div>
