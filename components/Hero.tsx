@@ -16,7 +16,7 @@ type Slide = {
 // `v=` cache-busts the static /public asset so a re-uploaded banner with the
 // same filename doesn't keep serving a stale cached copy — bump it whenever
 // any of these images is replaced.
-const IMG_VERSION = 3;
+const IMG_VERSION = 4;
 // Order below is deliberate (not file-number order) — banner-8 leads, then
 // banner-3, then the rest in their prior relative order. Re-order here only
 // on explicit request.
@@ -25,13 +25,13 @@ const SLIDES: Slide[] = [
     key: "magicmax",
     href: `/catalog?q=${encodeURIComponent("Magic Max")}`,
     image: `/banners/banner-8-magicmax.png?v=${IMG_VERSION}`,
-    alt: "MagicMax — новая линейка полимерного геля для шаров, ожидайте поступления",
+    alt: "MagicMax и Sharmaster.kz — обработка в подарок при заказе от 30 000 ₸",
   },
   {
     key: "sentyabr",
     href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
     image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
-    alt: "Снова в школу! Коллекция ко Дню Знаний",
+    alt: "День учителя — цветы и подарки для любимых учителей",
   },
   {
     key: "giant-heart",
