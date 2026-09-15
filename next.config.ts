@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
+// Old cloud Supabase project — still reachable, kept allowed during the
+// transition off it, but ~4.6x slower than the new self-hosted instance
+// (measured 2026-09-15: 1.78s vs 0.38s for the same object).
 const SUPABASE_HOST = "tjoreojidkjhfksspbwe.supabase.co";
+// Self-hosted Supabase on the new KZ-datacenter server (see
+// project_domain_serverhold_migration memory) — no domain/TLS in front of
+// Storage yet, so this is plain HTTP on the raw IP.
+const SUPABASE_HOST_NEW = "85.198.91.200:8000";
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -18,11 +25,12 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} ${GA_GTM_HOSTS} ${YM_HOST} ${META_PIXEL_HOST}`,
   // Tailwind / Next.js inject inline styles
   "style-src 'self' 'unsafe-inline'",
-  // Images from Supabase storage, donballon.ru supplier CDN, and analytics pixels
-  `img-src 'self' data: blob: https://www.donballon.ru https://${SUPABASE_HOST} ${YM_HOST} ${META_PIXEL_HOST}`,
+  // Images from Supabase storage (old cloud project + new self-hosted instance,
+  // mid-transition), donballon.ru supplier CDN, and analytics pixels
+  `img-src 'self' data: blob: https://www.donballon.ru https://${SUPABASE_HOST} http://${SUPABASE_HOST_NEW} ${YM_HOST} ${META_PIXEL_HOST}`,
   "font-src 'self' data:",
-  // XHR/fetch/beacon: self, Supabase, and the analytics vendors above
-  `connect-src 'self' https://${SUPABASE_HOST} ${GA_GTM_HOSTS} ${YM_HOST} ${META_PIXEL_HOST}`,
+  // XHR/fetch/beacon: self, Supabase (both), and the analytics vendors above
+  `connect-src 'self' https://${SUPABASE_HOST} http://${SUPABASE_HOST_NEW} ${GA_GTM_HOSTS} ${YM_HOST} ${META_PIXEL_HOST}`,
   // GTM's <noscript> fallback embeds an iframe from googletagmanager.com;
   // yandex.ru/yandex.kz for the Yandex Maps location embed on the homepage (Schedule.tsx)
   "frame-src https://www.googletagmanager.com https://yandex.ru https://yandex.kz",
@@ -75,6 +83,12 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "tjoreojidkjhfksspbwe.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      {
+        protocol: "http",
+        hostname: "85.198.91.200",
+        port: "8000",
         pathname: "/storage/v1/object/public/**",
       },
     ],
