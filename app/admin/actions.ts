@@ -136,6 +136,15 @@ export async function updateStockQty(id: number, stock: number) {
   updateTag('onecStockItems')
 }
 
+export async function updateItemImage(id: number, imageUrl: string) {
+  await requireAdmin()
+  await db.onecStockItem.update({ where: { id }, data: { imageUrl } })
+  revalidatePath('/admin')
+  revalidatePath('/catalog')
+  revalidatePath('/catalog/[slug]')
+  updateTag('onecStockItems')
+}
+
 export async function releaseStockOverride(id: number) {
   await requireAdmin()
   await db.onecStockItem.update({ where: { id }, data: { stockOverride: false } })

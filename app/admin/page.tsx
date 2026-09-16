@@ -11,6 +11,7 @@ import {
   updateOrderStatus,
   getStockItems,
   updateStockQty,
+  updateItemImage,
   releaseStockOverride,
   updateManualPrice,
   releasePriceOverride,
@@ -118,10 +119,14 @@ function StockTab() {
   const [priceEditVal, setPriceEditVal]     = useState("");
   const [sizeEditingId, setSizeEditingId] = useState<number | null>(null);
   const [sizeEditVal, setSizeEditVal]     = useState("");
+  const [imgUploadingId, setImgUploadingId] = useState<number | null>(null);
+  const [imgError, setImgError]           = useState<string | null>(null);
   const [isPending, startTx]      = useTransition();
   const inputRef                  = useRef<HTMLInputElement>(null);
   const priceInputRef             = useRef<HTMLInputElement>(null);
   const sizeInputRef              = useRef<HTMLInputElement>(null);
+  const imgInputRef               = useRef<HTMLInputElement>(null);
+  const imgTargetId                = useRef<number | null>(null);
 
   // debounce search
   useEffect(() => {
@@ -204,6 +209,35 @@ function StockTab() {
     });
   }
 
+  function startImageEdit(id: number) {
+    setImgError(null);
+    imgTargetId.current = id;
+    imgInputRef.current?.click();
+  }
+  async function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const id = imgTargetId.current;
+    e.target.value = ""; // allow re-picking the same file later
+    if (!file || id == null) return;
+    setImgUploadingId(id);
+    setImgError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/items/upload-image", { method: "POST", body: fd });
+      const uploaded = await res.json();
+      if (!res.ok) throw new Error(uploaded.error ?? "Ошибка загрузки");
+      await updateItemImage(id, uploaded.url as string);
+      setData(prev =>
+        prev ? { ...prev, items: prev.items.map(i => i.id === id ? { ...i, imageUrl: uploaded.url } : i) } : null
+      );
+    } catch (err) {
+      setImgError(err instanceof Error ? err.message : "Ошибка загрузки фото");
+    } finally {
+      setImgUploadingId(null);
+    }
+  }
+
   const outOfStock = data?.items.filter(i => i.stock === 0).length ?? 0;
   const lowStock   = data?.items.filter(i => i.stock > 0 && i.stock < 10).length ?? 0;
 
@@ -244,7 +278,12 @@ function StockTab() {
         <div className="px-6 py-2.5 bg-blue-50 border-b border-blue-100 text-xs text-blue-600">
           Нажмите на значение в колонке «Остаток», «Цена» или «Размер», чтобы изменить. Подтвердите клавишей Enter.
           Изменённые вручную остаток/цена помечаются 🔒 и больше не перезаписываются синхронизацией с 1С — нажмите на замок, чтобы вернуть управление 1С.
+          Нажмите на фото товара, чтобы загрузить новое.
         </div>
+        <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+        {imgError && (
+          <div className="px-6 py-2 bg-red-50 border-b border-red-100 text-xs text-red-600">{imgError}</div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -276,18 +315,35 @@ function StockTab() {
                       >
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-3">
-                            {item.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.imageUrl}
-                                alt=""
-                                className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0 bg-gray-50"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg border border-gray-100 flex-shrink-0 bg-gray-50 flex items-center justify-center text-gray-300 text-xs">
-                                —
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => startImageEdit(item.id)}
+                              disabled={imgUploadingId === item.id}
+                              title="Нажмите, чтобы загрузить новое фото"
+                              className="relative w-10 h-10 rounded-lg border border-gray-100 flex-shrink-0 bg-gray-50 overflow-hidden group cursor-pointer"
+                            >
+                              {item.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.imageUrl}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">—</div>
+                              )}
+                              {imgUploadingId === item.id ? (
+                                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                                  <div className="w-4 h-4 rounded-full border-2 border-sky-400 border-t-transparent animate-spin" />
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                                  <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
                             <div className="font-medium text-gray-800 leading-tight">{item.name}</div>
                           </div>
                         </td>
