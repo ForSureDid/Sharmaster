@@ -43,27 +43,36 @@ export default function OrderPage() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await placeOrder({
-        customerName: name,
-        phone,
-        address,
-        deliveryZone,
-        // Server prices/decrements stock per piece (see actions.ts) — for balloons
-        // (isBalloon !== false) a pack line's qty must be flattened to raw piece
-        // count. For non-balloon packQty items the price/stock unit IS the pack
-        // itself (packQty there is descriptive only), so qty stays as-is.
-        items: items.map(i => ({
-          id: i.id,
-          qty: i.packSize && i.isBalloon !== false ? i.qty * i.packSize : i.qty,
-          name: i.name,
-          price: i.salePrice ?? i.price,
-        })),
-      });
-      if (result.ok) {
-        clearCart();
-        setSuccess(true);
-      } else {
-        setError(result.error);
+      try {
+        const result = await placeOrder({
+          customerName: name,
+          phone,
+          address,
+          deliveryZone,
+          // Server prices/decrements stock per piece (see actions.ts) — for balloons
+          // (isBalloon !== false) a pack line's qty must be flattened to raw piece
+          // count. For non-balloon packQty items the price/stock unit IS the pack
+          // itself (packQty there is descriptive only), so qty stays as-is.
+          items: items.map(i => ({
+            id: i.id,
+            qty: i.packSize && i.isBalloon !== false ? i.qty * i.packSize : i.qty,
+            name: i.name,
+            price: i.salePrice ?? i.price,
+          })),
+        });
+        if (result.ok) {
+          clearCart();
+          setSuccess(true);
+        } else {
+          setError(result.error);
+        }
+      } catch {
+        // A thrown error here (not a { ok:false } result) means the request
+        // itself never reached placeOrder's own validation/return — most often
+        // a stale page open across a deploy ("Failed to find Server Action").
+        // Without this catch the transition just quietly ends with no error
+        // and no success state, leaving the customer staring at a dead button.
+        setError("Не удалось отправить заказ — обновите страницу (Ctrl+R / Cmd+R) и попробуйте ещё раз.");
       }
     });
   }
