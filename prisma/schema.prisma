@@ -136,6 +136,13 @@ model User {
   cart      Json?
   cartUpdatedAt DateTime?
 
+  // Server-side mirror of active starter-kit bundles in the cart (localStorage
+  // key "sharmaster_cart_kits" — see context/CartContext.tsx). Kept separate
+  // from `cart` so every existing reader of that field (admin Carts tab, 1C
+  // export, etc.) keeps working unchanged. Shape: CartKit[].
+  cartKits      Json?
+  cartKitsUpdatedAt DateTime?
+
   @@index([email])
 }
 
@@ -232,7 +239,56 @@ model OrderItem {
   qty             Int
   price           Decimal @db.Decimal(10, 2)
 
+  // Set only for a line that came from a Kit's fixed composition (see Kit/KitItem
+  // below) — never set by ordinary cart checkout. kitName is denormalized so the
+  // order/Excel/Telegram views can label the line without an extra join, and stays
+  // readable even if the Kit is later renamed or deleted (onDelete: SetNull).
+  kitId   Int?
+  kit     Kit?    @relation(fields: [kitId], references: [id], onDelete: SetNull)
+  kitName String?
+
   @@index([orderId])
+  @@index([kitId])
+}
+
+// ─── Starter kits ("Набор для новичков") ──────────────────────────────────────
+// A fixed-price bundle of OnecStockItem lines. Composition is set once by an
+// admin/script (see scripts/_seed-kit-*.ts) and never edited from the storefront
+// — the cart enforces that a bundle's locked items can't be removed individually,
+// only the whole bundle can be declined (see context/CartContext.tsx's
+// addKit/removeKit and app/kits/[slug]/page.tsx).
+model Kit {
+  id          Int      @id @default(autoincrement())
+  slug        String   @unique
+  name        String
+  description String?
+  // Flat price charged for the whole bundle regardless of the composition's real
+  // sum — e.g. "Набор для новичков №1" is always exactly 100 000 ₸, never
+  // discounted (see lib/discounts.ts usage in context/CartContext.tsx and
+  // app/order/actions.ts, which treat a kit line like a discountEligible:false one).
+  price       Decimal  @db.Decimal(10, 2)
+  images      String[]
+  isActive    Boolean  @default(true)
+  items       KitItem[]
+  orderItems  OrderItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KitItem {
+  id              Int           @id @default(autoincrement())
+  kitId           Int
+  kit             Kit           @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  onecStockItemId Int
+  onecStockItem   OnecStockItem @relation(fields: [onecStockItemId], references: [id])
+  // Required quantity locked into the bundle — the cart floor for this item;
+  // see CartContext's addKit. Same unit as a normal cart line (packs for
+  // pack-sold items, pieces otherwise — matches CartItem.qty).
+  qty             Int
+  sortOrder       Int           @default(0)
+
+  @@unique([kitId, onecStockItemId])
+  @@index([onecStockItemId])
 }
 
 // ─── 1C exchange — catalog source of truth for storefront + admin ────────────
@@ -278,6 +334,7 @@ model OnecStockItem {
   updatedAt       DateTime @updatedAt
   likes           Like[]
   stockSnapshots  StockSnapshot[]
+  kitItems        KitItem[]
 
   @@index([article])
   @@index([barcode])

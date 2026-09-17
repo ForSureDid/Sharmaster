@@ -8,6 +8,7 @@ import Footer from "@/components/Footer";
 import CartSummaryCard from "@/components/CartSummaryCard";
 import QtyStepper from "@/components/QtyStepper";
 import { useCart } from "@/context/CartContext";
+import type { CartKit } from "@/context/CartContext";
 
 function ItemImage({ src, alt }: { src: string; alt: string }) {
   const [failed, setFailed] = useState(false);
@@ -34,8 +35,48 @@ function PlaceholderIcon() {
   );
 }
 
+function KitCard({ kit, onDecline }: { kit: CartKit; onDecline: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="p-4 sm:p-5">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden relative">
+          {kit.imageUrl ? <ItemImage src={kit.imageUrl} alt={kit.name} /> : <PlaceholderIcon />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800 leading-snug">{kit.name}</p>
+          <p className="text-xs text-gray-400 mt-0.5">{kit.items.length} товаров · состав фиксирован</p>
+          <button onClick={() => setExpanded((v) => !v)} className="text-xs text-sky-600 hover:text-sky-700 mt-1">
+            {expanded ? "Скрыть состав" : "Показать состав"}
+          </button>
+        </div>
+        <div className="hidden sm:block w-24 flex-shrink-0 text-right text-sm font-bold text-sky-600">
+          {kit.price.toLocaleString()} ₸
+        </div>
+        <button
+          onClick={onDecline}
+          className="flex-shrink-0 px-3 py-1.5 text-xs font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+          title="Отказаться от набора"
+        >
+          Отказаться
+        </button>
+      </div>
+      <div className="sm:hidden text-right text-sm font-bold text-sky-600 mt-2">{kit.price.toLocaleString()} ₸</div>
+      {expanded && (
+        <ul className="mt-3 pl-2 sm:pl-24 space-y-1">
+          {kit.items.map((item) => (
+            <li key={item.onecStockItemId} className="text-xs text-gray-500">
+              {item.name} × {item.qty}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function CartPage() {
-  const { items, removeFromCart, updateQty, clearCart, totalCount, syncNotices, dismissSyncNotices } = useCart();
+  const { items, kits, removeFromCart, updateQty, clearCart, removeKit, totalCount, syncNotices, dismissSyncNotices } = useCart();
 
   return (
     <>
@@ -54,7 +95,7 @@ export default function CartPage() {
 
           <div className="flex items-baseline gap-3 mb-6">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800">Корзина</h1>
-            {items.length > 0 && (
+            {(items.length > 0 || kits.length > 0) && (
               <span className="text-sm text-gray-400">({totalCount} {totalCount === 1 ? "товар" : "товара"})</span>
             )}
           </div>
@@ -75,7 +116,7 @@ export default function CartPage() {
             </div>
           )}
 
-          {items.length === 0 ? (
+          {items.length === 0 && kits.length === 0 ? (
             <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-md mx-auto">
               <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -93,6 +134,9 @@ export default function CartPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               {/* Item list */}
               <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 divide-y divide-gray-50">
+                {kits.map((kit) => (
+                  <KitCard key={kit.kitId} kit={kit} onDecline={() => removeKit(kit.kitId)} />
+                ))}
                 {items.map((item) => (
                   <div key={item.id} className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden relative">

@@ -9,12 +9,14 @@ import path from 'path'
 import { amountInWords } from '@/lib/numberToWords'
 import { getOneTimeDiscountPercent } from '@/lib/discounts'
 import { resolveCategoryFlags, computeDiscountEligible } from '@/lib/onecStock'
+import { getKitById } from '@/lib/kits'
 
 class StockError extends Error {
   constructor(msg: string) { super(msg); this.name = 'StockError' }
 }
 
 type OrderItem = { id: number; qty: number; name: string; price: number }
+type OrderKit = { kitId: number }
 type DeliveryZone = 'astana' | 'other'
 
 export type PlaceOrderResult =
@@ -32,8 +34,13 @@ export async function placeOrder(input: {
   address: string
   deliveryZone: DeliveryZone
   items: OrderItem[]
+  kits?: OrderKit[]
 }): Promise<PlaceOrderResult> {
   const { customerName, phone, address, items } = input
+  // De-dupe by kitId — the cart never holds the same kit twice (see
+  // CartContext's addKit), but a stale/replayed request shouldn't be able to
+  // decrement a kit's stock twice by repeating its id.
+  const kitRequests = [...new Map((input.kits ?? []).map(k => [k.kitId, k])).values()]
   const deliveryZone: DeliveryZone = input.deliveryZone === 'other' ? 'other' : 'astana'
 
   // Guests can browse and build a cart freely, but placing an order requires
@@ -44,8 +51,9 @@ export async function placeOrder(input: {
   if (!session) return { ok: false, error: 'Войдите или зарегистрируйтесь, чтобы оформить заказ' }
 
   // ── Input validation ──────────────────────────────────────────────────────
-  if (!items.length) return { ok: false, error: 'Корзина пуста' }
+  if (!items.length && kitRequests.length === 0) return { ok: false, error: 'Корзина пуста' }
   if (items.length > 500) return { ok: false, error: 'Слишком много позиций в заказе' }
+  if (kitRequests.length > 20) return { ok: false, error: 'Слишком много наборов в заказе' }
 
   const name = customerName.trim()
   const ph   = phone.trim()
@@ -101,7 +109,44 @@ export async function placeOrder(input: {
     return sum + unitPrice * item.qty
   }, 0)
 
-  if (deliveryZone === 'other' && subtotal < OUT_OF_TOWN_MIN_ORDER) {
+  // ── Resolve kit bundles — composition and price are always read fresh from
+  // the DB here, never trusted from the client (only the kitId is). ─────────
+  type KitLine = { onecStockItemId: number; name: string; article: string | null; imageUrl: string | null; pricePerPc: number; rawQty: number; stock: number }
+  const resolvedKits: { kit: { id: number; name: string; price: number }; lines: KitLine[] }[] = []
+  for (const { kitId } of kitRequests) {
+    const kitDetail = await getKitById(kitId)
+    if (!kitDetail) return { ok: false, error: 'Один из наборов в корзине больше недоступен' }
+
+    const lines: KitLine[] = kitDetail.items.map((i) => ({
+      onecStockItemId: i.onecStockItemId,
+      name: i.name,
+      article: i.article,
+      imageUrl: i.imageUrl,
+      pricePerPc: i.pricePerPc,
+      // Mirrors app/order/page.tsx's flattening for ordinary items: OnecStockItem.stock
+      // for an actual balloon is tracked in raw pieces, so a kit's per-pack qty has to
+      // be multiplied out before it can be checked/decremented against it.
+      rawQty: i.packSize && i.isBalloon ? i.qty * i.packSize : i.qty,
+      stock: i.stock,
+    }))
+    for (const line of lines) {
+      if (line.stock < line.rawQty) {
+        return {
+          ok: false,
+          error: `Недостаточно товара "${line.name}" для набора "${kitDetail.name}" на складе (доступно: ${line.stock} шт.)`,
+        }
+      }
+    }
+    resolvedKits.push({ kit: { id: kitDetail.id, name: kitDetail.name, price: kitDetail.price }, lines })
+  }
+
+  // Real per-piece-priced sum of every kit's composition — used only to report
+  // the gap to the kit's flat price (see Kit.price in prisma/schema.prisma);
+  // the customer is always charged kitsFlatTotal, never kitRealTotal.
+  const kitRealTotal = resolvedKits.reduce((s, rk) => s + rk.lines.reduce((s2, l) => s2 + l.pricePerPc * l.rawQty, 0), 0)
+  const kitsFlatTotal = resolvedKits.reduce((s, rk) => s + rk.kit.price, 0)
+
+  if (deliveryZone === 'other' && (subtotal + kitsFlatTotal) < OUT_OF_TOWN_MIN_ORDER) {
     return {
       ok: false,
       error: `Минимальная сумма заказа для доставки за пределы Астаны — ${OUT_OF_TOWN_MIN_ORDER.toLocaleString('ru-RU')} ₸`,
@@ -125,7 +170,10 @@ export async function placeOrder(input: {
   }, 0)
   const discountPercent = getOneTimeDiscountPercent(discountEligibleSubtotal)
   const discountAmount = Math.round(discountEligibleSubtotal * discountPercent / 100)
-  const total = subtotal - discountAmount
+  // A kit's flat price (see Kit.price) never gets the progressive discount — same
+  // treatment as a discountEligible:false line, just added in directly here rather
+  // than folded into discountEligibleSubtotal since it isn't priced per-piece.
+  const total = subtotal + kitsFlatTotal - discountAmount
 
   // ── Atomic check-and-decrement inside one transaction ─────────────────────
   // updateMany with stock >= qty is a single conditional UPDATE in the DB —
@@ -156,6 +204,25 @@ export async function placeOrder(input: {
           )
         }
       }
+
+      for (const rk of resolvedKits) {
+        for (const line of rk.lines) {
+          const { count } = await tx.onecStockItem.updateMany({
+            where: { id: line.onecStockItemId, stock: { gte: line.rawQty } },
+            data: { stock: { decrement: line.rawQty } },
+          })
+          if (count === 0) {
+            const cur = await tx.onecStockItem.findUnique({
+              where: { id: line.onecStockItemId },
+              select: { stock: true },
+            })
+            throw new StockError(
+              `Недостаточно товара "${line.name}" для набора "${rk.kit.name}" на складе (доступно: ${cur?.stock ?? 0} шт.)`
+            )
+          }
+        }
+      }
+
       const newOrder = await tx.order.create({
         data: {
           userId: session.userId,
@@ -165,23 +232,34 @@ export async function placeOrder(input: {
           deliveryZone,
           total,
           items: {
-            create: resolved.map(({ item, stockRow }) => ({
-              onecStockItemId: stockRow?.id ?? null,
-              name: item.name,
-              qty: item.qty,
-              price: stockRow ? stockRow.pricePerPc : 0,
-            })),
+            create: [
+              ...resolved.map(({ item, stockRow }) => ({
+                onecStockItemId: stockRow?.id ?? null,
+                name: item.name,
+                qty: item.qty,
+                price: stockRow ? stockRow.pricePerPc : 0,
+              })),
+              ...resolvedKits.flatMap((rk) => rk.lines.map((line) => ({
+                onecStockItemId: line.onecStockItemId,
+                name: line.name,
+                qty: line.rawQty,
+                price: line.pricePerPc,
+                kitId: rk.kit.id,
+                kitName: rk.kit.name,
+              }))),
+            ],
           },
         },
       })
 
-      // Clear the server-side cart mirror (User.cart) right here, atomically
-      // with the order — don't rely on the client's clearCart() + debounced
-      // saveCart() round trip, which silently never fires if the tab
-      // closes/navigates away within the 800ms debounce window right after checkout.
+      // Clear the server-side cart mirror (User.cart/cartKits) right here,
+      // atomically with the order — don't rely on the client's clearCart() +
+      // debounced saveCart()/saveCartKits() round trip, which silently never
+      // fires if the tab closes/navigates away within the 800ms debounce
+      // window right after checkout.
       await tx.user.update({
         where: { id: session.userId },
-        data: { cart: [], cartUpdatedAt: new Date() },
+        data: { cart: [], cartUpdatedAt: new Date(), cartKits: [], cartKitsUpdatedAt: new Date() },
       })
 
       return newOrder
@@ -193,16 +271,29 @@ export async function placeOrder(input: {
 
   revalidatePath('/catalog')
 
-  notifyTelegram(order.id, name, ph, addr, resolved.map(({ item, stockRow }) => ({
-    item,
-    stockRow: stockRow ? {
-      name: stockRow.name,
-      pricePerPc: Number(stockRow.pricePerPc),
-      article: stockRow.article,
-      imageUrl: stockRow.imageUrl,
-    } : null,
-    discountEligible: eligibility.get(item.id) ?? true,
-  })), subtotal, discountPercent, discountAmount, total).catch((err) => {
+  notifyTelegram(order.id, name, ph, addr, [
+    ...resolved.map(({ item, stockRow }) => ({
+      item,
+      stockRow: stockRow ? {
+        name: stockRow.name,
+        pricePerPc: Number(stockRow.pricePerPc),
+        article: stockRow.article,
+        imageUrl: stockRow.imageUrl,
+      } : null,
+      discountEligible: eligibility.get(item.id) ?? true,
+    })),
+    // Kit composition lines always show their real per-piece price and are never
+    // discounted — see the kitsFlatTotal comment above.
+    ...resolvedKits.flatMap((rk) => rk.lines.map((line) => ({
+      item: { id: line.onecStockItemId, qty: line.rawQty, name: line.name, price: line.pricePerPc },
+      stockRow: { name: line.name, pricePerPc: line.pricePerPc, article: line.article, imageUrl: line.imageUrl },
+      discountEligible: false,
+    }))),
+  ], subtotal + kitRealTotal, discountPercent, discountAmount, total, resolvedKits.map((rk) => ({
+    name: rk.kit.name,
+    price: rk.kit.price,
+    realTotal: rk.lines.reduce((s, l) => s + l.pricePerPc * l.rawQty, 0),
+  }))).catch((err) => {
     console.error(`notifyTelegram failed for order #${order.id}:`, err)
   })
 
@@ -246,6 +337,7 @@ async function notifyTelegram(
   discountPercent: number,
   discountAmount: number,
   total: number,
+  kitsSummary: { name: string; price: number; realTotal: number }[] = [],
 ) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_CHAT_ID
@@ -263,6 +355,8 @@ async function notifyTelegram(
     `📞 ${phone}`,
     `📍 ${address}`,
     ...(discountPercent > 0 ? [`🏷️ Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг): итого ${total.toLocaleString('ru-RU')} тг`] : []),
+    ...kitsSummary.map((k) => `🎁 ${k.name}: фиксированная цена ${k.price.toLocaleString('ru-RU')} тг` +
+      (k.realTotal !== k.price ? ` (обычная сумма состава — ${k.realTotal.toLocaleString('ru-RU')} тг)` : '')),
   ].join('\n')
 
   // Build Excel — kept separate from the Telegram send below so a template/formatting
@@ -326,9 +420,16 @@ async function notifyTelegram(
 
     const shift = Math.max(0, itemCount - TEMPLATE_ITEM_ROWS)
     sheet.getCell(`I${TOTAL_ROW + shift}`).value = subtotal
-    sheet.getCell(`A${SUMMARY_ROW + shift}`).value = discountPercent > 0
-      ? `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг. Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг). Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`
-      : `Всего наименований ${itemCount}, на сумму ${total.toLocaleString('ru-RU')} тг.`
+    // Kits are billed at a flat price regardless of their composition's real sum
+    // (see Kit.price) — the gap shows up here as an explicit adjustment so the
+    // printed subtotal, discount and final total still reconcile on paper.
+    const kitAdjustmentTotal = kitsSummary.reduce((s, k) => s + (k.price - k.realTotal), 0)
+    sheet.getCell(`A${SUMMARY_ROW + shift}`).value = [
+      `Всего наименований ${itemCount}, на сумму ${subtotal.toLocaleString('ru-RU')} тг.`,
+      ...(discountPercent > 0 ? [`Скидка ${discountPercent}% (−${discountAmount.toLocaleString('ru-RU')} тг).`] : []),
+      ...(kitAdjustmentTotal !== 0 ? [`Набор(ы) по фиксированной цене: ${kitAdjustmentTotal > 0 ? '+' : '−'}${Math.abs(kitAdjustmentTotal).toLocaleString('ru-RU')} тг.`] : []),
+      `Итого к оплате: ${total.toLocaleString('ru-RU')} тг.`,
+    ].join(' ')
     const words = amountInWords(total)
     sheet.getCell(`A${WORDS_ROW + shift}`).value = words.charAt(0).toUpperCase() + words.slice(1)
 

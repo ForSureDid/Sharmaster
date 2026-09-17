@@ -2,10 +2,11 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import type { ProductCard } from "@/lib/products";
+import type { KitDetail } from "@/lib/kits";
 import { getOneTimeDiscountPercent } from "@/lib/discounts";
 import { getMinQty } from "@/lib/pack";
 import { useAuth } from "@/context/AuthContext";
-import { saveCart, loadCart } from "@/app/cart/actions";
+import { saveCart, loadCart, saveCartKits, loadCartKits } from "@/app/cart/actions";
 
 export type CartItem = {
   id: number;
@@ -25,12 +26,44 @@ export type CartItem = {
   minQty?: number;
 };
 
+// A starter-kit bundle sitting in the cart (see lib/kits.ts's Kit/KitItem).
+// Deliberately NOT part of `items` — its composition is frozen at add time and
+// can't be edited or removed line-by-line, only declined as a whole (removeKit),
+// which is much simpler to guarantee when it's a separate structure than if kit
+// lines lived inside the freely-editable `items` array.
+export type CartKitItem = {
+  onecStockItemId: number;
+  name: string;
+  article: string | null;
+  brand: string | null;
+  imageUrl: string | null;
+  qty: number;
+  displayPrice: number;
+};
+
+export type CartKit = {
+  kitId: number;
+  slug: string;
+  name: string;
+  price: number;
+  imageUrl: string | null;
+  items: CartKitItem[];
+};
+
 type CartContextType = {
   items: CartItem[];
+  kits: CartKit[];
   addToCart: (product: ProductCard, packSize?: number | null, initialQty?: number) => void;
   removeFromCart: (id: number) => void;
   updateQty: (id: number, qty: number) => void;
   clearCart: () => void;
+  // Adds a kit bundle to the cart (no-op if already present) and, for any
+  // composition item the shopper bumped above its locked quantity on the kit
+  // page, merges that surplus into `items` as an ordinary, freely-removable
+  // line — see app/kits/[slug]/page.tsx. extraQtyByItemId is keyed by
+  // onecStockItemId.
+  addKit: (kit: KitDetail, extraQtyByItemId?: Record<number, number>) => void;
+  removeKit: (kitId: number) => void;
   totalCount: number;
   totalPrice: number;
   discountPercent: number;
@@ -46,6 +79,7 @@ type FreshCard = { id: number; stock: number; pricePerPc: number; salePercent: n
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [kits, setKits] = useState<CartKit[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [syncNotices, setSyncNotices] = useState<string[]>([]);
   const syncedKeyRef = useRef<string>("");
@@ -54,6 +88,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const stored = localStorage.getItem("sharmaster_cart");
     if (stored) setItems(JSON.parse(stored));
+    const storedKits = localStorage.getItem("sharmaster_cart_kits");
+    if (storedKits) setKits(JSON.parse(storedKits));
     setLoaded(true);
   }, []);
 
@@ -61,6 +97,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!loaded) return;
     localStorage.setItem("sharmaster_cart", JSON.stringify(items));
   }, [items, loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    localStorage.setItem("sharmaster_cart_kits", JSON.stringify(kits));
+  }, [kits, loaded]);
 
   // Server-side cart mirror (logged-in users only, see app/cart/actions.ts) —
   // survives a cleared browser or a new device, and gives admin visibility
@@ -95,6 +136,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }, 800);
     return () => clearTimeout(timer);
   }, [items, loaded, authLoading, user, serverLoadDone]);
+
+  // Same server-mirror dance as `items` above, but for kit bundles — kept on its
+  // own gate/ref pair since the two loads are independent server calls.
+  const [kitsServerLoadDone, setKitsServerLoadDone] = useState(false);
+  const kitsLoadedForEmailRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!loaded || authLoading) return;
+    if (!user) { setKitsServerLoadDone(true); return; }
+    if (kitsLoadedForEmailRef.current === user.email) return;
+    kitsLoadedForEmailRef.current = user.email;
+    setKitsServerLoadDone(false);
+    loadCartKits()
+      .then((serverKits) => {
+        if (serverKits && serverKits.length > 0) {
+          setKits((prev) => (prev.length === 0 ? serverKits : prev));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setKitsServerLoadDone(true));
+  }, [loaded, authLoading, user]);
+
+  useEffect(() => {
+    if (!loaded || authLoading || !user || !kitsServerLoadDone) return;
+    const timer = setTimeout(() => {
+      saveCartKits(kits).catch(() => {});
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [kits, loaded, authLoading, user, kitsServerLoadDone]);
 
   // Ghost-item guard: a localStorage snapshot goes stale the moment a product is
   // deleted/hidden or sells out — without this, the stale row sits in the cart
@@ -202,16 +272,75 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => { setItems([]); setKits([]); }, []);
   const dismissSyncNotices = useCallback(() => setSyncNotices([]), []);
 
-  const totalCount = items.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = items.reduce((s, i) => s + (i.salePrice ?? i.price) * i.qty, 0);
+  const addKit = useCallback((kit: KitDetail, extraQtyByItemId: Record<number, number> = {}) => {
+    setKits((prev) => {
+      if (prev.some((k) => k.kitId === kit.id)) return prev; // already in the cart — decline first to re-add
+      return [...prev, {
+        kitId: kit.id,
+        slug: kit.slug,
+        name: kit.name,
+        price: kit.price,
+        imageUrl: kit.images[0] ?? null,
+        items: kit.items.map((i) => ({
+          onecStockItemId: i.onecStockItemId,
+          name: i.name,
+          article: i.article,
+          brand: i.brand,
+          imageUrl: i.imageUrl,
+          qty: i.qty,
+          displayPrice: i.displayPrice,
+        })),
+      }];
+    });
+
+    // Anything the shopper bumped above the kit's locked quantity is an ordinary,
+    // freely-removable cart line from the start — never part of the frozen bundle.
+    const extras = kit.items.filter((i) => (extraQtyByItemId[i.onecStockItemId] ?? 0) > 0);
+    if (extras.length === 0) return;
+    setItems((prev) => {
+      let next = prev;
+      for (const i of extras) {
+        const extraQty = extraQtyByItemId[i.onecStockItemId];
+        const existingIdx = next.findIndex((x) => x.id === i.onecStockItemId);
+        if (existingIdx >= 0) {
+          next = next.map((x, idx) => idx === existingIdx ? { ...x, qty: x.qty + extraQty } : x);
+        } else {
+          const minQty = getMinQty({ brand: i.brand, name: i.name });
+          next = [...next, {
+            id: i.onecStockItemId,
+            name: i.name,
+            price: i.displayPrice,
+            salePrice: i.salePrice,
+            imageUrl: i.imageUrl,
+            qty: extraQty,
+            packSize: i.packSize,
+            isBalloon: i.isBalloon,
+            discountEligible: i.discountEligible,
+            minQty: minQty > 1 ? minQty : undefined,
+          }];
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const removeKit = useCallback((kitId: number) => {
+    setKits((prev) => prev.filter((k) => k.kitId !== kitId));
+  }, []);
+
+  const kitsTotal = kits.reduce((s, k) => s + k.price, 0);
+  const totalCount = items.reduce((s, i) => s + i.qty, 0) + kits.length;
+  const totalPrice = items.reduce((s, i) => s + (i.salePrice ?? i.price) * i.qty, 0) + kitsTotal;
   // "Прогрессивная скидка (разовая)" — see /discounts. Tier is picked off (and the
   // discount only ever applied to) the discount-eligible subtotal — gas equipment,
   // helium, balloon-treatment gel, ORACAL film and electric pumps (discountEligible
-  // === false) never get discounted and don't help reach a tier either. Server
-  // re-verifies the same calc from stock prices/categories at checkout.
+  // === false) never get discounted and don't help reach a tier either. A kit
+  // bundle's flat price is excluded the same way — see Kit.price in
+  // prisma/schema.prisma — it's always exactly its listed price, never discounted.
+  // Server re-verifies the same calc from stock prices/categories at checkout.
   const discountEligiblePrice = items.reduce(
     (s, i) => s + (i.discountEligible === false ? 0 : (i.salePrice ?? i.price) * i.qty),
     0
@@ -222,8 +351,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <CartContext.Provider value={{
-      items,
-      addToCart, removeFromCart, updateQty, clearCart,
+      items, kits,
+      addToCart, removeFromCart, updateQty, clearCart, addKit, removeKit,
       totalCount, totalPrice, discountPercent, discountAmount, finalTotal,
       syncNotices, dismissSyncNotices,
     }}>

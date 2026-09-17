@@ -17,7 +17,7 @@ const FORM_ID = "order-form";
 const OUT_OF_TOWN_MIN_ORDER = 30_000;
 
 export default function OrderPage() {
-  const { items, totalPrice, clearCart, syncNotices, dismissSyncNotices } = useCart();
+  const { items, kits, totalPrice, clearCart, syncNotices, dismissSyncNotices } = useCart();
   const { user, loading: authLoading } = useAuth();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +59,7 @@ export default function OrderPage() {
             name: i.name,
             price: i.salePrice ?? i.price,
           })),
+          kits: kits.map(k => ({ kitId: k.kitId })),
         });
         if (result.ok) {
           clearCart();
@@ -133,7 +134,7 @@ export default function OrderPage() {
                 Вернуться в каталог
               </Link>
             </div>
-          ) : items.length === 0 ? (
+          ) : items.length === 0 && kits.length === 0 ? (
             /* Empty cart state */
             <div className="bg-white rounded-3xl border border-gray-100 p-12 text-center max-w-xl mx-auto">
               <svg className="w-16 h-16 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import BrandsMarquee from "@/components/BrandsMarquee";
 import Categories from "@/components/Categories";
+import StarterKitsSection from "@/components/StarterKitsSection";
 import NovinkaSection from "@/components/NovinkaSection";
 import ProductGrid from "@/components/ProductGrid";
 import Benefits from "@/components/Benefits";
@@ -29,6 +30,7 @@ export default async function Home() {
         <Categories />
         <NovinkaSection items={novinkaItems.slice(0, 6)} />
         <Benefits />
+        <StarterKitsSection />
         <ProductGrid items={saleItems} />
         <HolidayProducts />
         <Schedule />
