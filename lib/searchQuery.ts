@@ -233,7 +233,10 @@ function extractSize(text: string): { text: string; sizeInches?: string } {
 function extractQuantity(text: string): { text: string; quantity?: number } {
   let quantity: number | undefined
 
-  text = text.replace(/\b(\d{2,4})((?:\s+[^\s\d]+){0,2}?)\s+(шар\w*|шт\.?|штук\w*|уп\.?|упаковк\w*)\b/gi, (_m, num, filler) => {
+  // Trailing \b never matches after a Cyrillic unit word — JS's \w is ASCII-only, so
+  // both sides of the boundary (Cyrillic letter, then space/end-of-string) count as
+  // "non-word" and \b silently fails. Use an explicit lookahead instead.
+  text = text.replace(/\b(\d{2,4})((?:\s+[^\s\d]+){0,2}?)\s+(шар\w*|шт\.?|штук\w*|уп\.?|упаковк\w*)(?![а-яёa-z0-9])/gi, (_m, num, filler) => {
     if (quantity === undefined) quantity = Number(num)
     return filler
   })
@@ -294,12 +297,27 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
   const corrected: { from: string; to: string }[] = []
   const words: string[] = []
   let audience: 'boy' | 'girl' | null = null
+  // A bare number left after price/quantity/unit-marked-size extraction (e.g. the "12" in
+  // "белый песок 12", with no "/дюйм/см) is overwhelmingly a balloon size typed without its
+  // unit — shoppers rarely type quantity or price as a lone trailing digit. Left as a leftover
+  // word instead, it becomes an `article`/`barcode` `contains` match in buildStockWhere, and
+  // those numeric-ID fields match almost any 1-2 digit substring, pulling in unrelated products
+  // (ribbons, standing-figure balloons, etc.) instead of filtering by size or matching nothing.
+  let implicitSize: string | undefined
 
   for (const rawWord of text.split(' ')) {
     const word = rawWord.replace(/[^\wа-яё-]/gi, '')
     if (!word) continue
     if (STOPWORDS.has(word)) continue
-    if (/^\d+$/.test(word)) { words.push(word); continue }
+    if (/^\d+$/.test(word)) {
+      const n = Number(word)
+      if (sizeResult.sizeInches === undefined && implicitSize === undefined && n >= 1 && n <= 150) {
+        implicitSize = word
+        continue
+      }
+      words.push(word)
+      continue
+    }
 
     if (looksLikeArticle(word)) {
       articleCandidates.push(word.replace(/-/g, ''))
@@ -336,7 +354,7 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
 
   return {
     colorGroups, shades, brands, occasions,
-    sizeInches: sizeResult.sizeInches ?? null,
+    sizeInches: sizeResult.sizeInches ?? implicitSize ?? null,
     minPrice: priceResult.minPrice ?? null,
     maxPrice: priceResult.maxPrice ?? null,
     quantity: qtyResult.quantity ?? null,
