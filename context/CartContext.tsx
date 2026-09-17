@@ -18,6 +18,8 @@ export type CartItem = {
   // See ProductCard.isBalloon — carried over as-is from add time since it's a
   // static category property, not something that needs re-fetching on sync.
   isBalloon?: boolean;
+  // See ProductCard.discountEligible — same as isBalloon, static and set at add time.
+  discountEligible?: boolean;
   // Floor for qty — see lib/pack.ts's getMinQty(). Undefined/1 means no floor
   // beyond the normal "0 removes the item" rule.
   minQty?: number;
@@ -179,6 +181,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         qty: initialQty ?? minQty,
         packSize,
         isBalloon: product.isBalloon,
+        discountEligible: product.discountEligible,
         minQty: minQty > 1 ? minQty : undefined,
       }];
     });
@@ -204,10 +207,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const totalCount = items.reduce((s, i) => s + i.qty, 0);
   const totalPrice = items.reduce((s, i) => s + (i.salePrice ?? i.price) * i.qty, 0);
-  // "Прогрессивная скидка (разовая)" — see /discounts. Tier is picked off the
-  // cart subtotal, server re-verifies the same calc from stock prices at checkout.
-  const discountPercent = getOneTimeDiscountPercent(totalPrice);
-  const discountAmount = Math.round(totalPrice * discountPercent / 100);
+  // "Прогрессивная скидка (разовая)" — see /discounts. Tier is picked off (and the
+  // discount only ever applied to) the discount-eligible subtotal — gas equipment,
+  // helium, balloon-treatment gel, ORACAL film and electric pumps (discountEligible
+  // === false) never get discounted and don't help reach a tier either. Server
+  // re-verifies the same calc from stock prices/categories at checkout.
+  const discountEligiblePrice = items.reduce(
+    (s, i) => s + (i.discountEligible === false ? 0 : (i.salePrice ?? i.price) * i.qty),
+    0
+  );
+  const discountPercent = getOneTimeDiscountPercent(discountEligiblePrice);
+  const discountAmount = Math.round(discountEligiblePrice * discountPercent / 100);
   const finalTotal = totalPrice - discountAmount;
 
   return (

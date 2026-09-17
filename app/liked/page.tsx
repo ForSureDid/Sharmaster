@@ -88,6 +88,7 @@ export default function LikedPage() {
                   sizeInches: null,
                   manufacturer: item.brand,
                   isBalloon: item.isBalloon,
+                  discountEligible: item.discountEligible,
                 };
 
                 return (

@@ -33,6 +33,11 @@ export type StockCard = {
   isNew: boolean
   isNewPending: boolean
   isHit: boolean
+  // See DISCOUNT_EXCLUDED_TOP_NAMES below — false for gas equipment, helium, balloon
+  // treatment gel, ORACAL film, and electric pumps. Carried onto CartItem exactly like
+  // isBalloon so the cart/checkout discount calc (context/CartContext.tsx,
+  // app/order/actions.ts) never applies the progressive discount to these.
+  discountEligible: boolean
 }
 
 export type StockDetail = StockCard & {
@@ -93,6 +98,21 @@ function buildImages(imageUrl: string | null, images: string[]): string[] {
   return [imageUrl, ...images.filter((u) => u !== imageUrl)]
 }
 
+// Electric pumps ("Насос электрический ...") share a flat category (Компрессоры и
+// насосы / Насосы) with hand pumps, which stay discount-eligible — so this can't be
+// a category exclusion and has to key off the name prefix 1C consistently uses.
+function isElectricPump(name: string): boolean {
+  return /^насос электрическ/i.test(name.trim())
+}
+
+// Shared by toCard() (customer-facing cards) and app/order/actions.ts (server-side
+// checkout re-verification) so the two can never disagree about which line items the
+// "прогрессивная скидка" excludes.
+export function computeDiscountEligible(categoryId: number | null, name: string, flags: CategoryFlags): boolean {
+  const isExcludedCategory = categoryId != null && flags.discountExcluded.has(categoryId)
+  return !isExcludedCategory && !isElectricPump(name)
+}
+
 // `brand` is null on every OnecStockItem row (1C sync never populates it) — lib/pack.ts's
 // isLatex()/isSoldByPiece() (the "latex 18''/24''/36'' giants always sold individually,
 // with a quick-add for the full pack" rule) relies on `material`/`brand` to detect latex,
@@ -106,9 +126,10 @@ function buildImages(imageUrl: string | null, images: string[]): string[] {
 // by packQty to show a pack price. For every other category (сервировка, свечи,
 // топперы, перья, etc.) 1C's price already IS the whole pack/set price — packQty
 // there is descriptive only, multiplying again double-counts it.
-function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<number>): StockCard {
-  const isLatex = i.categoryId != null && latexCategoryIds.has(i.categoryId)
-  const isFoil = i.categoryId != null && foilCategoryIds.has(i.categoryId)
+function toCard(i: RawItem, flags: CategoryFlags): StockCard {
+  const isLatex = i.categoryId != null && flags.latex.has(i.categoryId)
+  const isFoil = i.categoryId != null && flags.foil.has(i.categoryId)
+  const discountEligible = computeDiscountEligible(i.categoryId, i.name, flags)
   return {
     id: i.id, slug: i.slug, name: i.name, fullName: null, brand: i.brand,
     stock: i.stock, pricePerPc: Number(i.pricePerPc),
@@ -118,6 +139,7 @@ function toCard(i: RawItem, latexCategoryIds: Set<number>, foilCategoryIds: Set<
     sizeInches: i.sizeInches, model: null, unitsPerPackage: null,
     packQty: i.packQty, onSale: i.onSale, salePercent: i.salePercent,
     isNew: i.isNew, isNewPending: i.isNewPending, isHit: i.isHit,
+    discountEligible,
   }
 }
 
@@ -179,11 +201,24 @@ const FOIL_TOP_NAME = 'Воздушные шары из фольги'
 const FOIL_DIGIT_NAME = 'Цифры'
 const LATEX_NO_PRINT_NAME = 'Круглые без рисунка'
 
-type CategoryFlags = { latex: Set<number>; foil: Set<number>; foilDigit: Set<number>; latexNoPrint: Set<number> }
+// Roots of the "прогрессивная скидка" (see lib/discounts.ts) exclusion — Mirasbek
+// 2026-09-17: these aren't discountable goods (gas equipment/cylinders, helium
+// itself, balloon-treatment gel, ORACAL vinyl film), so their subtrees are excluded
+// from StockCard.discountEligible regardless of cart size. Electric pumps are
+// handled separately (see isElectricPump) since they share a category with
+// discount-eligible hand pumps.
+const DISCOUNT_EXCLUDED_TOP_NAMES = [
+  'Газовое оборудование',               // насадки и редукторы, аксессуары для баллонов
+  'Гелий и баллоны',                     // гелий, гелий в портативном баллоне, пустые баллоны
+  'Полимерный клей для шаров',           // "обработка" — гель для обработки латексных шаров
+  'Пленка самоклеящаяся ORACAL',
+]
+
+type CategoryFlags = { latex: Set<number>; foil: Set<number>; foilDigit: Set<number>; latexNoPrint: Set<number>; discountExcluded: Set<number> }
 // unstable_cache round-trips its return value through JSON, which can't represent
 // a Set (comes back as `{}`, silently losing `.has`) — the cached layer works with
 // plain arrays, and the exported wrapper below converts to Sets on every call.
-type CategoryFlagsArrays = { latex: number[]; foil: number[]; foilDigit: number[]; latexNoPrint: number[] }
+type CategoryFlagsArrays = { latex: number[]; foil: number[]; foilDigit: number[]; latexNoPrint: number[]; discountExcluded: number[] }
 
 async function _resolveCategoryFlagsArrays(): Promise<CategoryFlagsArrays> {
   const all = await db.onecCategory.findMany({ select: { id: true, name: true, parentId: true } })
@@ -222,7 +257,13 @@ async function _resolveCategoryFlagsArrays(): Promise<CategoryFlagsArrays> {
   const latexNoPrintId = latexTopId != null ? findByName(LATEX_NO_PRINT_NAME, latex) : null
   const latexNoPrint = latexNoPrintId != null ? subtree(latexNoPrintId) : new Set<number>()
 
-  return { latex: [...latex], foil: [...foil], foilDigit: [...foilDigit], latexNoPrint: [...latexNoPrint] }
+  const discountExcluded = new Set<number>()
+  for (const rootName of DISCOUNT_EXCLUDED_TOP_NAMES) {
+    const rootId = findByName(rootName)
+    if (rootId != null) for (const id of subtree(rootId)) discountExcluded.add(id)
+  }
+
+  return { latex: [...latex], foil: [...foil], foilDigit: [...foilDigit], latexNoPrint: [...latexNoPrint], discountExcluded: [...discountExcluded] }
 }
 
 const cachedCategoryFlagsArrays = unstable_cache(
@@ -236,6 +277,7 @@ export async function resolveCategoryFlags(): Promise<CategoryFlags> {
   return {
     latex: new Set(a.latex), foil: new Set(a.foil),
     foilDigit: new Set(a.foilDigit), latexNoPrint: new Set(a.latexNoPrint),
+    discountExcluded: new Set(a.discountExcluded),
   }
 }
 
@@ -675,7 +717,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     const itemMap = new Map(rawItems.map((i) => [i.id, i]))
     const orderedRaw = pageIds.map((id) => itemMap.get(id)!).filter(Boolean)
 
-    return { total, items: orderedRaw.map((i) => toCard(i, flags.latex, flags.foil)) }
+    return { total, items: orderedRaw.map((i) => toCard(i, flags)) }
   }
 
   const orderBy =
@@ -690,7 +732,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     db.onecStockItem.count({ where }),
   ])
 
-  return { items: rawItems.map((i) => toCard(i, flags.latex, flags.foil)), total }
+  return { items: rawItems.map((i) => toCard(i, flags)), total }
 }
 
 // Detail-only fields (description, dimensions) — kept off SELECT_FIELDS since
@@ -714,7 +756,7 @@ async function _getStockItemBySlug(slug: string): Promise<StockDetail | null> {
   // stop resolving, not just drop out of listings.
   if (!item || item.isHidden) return null
   return {
-    ...toCard(item, flags.latex, flags.foil),
+    ...toCard(item, flags),
     article: item.article, barcode: item.barcode,
     description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
     occasion: item.occasion, color: item.color, shade: item.shade, weightGrams: item.weightGrams,
@@ -738,7 +780,7 @@ async function _getStockItemById(id: number): Promise<StockDetail | null> {
   // Same 404-not-just-delisted treatment as _getStockItemBySlug above.
   if (!item || item.isHidden) return null
   return {
-    ...toCard(item, flags.latex, flags.foil),
+    ...toCard(item, flags),
     article: item.article, barcode: item.barcode,
     description: item.description, lengthMm: item.lengthMm, widthMm: item.widthMm, heightMm: item.heightMm,
     occasion: item.occasion, color: item.color, shade: item.shade, weightGrams: item.weightGrams,
@@ -818,7 +860,7 @@ async function _getSimilarStockItems(itemId: number, limit: number): Promise<Sto
     db.onecStockItem.findMany({ where: { id: { in: ranked.map((r) => r.id) } }, select: SELECT_FIELDS }),
   ])
   return rawItems
-    .map((i) => toCard(i, flags.latex, flags.foil))
+    .map((i) => toCard(i, flags))
     .sort((a, b) => idOrder.get(a.id)! - idOrder.get(b.id)!)
 }
 
@@ -838,7 +880,7 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
       ...(limit != null ? { take: limit } : {}),
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags.latex, flags.foil))
+  return rawItems.map((i) => toCard(i, flags))
 }
 
 // 6, not 8 — the homepage "Акция" section is a single lg:grid-cols-6 row (see
@@ -866,7 +908,7 @@ async function _getNovinkaItems(): Promise<NovinkaCard[]> {
       orderBy: [{ createdAt: 'desc' }],
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags.latex, flags.foil))
+  return rawItems.map((i) => toCard(i, flags))
 }
 
 export const getNovinkaItems = unstable_cache(_getNovinkaItems, ['onecNovinkaItems'], { revalidate: 60, tags: ['onecStockItems'] })
@@ -878,7 +920,7 @@ export async function getStockCardsByIds(ids: number[]): Promise<StockCard[]> {
     resolveCategoryFlags(),
     db.onecStockItem.findMany({ where: { id: { in: ids }, isHidden: false }, select: SELECT_FIELDS }),
   ])
-  const byId = new Map(rawItems.map((i) => [i.id, toCard(i, flags.latex, flags.foil)]))
+  const byId = new Map(rawItems.map((i) => [i.id, toCard(i, flags)]))
   return ids.map((id) => byId.get(id)).filter((c): c is StockCard => Boolean(c))
 }
 

@@ -5,6 +5,7 @@ import path from 'path'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/session'
 import { amountInWords } from '@/lib/numberToWords'
+import { resolveCategoryFlags, computeDiscountEligible } from '@/lib/onecStock'
 
 // Mirrors app/order/actions.ts's fetchThumbnail — kept as a separate copy since
 // this route and the Telegram notifier build the Excel at different times from
@@ -77,10 +78,21 @@ export async function GET(
   const stockRows = stockIds.length > 0
     ? await db.onecStockItem.findMany({
         where: { id: { in: stockIds } },
-        select: { id: true, article: true, imageUrl: true },
+        select: { id: true, article: true, imageUrl: true, categoryId: true },
       })
     : []
   const stockById = new Map(stockRows.map((s) => [s.id, s]))
+
+  // Same exclusion rule as app/order/actions.ts's checkout-time calc (gas equipment,
+  // helium, balloon-treatment gel, ORACAL film, electric pumps never get the
+  // "прогрессивная скидка") — re-derived from the live catalog since OrderItem
+  // doesn't store it, same as article/imageUrl below.
+  const categoryFlags = await resolveCategoryFlags()
+  const eligibilityById = new Map(order.items.map((item) => {
+    const stockRow = item.onecStockItemId ? stockById.get(item.onecStockItemId) : undefined
+    const eligible = stockRow ? computeDiscountEligible(stockRow.categoryId, item.name, categoryFlags) : true
+    return [item.id, eligible]
+  }))
 
   const thumbnails = await Promise.all(
     order.items.map((item) => {
@@ -106,12 +118,17 @@ export async function GET(
   }
 
   // Order.total already has the "Прогрессивная скидка" baked in but the percent
-  // itself isn't stored — this ratio reproduces the same effective discount per
-  // line without needing that field (see app/order/actions.ts for the original,
-  // exact-percent version computed at checkout time).
+  // itself isn't stored — this ratio reproduces the same effective discount, applied
+  // only to discount-eligible lines (see eligibilityById above), without needing
+  // that field (see app/order/actions.ts for the original, exact-percent version
+  // computed at checkout time).
   const subtotal = order.items.reduce((s, i) => s + Number(i.price) * i.qty, 0)
+  const eligibleSubtotal = order.items.reduce(
+    (s, i) => eligibilityById.get(i.id) ? s + Number(i.price) * i.qty : s, 0
+  )
   const total = Number(order.total)
-  const discountRatio = subtotal > 0 ? total / subtotal : 1
+  const discountAmount = subtotal - total
+  const discountRatio = eligibleSubtotal > 0 ? discountAmount / eligibleSubtotal : 0
 
   order.items.forEach((item, idx) => {
     const r = ITEMS_START_ROW + idx
@@ -123,7 +140,7 @@ export async function GET(
     sheet.getCell(`E${r}`).value = item.qty
     sheet.getCell(`F${r}`).value = 'шт'
     sheet.getCell(`G${r}`).value = price
-    sheet.getCell(`H${r}`).value = Math.round(price * discountRatio)
+    sheet.getCell(`H${r}`).value = eligibilityById.get(item.id) ? Math.round(price * (1 - discountRatio)) : price
     sheet.getCell(`I${r}`).value = price * item.qty
 
     const thumb = thumbnails[idx]

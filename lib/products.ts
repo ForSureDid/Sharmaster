@@ -14,6 +14,10 @@ export type ProductCard = {
   // lib/pack.ts's getDisplayPrice(). Only OnecStockItem-backed cards set this
   // explicitly, since only they know real category-subtree membership.
   isBalloon?: boolean
+  // See StockCard.discountEligible in lib/onecStock.ts. Undefined (legacy cards)
+  // behaves like true — only OnecStockItem-backed cards exclude non-discountable
+  // categories (gas equipment, helium, balloon treatment gel, ORACAL film, electric pumps).
+  discountEligible?: boolean
 }
 
 export type ProductFilters = {

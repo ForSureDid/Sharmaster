@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import path from 'path'
 import { amountInWords } from '@/lib/numberToWords'
 import { getOneTimeDiscountPercent } from '@/lib/discounts'
+import { resolveCategoryFlags, computeDiscountEligible } from '@/lib/onecStock'
 
 class StockError extends Error {
   constructor(msg: string) { super(msg); this.name = 'StockError' }
@@ -71,7 +72,7 @@ export async function placeOrder(input: {
 
   const stockRows = await db.onecStockItem.findMany({
     where: { OR: [{ id: { in: ids } }, { name: { in: names } }] },
-    select: { id: true, stock: true, name: true, pricePerPc: true, article: true, imageUrl: true },
+    select: { id: true, stock: true, name: true, pricePerPc: true, article: true, imageUrl: true, categoryId: true },
   })
 
   // Resolve each cart item to its real OnecStockItem
@@ -107,10 +108,23 @@ export async function placeOrder(input: {
     }
   }
 
-  // "Прогрессивная скидка (разовая)" — see lib/discounts.ts / app/discounts.
-  // Recomputed here from server-verified prices, never trusted from the client.
-  const discountPercent = getOneTimeDiscountPercent(subtotal)
-  const discountAmount = Math.round(subtotal * discountPercent / 100)
+  // "Прогрессивная скидка (разовая)" — see lib/discounts.ts / app/discounts. Only
+  // applies to (and only counts toward the tier via) discount-eligible categories —
+  // see lib/onecStock.ts's computeDiscountEligible — recomputed here from
+  // server-verified prices/categories, never trusted from the client. Computed once
+  // per line and reused below for the Telegram/Excel per-line discounted price, so
+  // an excluded item's line never shows a discount the order total didn't actually give it.
+  const categoryFlags = await resolveCategoryFlags()
+  const eligibility = new Map(resolved.map(({ item, stockRow }) => [
+    item.id,
+    stockRow ? computeDiscountEligible(stockRow.categoryId, stockRow.name, categoryFlags) : true,
+  ]))
+  const discountEligibleSubtotal = resolved.reduce((sum, { item, stockRow }) => {
+    if (!stockRow || !eligibility.get(item.id)) return sum
+    return sum + Number(stockRow.pricePerPc) * item.qty
+  }, 0)
+  const discountPercent = getOneTimeDiscountPercent(discountEligibleSubtotal)
+  const discountAmount = Math.round(discountEligibleSubtotal * discountPercent / 100)
   const total = subtotal - discountAmount
 
   // ── Atomic check-and-decrement inside one transaction ─────────────────────
@@ -187,6 +201,7 @@ export async function placeOrder(input: {
       article: stockRow.article,
       imageUrl: stockRow.imageUrl,
     } : null,
+    discountEligible: eligibility.get(item.id) ?? true,
   })), subtotal, discountPercent, discountAmount, total).catch((err) => {
     console.error(`notifyTelegram failed for order #${order.id}:`, err)
   })
@@ -226,7 +241,7 @@ async function notifyTelegram(
   name: string,
   phone: string,
   address: string,
-  resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number; article: string | null; imageUrl: string | null } | null }[],
+  resolved: { item: OrderItem; stockRow: { name: string; pricePerPc: number; article: string | null; imageUrl: string | null } | null; discountEligible: boolean }[],
   subtotal: number,
   discountPercent: number,
   discountAmount: number,
@@ -255,15 +270,17 @@ async function notifyTelegram(
   // notification. Falls back to a text-only message if this throws.
   let buffer: Buffer | null = null
   try {
-    const items = resolved.map(({ item, stockRow }) => {
+    const items = resolved.map(({ item, stockRow, discountEligible }) => {
       const price = stockRow ? Number(stockRow.pricePerPc) : 0
       return {
         name: item.name,
         qty: item.qty,
         price,
-        // Same order-wide percent applied to every line (see discountPercent above —
-        // it's a single "Прогрессивная скидка" tier, not a per-item sale discount).
-        discountedPrice: Math.round(price * (1 - discountPercent / 100)),
+        // Same order-wide percent applied to every eligible line (see discountPercent
+        // above — it's a single "Прогрессивная скидка" tier, not a per-item sale
+        // discount) — excluded categories (gas equipment, helium, balloon-treatment
+        // gel, ORACAL film, electric pumps) show their full price, never discounted.
+        discountedPrice: discountEligible ? Math.round(price * (1 - discountPercent / 100)) : price,
         article: stockRow?.article ?? '',
         imageUrl: stockRow?.imageUrl ?? null,
       }

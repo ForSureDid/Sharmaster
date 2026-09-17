@@ -120,6 +120,7 @@ export function StockCardGrid({ item, priority }: { item: StockCard; priority?: 
     sizeInches: null,
     manufacturer: item.brand,
     isBalloon: item.isBalloon,
+    discountEligible: item.discountEligible,
   };
 
   const isPending = item.isNewPending && !inStock;
@@ -278,6 +279,7 @@ function StockCardList({ item }: { item: StockCard }) {
     sizeInches: null,
     manufacturer: item.brand,
     isBalloon: item.isBalloon,
+    discountEligible: item.discountEligible,
   };
 
   const isPending = item.isNewPending && !inStock;
