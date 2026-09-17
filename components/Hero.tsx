@@ -108,7 +108,7 @@ export default function Hero() {
   }
 
   return (
-    <section className="pt-[90px]">
+    <section className="pt-14 sm:pt-[90px]">
       <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
         <div
           className="relative rounded-2xl overflow-hidden border-2 border-gray-300/50"

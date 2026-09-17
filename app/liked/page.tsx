@@ -31,7 +31,7 @@ export default function LikedPage() {
   return (
     <>
       <Header />
-      <main className="pt-[88px] min-h-screen bg-gray-50">
+      <main className="pt-14 sm:pt-[88px] min-h-screen bg-gray-50">
         <div className="bg-white border-b border-gray-100">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <nav className="flex items-center gap-1.5 text-xs text-gray-400">

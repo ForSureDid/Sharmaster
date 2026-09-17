@@ -100,7 +100,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <Header />
-      <main className="pt-[88px] min-h-screen bg-gray-50">
+      <main className="pt-14 sm:pt-[88px] min-h-screen bg-gray-50">
         {/* Breadcrumb */}
         <div className="bg-white border-b border-gray-100">
           <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3">

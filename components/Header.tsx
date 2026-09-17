@@ -472,7 +472,7 @@ export default function Header() {
           {categories.length > 0 && (
             <button
               onClick={() => setCatalogOpen((o) => !o)}
-              className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0 ${
+              className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex-shrink-0 ${
                 catalogOpen
                   ? "bg-sky-500 text-white"
                   : "bg-sky-500 hover:bg-sky-600 text-white"
@@ -492,7 +492,7 @@ export default function Header() {
           )}
 
           {/* Desktop search */}
-          <div className="flex-1 hidden md:block relative">
+          <div className="flex-1 hidden lg:block relative">
             <form onSubmit={handleSearch} className="w-full">
               <div className="flex w-full rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
                 <input
@@ -622,7 +622,7 @@ export default function Header() {
 
             {/* Mobile search toggle */}
             <button
-              className="md:hidden p-2 text-gray-600 hover:text-sky-500 transition-colors"
+              className="lg:hidden p-2 text-gray-600 hover:text-sky-500 transition-colors"
               onClick={() => { setSearchOpen(!searchOpen); setMenuOpen(false); }}
             >
               {searchOpen ? (
@@ -637,7 +637,7 @@ export default function Header() {
             </button>
 
             {/* Mobile hamburger */}
-            <button className="md:hidden p-2 text-gray-600" onClick={() => { setMenuOpen(!menuOpen); setSearchOpen(false); }}>
+            <button className="lg:hidden p-2 text-gray-600" onClick={() => { setMenuOpen(!menuOpen); setSearchOpen(false); }}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
@@ -649,7 +649,7 @@ export default function Header() {
 
       {/* ── Mega-menu dropdown ── */}
       {catalogOpen && categories.length > 0 && (
-        <div className="hidden md:block absolute left-0 right-0 top-full bg-white shadow-2xl border-t border-gray-100 z-40">
+        <div className="hidden lg:block absolute left-0 right-0 top-full bg-white shadow-2xl border-t border-gray-100 z-40">
           <div className="max-w-[90rem] mx-auto flex" style={{ minHeight: 320 }}>
             {/* Left column — L1 categories */}
             <div className="w-60 flex-shrink-0 bg-gray-50 border-r border-gray-100 py-2">
@@ -712,7 +712,7 @@ export default function Header() {
 
       {/* Mobile search row */}
       {searchOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
+        <div className="lg:hidden bg-white border-t border-gray-100 px-4 py-2 shadow-sm">
           <div className="relative">
             <form onSubmit={(e) => { setSearchOpen(false); setShowSuggestions(false); handleSearch(e); }}
               className="flex rounded-lg overflow-hidden border border-gray-200 focus-within:border-sky-300 transition-colors">
@@ -748,7 +748,7 @@ export default function Header() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 shadow-lg max-h-[80vh] overflow-y-auto">
+        <div className="lg:hidden bg-white border-t border-gray-100 shadow-lg max-h-[80vh] overflow-y-auto">
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="relative">
               <form onSubmit={(e) => { setMenuOpen(false); setShowSuggestions(false); handleSearch(e); }}

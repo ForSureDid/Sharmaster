@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
   return (
     <>
       <Header />
-      <main className="flex-1 pt-[88px] bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 flex flex-col">
+      <main className="flex-1 pt-14 sm:pt-[88px] bg-gradient-to-br from-sky-50 via-pink-50 to-green-50 flex flex-col">
         <div className="flex-1 flex items-center justify-center px-4 py-10">
           <Suspense fallback={<div className="w-8 h-8 rounded-full border-4 border-sky-400 border-t-transparent animate-spin" />}>
             <ResetPasswordForm />
