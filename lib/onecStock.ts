@@ -77,13 +77,13 @@ export type StockFilters = {
 }
 
 const SELECT_FIELDS = {
-  id: true, slug: true, name: true, brand: true, sizeInches: true, packQty: true,
+  id: true, slug: true, name: true, fullName: true, brand: true, sizeInches: true, packQty: true,
   stock: true, pricePerPc: true, imageUrl: true, images: true,
   onSale: true, salePercent: true, isNew: true, isNewPending: true, isHit: true, categoryId: true,
 } as const
 
 type RawItem = {
-  id: number; slug: string | null; name: string; brand: string | null
+  id: number; slug: string | null; name: string; fullName: string | null; brand: string | null
   sizeInches: string | null; packQty: number | null; stock: number; pricePerPc: unknown
   imageUrl: string | null; images: string[]; onSale: boolean; salePercent: number | null; isNew: boolean
   isNewPending: boolean; isHit: boolean; categoryId: number | null
@@ -131,7 +131,7 @@ function toCard(i: RawItem, flags: CategoryFlags): StockCard {
   const isFoil = i.categoryId != null && flags.foil.has(i.categoryId)
   const discountEligible = computeDiscountEligible(i.categoryId, i.name, flags)
   return {
-    id: i.id, slug: i.slug, name: i.name, fullName: null, brand: i.brand,
+    id: i.id, slug: i.slug, name: i.name, fullName: i.fullName, brand: i.brand,
     stock: i.stock, pricePerPc: Number(i.pricePerPc),
     imageUrl: i.imageUrl, images: buildImages(i.imageUrl, i.images),
     material: isLatex ? 'латекс' : null,
@@ -147,6 +147,7 @@ export type SearchResultItem = {
   id: number
   slug: string | null
   name: string
+  fullName: string | null
   brand: string | null
   stock: number
   price: number
@@ -158,6 +159,7 @@ type SearchResultRow = {
   id: number
   slug: string | null
   name: string
+  fullName: string | null
   brand: string | null
   stock: number
   pricePerPc: unknown // Prisma Decimal
@@ -182,7 +184,7 @@ export async function toSearchResultItems(rows: SearchResultRow[]): Promise<Sear
       material: isLatex ? 'латекс' : null, isBalloon: isLatex || isFoil,
     }
     return {
-      id: r.id, slug: r.slug, name: r.name, brand: r.brand, stock: r.stock,
+      id: r.id, slug: r.slug, name: r.name, fullName: r.fullName, brand: r.brand, stock: r.stock,
       price: getDisplayPrice({ ...packItem, pricePerPc: Number(r.pricePerPc) }),
       packSize: isSoldByPiece(packItem) ? null : getPackSize(packItem),
       imageUrl: r.imageUrl ?? r.images[0] ?? null,

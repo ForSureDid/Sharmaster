@@ -286,7 +286,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         imageUrl: kit.images[0] ?? null,
         items: kit.items.map((i) => ({
           onecStockItemId: i.onecStockItemId,
-          name: i.name,
+          name: i.displayName,
           article: i.article,
           brand: i.brand,
           imageUrl: i.imageUrl,
@@ -311,7 +311,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const minQty = getMinQty({ brand: i.brand, name: i.name });
           next = [...next, {
             id: i.onecStockItemId,
-            name: i.name,
+            name: i.displayName,
             price: i.displayPrice,
             salePrice: i.salePrice,
             imageUrl: i.imageUrl,

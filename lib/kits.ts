@@ -10,7 +10,13 @@ import { getPackSize, isSoldByPiece, getDisplayPrice, getMinQty, type PackItem }
 export type KitCompositionItem = {
   onecStockItemId: number
   article: string | null
+  // Real 1C name — never shown, only used when creating OrderItem rows at
+  // checkout (see app/order/actions.ts) so an order always matches 1C's own
+  // naming. The kit page renders `displayName` instead.
   name: string
+  // Customer-facing name (OnecStockItem.fullName ?? name) — what the kit page
+  // actually shows in the composition list.
+  displayName: string
   brand: string | null
   imageUrl: string | null
   stock: number
@@ -50,7 +56,7 @@ async function resolveComposition(
     ids.length === 0 ? Promise.resolve([]) : db.onecStockItem.findMany({
       where: { id: { in: ids } },
       select: {
-        id: true, article: true, name: true, brand: true, imageUrl: true,
+        id: true, article: true, name: true, fullName: true, brand: true, imageUrl: true,
         stock: true, pricePerPc: true, packQty: true, categoryId: true,
         onSale: true, salePercent: true,
       },
@@ -75,7 +81,7 @@ async function resolveComposition(
     const displayPrice = getDisplayPrice({ ...packInput, pricePerPc })
     const salePrice = row.onSale && row.salePercent ? Math.round(displayPrice * (1 - row.salePercent / 100)) : null
     items.push({
-      onecStockItemId: row.id, article: row.article, name: row.name, brand: row.brand,
+      onecStockItemId: row.id, article: row.article, name: row.name, displayName: row.fullName ?? row.name, brand: row.brand,
       imageUrl: row.imageUrl, stock: row.stock, pricePerPc, packSize, byPiece,
       displayPrice, salePrice, isBalloon,
       discountEligible: computeDiscountEligible(row.categoryId, row.name, flags),

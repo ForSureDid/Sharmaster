@@ -89,6 +89,7 @@ type SuggestItem = {
   id: number;
   slug: string | null;
   name: string;
+  fullName: string | null;
   brand: string | null;
   stock: number;
   price: number;
@@ -122,7 +123,7 @@ function PopularProductRow({ item, onSelect }: { item: SuggestItem; onSelect: (i
     >
       <div className="w-9 h-9 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt={item.name} width={36} height={36} className="w-full h-full object-cover" />
+          <Image src={item.imageUrl} alt={item.fullName ?? item.name} width={36} height={36} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,7 +134,7 @@ function PopularProductRow({ item, onSelect }: { item: SuggestItem; onSelect: (i
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-gray-700 truncate">{item.name}</p>
+        <p className="text-xs text-gray-700 truncate">{item.fullName ?? item.name}</p>
         <p className="text-xs font-bold text-sky-600">
           {item.price.toLocaleString("ru-RU")} ₸{item.packSize ? <span className="font-normal text-gray-400"> / уп</span> : null}
         </p>
@@ -250,7 +251,7 @@ function SearchDropdown({
         >
           <div className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
             {item.imageUrl ? (
-              <Image src={item.imageUrl} alt={item.name} width={40} height={40} className="w-full h-full object-cover" />
+              <Image src={item.imageUrl} alt={item.fullName ?? item.name} width={40} height={40} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-gray-300">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,7 +262,7 @@ function SearchDropdown({
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-800 truncate">{item.name}</p>
+            <p className="text-sm text-gray-800 truncate">{item.fullName ?? item.name}</p>
             {item.brand && <p className="text-xs text-gray-400 truncate">{item.brand}</p>}
           </div>
           <div className="flex-shrink-0 text-right">

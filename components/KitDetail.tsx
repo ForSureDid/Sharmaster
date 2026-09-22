@@ -167,11 +167,11 @@ export default function KitDetail({ kit }: { kit: KitDetailData }) {
               return (
                 <div key={item.onecStockItemId} className="p-3 sm:p-4 flex items-center gap-3">
                   <div className="w-14 h-14 flex-shrink-0 rounded-lg bg-gray-50 border border-gray-100 overflow-hidden relative">
-                    <ItemThumb src={item.imageUrl} alt={item.name} />
+                    <ItemThumb src={item.imageUrl} alt={item.displayName} />
                   </div>
                   <div className="flex-1 min-w-0">
                     {item.article && <p className="text-[11px] text-gray-400">{item.article}</p>}
-                    <p className="text-sm text-gray-700 leading-snug line-clamp-2">{item.name}</p>
+                    <p className="text-sm text-gray-700 leading-snug line-clamp-2">{item.displayName}</p>
                     {item.brand && <p className="text-xs text-gray-400 mt-0.5">{item.brand}</p>}
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">

@@ -74,19 +74,22 @@ export async function placeOrder(input: {
   }
 
   // ── Resolve stock rows ────────────────────────────────────────────────────
-  // Match by id first, fall back to name — handles stale localStorage cart ids
+  // Match by id first, fall back to name — handles stale localStorage cart ids.
+  // The cart's `name` is whatever the storefront shows (fullName override when
+  // set, see lib/onecStock.ts's toCard()), so the fallback has to check both
+  // columns — a stale cart item's stored name could be either one.
   const ids   = items.map(i => i.id)
   const names = items.map(i => i.name)
 
   const stockRows = await db.onecStockItem.findMany({
-    where: { OR: [{ id: { in: ids } }, { name: { in: names } }] },
-    select: { id: true, stock: true, name: true, pricePerPc: true, article: true, imageUrl: true, categoryId: true },
+    where: { OR: [{ id: { in: ids } }, { name: { in: names } }, { fullName: { in: names } }] },
+    select: { id: true, stock: true, name: true, fullName: true, pricePerPc: true, article: true, imageUrl: true, categoryId: true },
   })
 
   // Resolve each cart item to its real OnecStockItem
   const resolved = items.map(item => {
     const byId   = stockRows.find(s => s.id === item.id)
-    const byName = stockRows.find(s => s.name === item.name)
+    const byName = stockRows.find(s => s.name === item.name || s.fullName === item.name)
     return { item, stockRow: byId ?? byName ?? null }
   })
 
@@ -233,9 +236,12 @@ export async function placeOrder(input: {
           total,
           items: {
             create: [
+              // Always the real 1C name (never the storefront's fullName override,
+              // never the client-supplied cart item.name) — 1C exchange and the
+              // warehouse both key off this, see fullName's schema comment.
               ...resolved.map(({ item, stockRow }) => ({
                 onecStockItemId: stockRow?.id ?? null,
-                name: item.name,
+                name: stockRow?.name ?? item.name,
                 qty: item.qty,
                 price: stockRow ? stockRow.pricePerPc : 0,
               })),
@@ -367,7 +373,9 @@ async function notifyTelegram(
     const items = resolved.map(({ item, stockRow, discountEligible }) => {
       const price = stockRow ? Number(stockRow.pricePerPc) : 0
       return {
-        name: item.name,
+        // Real 1C name (see the OrderItem.create comment above) — the warehouse/1C
+        // side reads this Excel, never the storefront's fullName override.
+        name: stockRow?.name ?? item.name,
         qty: item.qty,
         price,
         // Same order-wide percent applied to every eligible line (see discountPercent

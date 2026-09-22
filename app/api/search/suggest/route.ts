@@ -4,7 +4,7 @@ import { scoreRelevance, getFuzzyItemIds, getVectorItemIds, toSearchResultItems,
 import { parseSearchQuery, AUDIENCE_COLOR_BOOST } from "@/lib/searchQuery";
 
 const SELECT_FOR_SUGGEST = {
-  id: true, slug: true, name: true, brand: true,
+  id: true, slug: true, name: true, fullName: true, brand: true,
   stock: true, pricePerPc: true, sizeInches: true, packQty: true,
   imageUrl: true, images: true, categoryId: true, article: true, barcode: true, colorGroup: true,
 } as const;

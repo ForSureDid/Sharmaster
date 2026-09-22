@@ -11,7 +11,7 @@ export async function GET() {
   const rows = await db.onecStockItem.findMany({
     where: { isHidden: false, isHit: true, stock: { gt: 0 } },
     select: {
-      id: true, slug: true, name: true, brand: true,
+      id: true, slug: true, name: true, fullName: true, brand: true,
       stock: true, pricePerPc: true, sizeInches: true, packQty: true,
       imageUrl: true, images: true, categoryId: true,
     },

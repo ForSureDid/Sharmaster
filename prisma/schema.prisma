@@ -298,6 +298,14 @@ model OnecStockItem {
   onecId          String   @unique // 1C "Ид" — "ТоварGUID#ХарактеристикаGUID" when 1C uses characteristics, else bare GUID
   article         String?
   name            String
+  // Customer-facing override of `name` — 1C's own name (used for the real 1C
+  // exchange and OrderItem.name at checkout, see app/order/actions.ts) is left
+  // untouched by this; the storefront shows `fullName ?? name` everywhere (see
+  // lib/onecStock.ts's toCard()). Hand-curated, absent from
+  // upsertProductChunk's INSERT/UPDATE column list in lib/onecImport.ts, so it
+  // survives every future 1C sync — same pattern as StockItem.fullName
+  // (legacy table) and packQty/sizeInches/occasion/etc below.
+  fullName        String?
   barcode         String?
   brand           String?          // Изготовитель
   countryOfOrigin String?

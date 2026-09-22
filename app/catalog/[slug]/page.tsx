@@ -26,8 +26,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const item = await resolveItem(slug);
   if (!item) return {};
 
-  const title = `${item.name} — купить в Казахстане | Sharmaster.kz`;
-  const description = `${item.name}${item.brand ? ` от ${item.brand}` : ""} — ${item.pricePerPc.toLocaleString("ru-RU")} ₸. Оптовый магазин воздушных шаров, доставка по всему Казахстану.`;
+  const displayName = item.fullName ?? item.name;
+  const title = `${displayName} — купить в Казахстане | Sharmaster.kz`;
+  const description = `${displayName}${item.brand ? ` от ${item.brand}` : ""} — ${item.pricePerPc.toLocaleString("ru-RU")} ₸. Оптовый магазин воздушных шаров, доставка по всему Казахстану.`;
 
   return {
     title,
@@ -60,12 +61,13 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
   if (isIdLookup && item.slug) redirect(`/catalog/${item.slug}`);
 
   const canonicalUrl = `${SITE_URL}/catalog/${item.slug ?? item.id}`;
+  const displayName = item.fullName ?? item.name;
 
   const productJsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
-    name: item.name,
-    description: item.description || `${item.name}${item.brand ? ` от ${item.brand}` : ""} — купить в Sharmaster.kz`,
+    name: displayName,
+    description: item.description || `${displayName}${item.brand ? ` от ${item.brand}` : ""} — купить в Sharmaster.kz`,
     image: item.images.length > 0 ? item.images : item.imageUrl ? [item.imageUrl] : undefined,
     sku: item.article ?? String(item.id),
     ...(item.brand ? { brand: { "@type": "Brand", name: item.brand } } : {}),
@@ -85,7 +87,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Главная", item: SITE_URL },
       { "@type": "ListItem", position: 2, name: "Каталог", item: `${SITE_URL}/catalog` },
-      { "@type": "ListItem", position: 3, name: item.name, item: canonicalUrl },
+      { "@type": "ListItem", position: 3, name: displayName, item: canonicalUrl },
     ],
   };
 
@@ -113,7 +115,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              <span className="text-gray-600 font-medium line-clamp-1">{item.name}</span>
+              <span className="text-gray-600 font-medium line-clamp-1">{displayName}</span>
             </nav>
           </div>
         </div>
