@@ -59,9 +59,6 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const minPrice = safeFloat(str(sp.min));
   const maxPrice = safeFloat(str(sp.max));
-  const SORT_OPTS = ["smart", "hit", "price_asc", "price_desc", "name_asc"] as const;
-  const rawSort = str(sp.sort);
-  const sort = (SORT_OPTS.includes(rawSort as typeof SORT_OPTS[number]) ? rawSort : "smart") as "smart" | "hit" | "price_asc" | "price_desc" | "name_asc";
   const page = Math.max(safeInt(str(sp.page), 1), 1);
   const per = Math.min(Math.max(safeInt(str(sp.per), 48), 1), 200);
   const q = str(sp.q);
@@ -69,6 +66,14 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   const novinki = forceNovinki || str(sp.novinki) === "1";
   const akcii = forceAkcii || str(sp.akcii) === "1";
   const hit = str(sp.hit) === "1";
+  const SORT_OPTS = ["smart", "newest", "hit", "price_asc", "price_desc", "name_asc"] as const;
+  const rawSort = str(sp.sort);
+  // Новинки default to newest-first (see Mirasbek 2026-09-30) rather than the
+  // catalog's usual "smart" ordering — unless a search is active, where
+  // relevance still matters more than arrival date. A shopper's own explicit
+  // ?sort= choice always wins over either default.
+  const defaultSort = novinki && !q ? "newest" : "smart";
+  const sort = (SORT_OPTS.includes(rawSort as typeof SORT_OPTS[number]) ? rawSort : defaultSort) as "smart" | "newest" | "hit" | "price_asc" | "price_desc" | "name_asc";
 
   // Same category scope the item query uses — keeps filter option lists (brand/size/
   // shade/occasion) scoped to the active category's subtree instead of the whole catalog.
@@ -153,6 +158,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
               totalPages={totalPages}
               per={per}
               basePath={basePath}
+              defaultSort={defaultSort}
             />
           </Suspense>
         </div>

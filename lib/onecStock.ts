@@ -71,7 +71,7 @@ export type StockFilters = {
   isNewPending?: boolean
   onSale?: boolean
   isHit?: boolean
-  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart' | 'hit'
+  sort?: 'price_asc' | 'price_desc' | 'name_asc' | 'smart' | 'hit' | 'newest'
   page?: number
   pageSize?: number
 }
@@ -723,6 +723,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
   }
 
   const orderBy =
+    sort === 'newest' ? { createdAt: 'desc' as const } :
     sort === 'hit' ? [{ isHit: 'desc' as const }, { pricePerPc: 'asc' as const }] :
     sort === 'price_desc' ? { pricePerPc: 'desc' as const } :
     sort === 'name_asc' ? { name: 'asc' as const } :

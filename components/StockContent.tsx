@@ -33,6 +33,9 @@ type Props = {
   totalPages: number;
   per: number;
   basePath?: string;
+  // What the dropdown/query should default to when the shopper hasn't picked
+  // a ?sort= themselves — "newest" on /novinka, "smart" everywhere else.
+  defaultSort?: string;
 };
 
 type ViewMode = "grid" | "list";
@@ -377,7 +380,7 @@ function StockCardList({ item }: { item: StockCard }) {
   );
 }
 
-export default function StockContent({ items, total, page, totalPages, per, basePath = "/catalog" }: Props) {
+export default function StockContent({ items, total, page, totalPages, per, basePath = "/catalog", defaultSort = "smart" }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
   const [view, setView] = useState<ViewMode>("grid");
@@ -413,7 +416,7 @@ export default function StockContent({ items, total, page, totalPages, per, base
     router.push(`${basePath}?${params.toString()}`);
   }
 
-  const sort = sp.get("sort") ?? "smart";
+  const sort = sp.get("sort") ?? defaultSort;
 
   return (
     <div className="flex-1 min-w-0">
@@ -469,6 +472,7 @@ export default function StockContent({ items, total, page, totalPages, per, base
             className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:border-sky-300 bg-white text-gray-700 cursor-pointer"
           >
             <option value="smart">По умолчанию</option>
+            <option value="newest">Сначала новые</option>
             <option value="hit">Хиты продаж</option>
             <option value="price_asc">Сначала дешевле</option>
             <option value="price_desc">Сначала дороже</option>
