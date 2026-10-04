@@ -24,10 +24,10 @@ const LIMIT = process.argv.includes('--limit')
   ? Number(process.argv[process.argv.indexOf('--limit') + 1])
   : undefined
 
-type Row = { id: number; name: string; brand: string | null; occasion: string | null; categoryName: string | null }
+type Row = { id: number; name: string; brand: string | null; occasion: string | null; categoryName: string | null; theme: string | null }
 
 function buildInputText(row: Row): string {
-  const text = [row.name, row.brand, row.categoryName, row.occasion].filter(Boolean).join(' ')
+  const text = [row.name, row.brand, row.categoryName, row.occasion, row.theme].filter(Boolean).join(' ')
   // A handful of 1C rows have an empty name and nothing else to fall back on —
   // OpenAI's embeddings endpoint rejects an empty string outright, which fails
   // the whole batch it's in. These items have no searchable text anyway.
@@ -47,7 +47,7 @@ async function main() {
     const take = Math.min(BATCH_SIZE, LIMIT ? LIMIT - done : BATCH_SIZE)
 
     const rows = await db.$queryRaw<Row[]>`
-      SELECT s.id, s.name, s.brand, s.occasion, c.name AS "categoryName"
+      SELECT s.id, s.name, s.brand, s.occasion, s.theme, c.name AS "categoryName"
       FROM "OnecStockItem" s
       LEFT JOIN "OnecCategory" c ON c.id = s."categoryId"
       WHERE s."isHidden" = false AND s.embedding IS NULL

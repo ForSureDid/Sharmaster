@@ -160,6 +160,113 @@ const OCCASION_PHRASES: Array<[string, string]> = [
   ['масленица', 'Масленица'],
 ]
 
+// Franchise/theme bridges — scripts/backfill-theme.ts classifies
+// OnecStockItem.theme off the product PHOTO via GPT vision, in English
+// ("Minecraft", "Among Us", "Paw Patrol"), since that's the one consistent
+// canonical form across runs. Shoppers overwhelmingly type the Cyrillic/
+// Russian-localized name instead, which often shares zero characters with
+// the English value (e.g. "щенячий патруль" vs "Paw Patrol") — a per-word
+// dictionary (like WORD_SYNONYMS) can't bridge that since most of these are
+// multi-word phrases. Matched read-only against the whole string (NOT
+// consumed/removed like OCCASION_PHRASES above) so the original words still
+// flow into the normal per-word name/brand/theme search too — see
+// buildStockWhere's `themeHint` handling in lib/onecStock.ts, which OR's this
+// against the literal word match rather than replacing it, so a query never
+// loses recall just because a theme isn't backfilled yet for every category.
+// List longest-phrase-first within a franchise so a specific sub-phrase
+// ("супер марио") isn't pre-empted by checking a shorter one first (not an
+// issue below since none currently overlap, but keep the convention).
+// Revisit after each backfill run via `SELECT DISTINCT theme FROM
+// "OnecStockItem" WHERE theme NOT IN ('unknown','error') ORDER BY theme`.
+const THEME_PHRASES: Array<[string, string]> = [
+  ['майнкрафт', 'Minecraft'], ['minecraft', 'Minecraft'],
+  ['роблокс', 'Roblox'], ['roblox', 'Roblox'],
+  ['амонг ас', 'Among Us'], ['амонгус', 'Among Us'], ['among us', 'Among Us'],
+  ['бэтмен', 'Batman'], ['бэтман', 'Batman'],
+  ['человек-паук', 'Spider-Man'], ['спайдермен', 'Spider-Man'], ['спайдермэн', 'Spider-Man'],
+  ['супермен', 'Superman'],
+  ['марвел', 'Marvel'],
+  ['лига справедливости', 'Justice League'],
+  ['барби', 'Barbie'],
+  ['гадкий я', 'Despicable Me'], ['миньоны', 'Despicable Me'], ['миньон', 'Despicable Me'],
+  ['диснеевская принцесса', 'Disney Princess'], ['принцессы диснея', 'Disney Princess'], ['дисней', 'Disney'],
+  ['драгон болл', 'Dragon Ball'],
+  ['в поисках немо', 'Finding Nemo'],
+  ['фнаф', 'Five Nights at Freddy\'s'], ['пять ночей с фредди', 'Five Nights at Freddy\'s'], ['фредди', 'Five Nights at Freddy\'s'],
+  ['фортнайт', 'Fortnite'],
+  ['холодное сердце', 'Frozen'], ['фрозен', 'Frozen'],
+  ['гарри поттер', 'Harry Potter'],
+  ['хеллоу китти', 'Hello Kitty'], ['хелло китти', 'Hello Kitty'], ['hello kitty', 'Hello Kitty'],
+  ['хот вилс', 'Hot Wheels'],
+  ['как приручить дракона', 'How to Train Your Dragon'],
+  ['головоломка', 'Inside Out'],
+  ['парк юрского периода', 'Jurassic Park'],
+  ['мир юрского периода', 'Jurassic World'],
+  ['три коты', 'Kid-E-Cats'], ['три кота', 'Kid-E-Cats'],
+  ['смешарики', 'Kikoriki'],
+  ['кей-поп охотницы', 'KPop Demon Hunters'], ['кпоп охотницы', 'KPop Demon Hunters'], ['охотницы на демонов', 'KPop Demon Hunters'],
+  ['лол сюрприз', 'L.O.L. Surprise!'],
+  ['лило и стич', 'Lilo & Stitch'],
+  ['луни тюнз', 'Looney Tunes'],
+  ['лунтик', 'Luntik'],
+  ['малышарики', 'Malyshariki'],
+  ['маша и медведь', 'Masha and the Bear'],
+  ['микки маус', 'Mickey Mouse'],
+  ['леди баг и супер кот', 'Miraculous'], ['леди баг', 'Miraculous'],
+  ['корпорация монстров', 'Monsters, Inc.'],
+  ['мой маленький пони', 'My Little Pony'], ['пони', 'My Little Pony'],
+  ['щенячий патруль', 'Paw Patrol'],
+  ['свинка пеппа', 'Peppa Pig'],
+  ['герои в масках', 'PJ Masks'],
+  ['растения против зомби', 'Plants vs. Zombies'],
+  ['покемон', 'Pokémon'],
+  ['поппи плейтайм', 'Poppy Playtime'], ['хагги вагги', 'Poppy Playtime'],
+  ['простоквашино', 'Prostokvashino'],
+  ['рейнбоу хай', 'Rainbow High'],
+  ['сейлор мун', 'Sailor Moon'],
+  ['санрио', 'Sanrio'],
+  ['скибиди туалет', 'Skibidi Toilet'],
+  ['спящая красавица', 'Sleeping Beauty'],
+  ['белоснежка', 'Snow White'],
+  ['принцесса софия', 'Sofia the First'],
+  ['соник', 'Sonic the Hedgehog'],
+  ['спанч боб', 'SpongeBob SquarePants'], ['губка боб', 'SpongeBob SquarePants'],
+  ['звездные войны', 'Star Wars'], ['звёздные войны', 'Star Wars'],
+  ['очень странные дела', 'Stranger Things'],
+  ['супер марио', 'Super Mario'], ['марио', 'Super Mario'],
+  ['рапунцель', 'Tangled'],
+  ['семейка аддамс', 'The Addams Family'],
+  ['цифровой цирк', 'The Amazing Digital Circus'],
+  ['коты аристократы', 'The Aristocats'],
+  ['барбоскины', 'The Barboskins'],
+  ['босс молокосос', 'The Boss Baby'],
+  ['фиксики', 'The Fixies'],
+  ['гринч', 'The Grinch'],
+  ['лего фильм', 'The Lego Movie'],
+  ['король лев', 'The Lion King'],
+  ['русалочка', 'The Little Mermaid'],
+  ['маленький принц', 'The Little Prince'],
+  ['кошмар перед рождеством', 'The Nightmare Before Christmas'],
+  ['симпсоны', 'The Simpsons'],
+  ['волшебник страны оз', 'The Wizard of Oz'],
+  ['томас и друзья', 'Thomas & Friends'],
+  ['том и джерри', 'Tom and Jerry'],
+  ['история игрушек', 'Toy Story'],
+  ['трансформеры', 'Transformers'],
+  ['царевны', 'Tsarevny'],
+  ['вампирина', 'Vampirina'],
+  ['уэнсдей', 'Wednesday'], ['венсдей', 'Wednesday'],
+  ['винни пух', 'Winnie the Pooh'],
+  ['зверополис', 'Zootopia'],
+  ['алиса в стране чудес', 'Alice in Wonderland'],
+  ['красавица и чудовище', 'Beauty and the Beast'],
+  ['синий трактор', 'Blue Tractor'],
+  ['бравл старс', 'Brawl Stars'],
+  ['тачки', 'Cars'],
+  ['чебурашка', 'Cheburashka'],
+  ['золушка', 'Cinderella'],
+]
+
 const BOY_WORDS = ['мальчик', 'мужчин', 'парен', 'boy']
 const GIRL_WORDS = ['девочк', 'девушк', 'женщин', 'girl']
 
@@ -262,6 +369,8 @@ export type ParsedSearchQuery = {
   quantity: number | null
   articleCandidates: string[]
   audience: 'boy' | 'girl' | null
+  /** Franchise/theme bridged from a Cyrillic/alias phrase (e.g. "щенячий патруль" -> "Paw Patrol") — OR'd against the literal word match in buildStockWhere, never replaces it. */
+  themeHint: string | null
   /** Leftover free-text words (lightly stemmed) for the name/brand/article/barcode/colorGroup/shade/occasion OR-per-word match. */
   words: string[]
   /** Typo corrections applied while resolving color/shade/brand — not surfaced in the UI yet, kept for future "did you mean" / analytics use. */
@@ -274,6 +383,16 @@ const brandIndex = buildStemmedIndex(BRAND_BASE)
 
 export function parseSearchQuery(raw: string): ParsedSearchQuery {
   let text = normalizeQuery(raw)
+
+  // Read-only scan (unlike OCCASION_PHRASES below, nothing is removed from
+  // `text`) against the untouched normalized string — see THEME_PHRASES'
+  // comment for why: the matched words must still flow into the normal
+  // per-word search too, so lib/onecStock.ts's buildStockWhere can OR this
+  // against the literal match instead of replacing it.
+  let themeHint: string | null = null
+  for (const [phrase, canonical] of THEME_PHRASES) {
+    if (text.includes(phrase)) { themeHint = canonical; break }
+  }
 
   const occasions: string[] = []
   for (const [phrase, canonical] of OCCASION_PHRASES) {
@@ -360,6 +479,7 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
     quantity: qtyResult.quantity ?? null,
     articleCandidates: [...new Set(articleCandidates)],
     audience,
+    themeHint,
     words: [...new Set(words)],
     corrected,
   }

@@ -317,6 +317,7 @@ export function scoreRelevance(
     articleQuery?: string | null
     colorGroup?: string | null
     shade?: string | null
+    theme?: string | null
     boostColorGroups?: string[]
     stock?: number
     quantity?: number | null
@@ -325,6 +326,7 @@ export function scoreRelevance(
   let score = 0
   const short = name.toLowerCase()
   const bLow = (brand ?? '').toLowerCase()
+  const tLow = (extra?.theme ?? '').toLowerCase()
 
   for (const word of words) {
     const w = word.toLowerCase()
@@ -336,6 +338,12 @@ export function scoreRelevance(
     if (bLow === w) score += 4
     else if (bLow.startsWith(w)) score += 2
     else if (bLow.includes(w)) score += 1
+
+    // theme is the whole point of this match for a franchise query ("майнкрафт",
+    // "роблокс") whose words never appear in `name` at all (e.g. "Пиксельный
+    // герой") — weighted above a plain name substring hit so themed figures
+    // outrank an unrelated product that merely contains the word as a substring.
+    if (tLow && (tLow === w || tLow.includes(w))) score += 8
   }
 
   // Article match dominates everything else — a shopper who typed an article
@@ -432,12 +440,13 @@ export function buildStockWhere(opts: {
   minPrice?: number
   maxPrice?: number
   search?: string
+  themeHint?: string
   inStockOnly?: boolean
   isNewPending?: boolean
   onSale?: boolean
   isHit?: boolean
 }) {
-  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, inStockOnly = false, isNewPending = false, onSale = false, isHit = false } = opts
+  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, themeHint, inStockOnly = false, isNewPending = false, onSale = false, isHit = false } = opts
 
   // Collected into one shared AND array (rather than each spreading its own top-level
   // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
@@ -452,7 +461,7 @@ export function buildStockWhere(opts: {
     andConditions.push({ OR: occasions.map((o) => ({ occasion: { contains: o, mode: 'insensitive' as const } })) })
   }
   if (search) {
-    andConditions.push(...search.trim().split(/\s+/).filter(Boolean).map((word) => {
+    const wordConditions = search.trim().split(/\s+/).filter(Boolean).map((word) => {
       const stem = stemRu(word.toLowerCase())
       // Try the word as typed, its crude stem (bridges "шаров" -> "шар" against
       // product names built from the singular), and any hand-curated synonyms
@@ -471,9 +480,25 @@ export function buildStockWhere(opts: {
           { occasion: { contains: w, mode: 'insensitive' as const } },
           { colorGroup: { contains: w, mode: 'insensitive' as const } },
           { shade: { contains: w, mode: 'insensitive' as const } },
+          { theme: { contains: w, mode: 'insensitive' as const } },
         ]),
       }
-    }))
+    })
+    // themeHint (a Cyrillic phrase bridged to the theme column's canonical English
+    // value, e.g. "щенячий патруль" -> "Paw Patrol" — see THEME_PHRASES in
+    // lib/searchQuery.ts) is OR'd alongside the normal word match, never in place
+    // of it: theme backfill is partial (only foil/latex balloons as of 2026-10-04),
+    // so a query must still fall back to finding a product whose literal name says
+    // the phrase even when that row hasn't been classified yet.
+    if (themeHint && wordConditions.length > 0) {
+      andConditions.push({ OR: [{ AND: wordConditions }, { theme: themeHint }] })
+    } else if (themeHint) {
+      andConditions.push({ theme: themeHint })
+    } else {
+      andConditions.push(...wordConditions)
+    }
+  } else if (themeHint) {
+    andConditions.push({ theme: themeHint })
   }
 
   return {
@@ -504,6 +529,7 @@ type SmartSortKey = {
   minPrice: number | null
   maxPrice: number | null
   search: string | null
+  themeHint: string | null
   inStockOnly: boolean
   isNewPending: boolean
   onSale: boolean
@@ -522,6 +548,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     minPrice: key.minPrice ?? undefined,
     maxPrice: key.maxPrice ?? undefined,
     search: key.search ?? undefined,
+    themeHint: key.themeHint ?? undefined,
     inStockOnly: key.inStockOnly,
     isNewPending: key.isNewPending,
     onSale: key.onSale,
@@ -529,7 +556,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
   })
   return db.onecStockItem.findMany({
     where,
-    select: { id: true, name: true, brand: true, stock: true, categoryId: true, article: true, barcode: true, colorGroup: true },
+    select: { id: true, name: true, brand: true, stock: true, categoryId: true, article: true, barcode: true, colorGroup: true, theme: true },
   })
 }
 
@@ -599,10 +626,11 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     : search
   const articleQuery = parsed?.articleCandidates[0]
   const boostColorGroups = parsed?.audience && !effColorGroup ? AUDIENCE_COLOR_BOOST[parsed.audience] : undefined
+  const effTheme = parsed?.themeHint ?? undefined
 
   const where = buildStockWhere({
     categoryIds, brand: effBrand, brands: effBrands, sizeInches: effSizeInches, shade: effShade, colorGroup: effColorGroup,
-    occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch,
+    occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch, themeHint: effTheme,
     inStockOnly, isNewPending, onSale, isHit,
   })
 
@@ -617,6 +645,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
       categoryIds: stableCatIds, brand: effBrand ?? null, brands: effBrands ?? null, sizeInches: effSizeInches ?? null, shade: effShade ?? null,
       colorGroup: effColorGroup ?? null,
       occasions: effOccasions ?? null, minPrice: effMinPrice ?? null, maxPrice: effMaxPrice ?? null, search: textSearch ?? null,
+      themeHint: effTheme ?? null,
       inStockOnly, isNewPending, onSale, isHit,
     }))]
 
@@ -624,10 +653,10 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
       const words = textSearch.trim().split(/\s+/).filter(Boolean)
       allRows.sort((a, b) =>
         scoreRelevance(b.name, b.brand, words, {
-          article: b.article, barcode: b.barcode, articleQuery, colorGroup: b.colorGroup, boostColorGroups,
+          article: b.article, barcode: b.barcode, articleQuery, colorGroup: b.colorGroup, theme: b.theme, boostColorGroups,
           quantity: parsed?.quantity, stock: b.stock,
         }) - scoreRelevance(a.name, a.brand, words, {
-          article: a.article, barcode: a.barcode, articleQuery, colorGroup: a.colorGroup, boostColorGroups,
+          article: a.article, barcode: a.barcode, articleQuery, colorGroup: a.colorGroup, theme: a.theme, boostColorGroups,
           quantity: parsed?.quantity, stock: a.stock,
         }) ||
         (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
@@ -672,7 +701,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
         sizeInches: sizeInches, // keep only if the shopper explicitly picked it
         shade: shade,
         colorGroup: effColorGroup,
-        occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch,
+        occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch, themeHint: effTheme,
         inStockOnly, isNewPending, onSale, isHit,
       })
       const relaxedRows = await db.onecStockItem.findMany({ where: relaxedWhere, select: { id: true }, take: pageSize * 10 })

@@ -19,6 +19,18 @@ export const WORD_SYNONYMS: Record<string, string[]> = {
   'воздушный':      ['шар', 'латексный'],
   'хантрикс':       ['кей поп', 'охотницы', 'девочки аниме'],
   'huntrix':        ['кей поп', 'охотницы', 'девочки аниме'],
+
+  // Franchise/theme name bridges — scripts/backfill-theme.ts writes OnecStockItem.theme
+  // in English ("Minecraft", "Roblox", ...) since that's GPT's consistent canonical
+  // form, but Kazakhstani shoppers overwhelmingly type the Cyrillic transliteration.
+  // Add a line here whenever a new franchise shows up in the distinct theme values
+  // (`SELECT DISTINCT theme FROM "OnecStockItem"`) and isn't bridged yet.
+  'майнкрафт':      ['minecraft'],
+  'роблокс':        ['roblox'],
+  'бэтмен':         ['batman'],
+  'человек-паук':   ['spider-man'],
+  'спайдермен':     ['spider-man'],
+  'марвел':         ['marvel'],
 }
 
 // Category quick-jump cards shown at top of the search dropdown.

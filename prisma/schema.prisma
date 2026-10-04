@@ -322,6 +322,7 @@ model OnecStockItem {
   packQty         Int?     // количество шаров в упаковке — 1C doesn't send this, hand-curated per brand; backfilled from StockItem, never overwritten by sync (see upsertProductChunk)
   sizeInches      String?  // same as above: StockItem-only enrichment, backfilled once
   occasion        String?  // Праздник — 1C doesn't send this, backfilled from Donballon xlsx export, hand-curated, never touched by lib/onecImport.ts sync
+  theme           String?  // Licensed franchise/character ("Minecraft", "Roblox", ...) that `name` never states (e.g. "Пиксельный герой") — classified from the product photo by scripts/backfill-theme.ts (GPT-4o-mini vision), hand-curated, never touched by lib/onecImport.ts sync
   shade           String?  // Оттенок
   color           String?  // Цвет
   colorGroup      String?  // Группа цвета
