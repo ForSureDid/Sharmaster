@@ -9,6 +9,8 @@
 // shade and brand are exact-match filters, so mapping to a value that never
 // occurs in the data would silently zero out results instead of helping.
 
+import { fixStrayLayoutPunctuation } from './translit'
+
 // ─── Normalization ──────────────────────────────────────────────────────────
 
 export function normalizeQuery(raw: string): string {
@@ -438,9 +440,23 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
     // buildStockWhere to reconstruct it later, unlike every other case where
     // stray punctuation (a trailing comma in "шар, 12 дюймов") is just noise
     // to strip.
-    const word = /^[a-z,.;'[\]]+$/i.test(rawWord) && /[a-z]/i.test(rawWord)
+    // The opposite slip from the layout-mismatch case below: a layout-
+    // punctuation character stuck INSIDE an otherwise-Cyrillic word (phone
+    // autocorrect drops out of the RU layout for one keystroke — "смайлберри"
+    // -> "смайл,ерри"). Reconstructing it REPLACES the naive strip below (which
+    // would otherwise just delete the comma and silently drop the "б") rather
+    // than adding a second, separate token — words is a flat list each entry
+    // of which buildStockWhere requires a match for, so two entries derived
+    // from the same rawWord would wrongly AND two partial spellings together
+    // instead of offering one fixed spelling.
+    const strayFix = fixStrayLayoutPunctuation(rawWord)
+
+    const word = strayFix
+      ? strayFix
+      : /^[a-z,.;'[\]]+$/i.test(rawWord) && /[a-z]/i.test(rawWord)
       ? rawWord.toLowerCase()
       : rawWord.replace(/[^\wа-яё-]/gi, '')
+
     if (!word) continue
     if (STOPWORDS.has(word)) continue
     if (/^\d+$/.test(word)) {

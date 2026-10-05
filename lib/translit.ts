@@ -63,6 +63,24 @@ export function phoneticToCyrillic(word: string): string {
   return out
 }
 
+/**
+ * Fixes a stray RU-layout punctuation key embedded in an otherwise-Cyrillic
+ * word — e.g. a phone keyboard that auto-switches layout mid-word drops out
+ * of RU for one keystroke, turning "смайлберри" into "смайл,ерри" (comma is
+ * "б"'s physical key — see LAYOUT_EN_TO_RU above). Returns the reconstructed
+ * word, or null if there's nothing to fix (no Cyrillic letters, or no
+ * layout-punctuation character present).
+ */
+export function fixStrayLayoutPunctuation(word: string): string | null {
+  // Trim leading/trailing punctuation-row characters first — those are
+  // virtually always real punctuation (end of a listed item: "шар, 12
+  // дюймов"), not a layout slip. The slip pattern specifically lands
+  // BETWEEN two letter clusters mid-word, which trimming leaves behind.
+  const trimmed = word.replace(/^[,.;'[\]]+|[,.;'[\]]+$/g, '')
+  if (!/[а-яё]/i.test(trimmed) || !/[,.;'[\]]/.test(trimmed)) return null
+  return trimmed.replace(/[,.;'[\]]/g, (c) => LAYOUT_EN_TO_RU[c] ?? c)
+}
+
 // Layout mismatches can carry the RU-punctuation-row characters (see
 // LAYOUT_EN_TO_RU above); the phonetic scheme has no use for punctuation, so
 // its candidate is computed from the letters alone.
