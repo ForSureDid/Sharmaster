@@ -431,7 +431,16 @@ export function parseSearchQuery(raw: string): ParsedSearchQuery {
   let implicitSize: string | undefined
 
   for (const rawWord of text.split(' ')) {
-    const word = rawWord.replace(/[^\wа-яё-]/gi, '')
+    // A word that's purely Latin letters plus the ЙЦУКЕН punctuation-row
+    // characters (,.;'[]) is a candidate for lib/translit.ts's keyboard-layout
+    // bridge ("смайлберри" -> "cvfqk,thhb" — the comma key produces "б" when
+    // the layout is RU) — those characters have to survive into `words` for
+    // buildStockWhere to reconstruct it later, unlike every other case where
+    // stray punctuation (a trailing comma in "шар, 12 дюймов") is just noise
+    // to strip.
+    const word = /^[a-z,.;'[\]]+$/i.test(rawWord) && /[a-z]/i.test(rawWord)
+      ? rawWord.toLowerCase()
+      : rawWord.replace(/[^\wа-яё-]/gi, '')
     if (!word) continue
     if (STOPWORDS.has(word)) continue
     if (/^\d+$/.test(word)) {

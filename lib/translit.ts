@@ -21,6 +21,11 @@ const LAYOUT_EN_TO_RU: Record<string, string> = {
   q: 'й', w: 'ц', e: 'у', r: 'к', t: 'е', y: 'н', u: 'г', i: 'ш', o: 'щ', p: 'з',
   a: 'ф', s: 'ы', d: 'в', f: 'а', g: 'п', h: 'р', j: 'о', k: 'л', l: 'д',
   z: 'я', x: 'ч', c: 'с', v: 'м', b: 'и', n: 'т', m: 'ь',
+  // Punctuation row of the standard ЙЦУКЕН layout — a shopper typing "смайлберри"
+  // with the keyboard stuck on EN hits the comma key for "б" (it's that key's
+  // RU output), producing e.g. "cvfqk,thhb". Without these the layout bridge
+  // silently drops that letter instead of reconstructing the word.
+  ',': 'б', '.': 'ю', ';': 'ж', "'": 'э', '[': 'х', ']': 'ъ',
 }
 
 export function layoutToCyrillic(word: string): string {
@@ -58,8 +63,14 @@ export function phoneticToCyrillic(word: string): string {
   return out
 }
 
-/** Both Cyrillic candidates for a pure-Latin query word, deduped. Returns [] for anything containing non-Latin characters. */
+// Layout mismatches can carry the RU-punctuation-row characters (see
+// LAYOUT_EN_TO_RU above); the phonetic scheme has no use for punctuation, so
+// its candidate is computed from the letters alone.
+const LAYOUT_CANDIDATE_RE = /^[a-z,.;'[\]]+$/i
+
+/** Both Cyrillic candidates for a Latin(+RU-layout-punctuation) query word, deduped. Returns [] for anything else (Cyrillic, digits, …). */
 export function latinToCyrillicCandidates(word: string): string[] {
-  if (!/^[a-z]+$/i.test(word)) return []
-  return [...new Set([layoutToCyrillic(word), phoneticToCyrillic(word)])]
+  if (!LAYOUT_CANDIDATE_RE.test(word) || !/[a-z]/i.test(word)) return []
+  const lettersOnly = word.replace(/[^a-z]/gi, '')
+  return [...new Set([layoutToCyrillic(word), phoneticToCyrillic(lettersOnly)])]
 }
