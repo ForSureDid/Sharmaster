@@ -9,6 +9,7 @@ import { unstable_cache } from 'next/cache'
 import { db } from './db'
 import { WORD_SYNONYMS } from './search-hints'
 import { parseSearchQuery, stemRu, AUDIENCE_COLOR_BOOST, type ParsedSearchQuery } from './searchQuery'
+import { latinToCyrillicCandidates } from './translit'
 import { embedQuery } from './embeddings'
 import { getPackSize, isSoldByPiece, getDisplayPrice } from './pack'
 
@@ -463,13 +464,21 @@ export function buildStockWhere(opts: {
   if (search) {
     const wordConditions = search.trim().split(/\s+/).filter(Boolean).map((word) => {
       const stem = stemRu(word.toLowerCase())
+      // A Latin-typed word is either a keyboard-layout slip ("шар" -> "ifh",
+      // same physical keys with the layout stuck on EN) or a phonetic spell-out
+      // ("shar") — see lib/translit.ts. Below 3 letters the two schemes produce
+      // too short a Cyrillic fragment to mean anything (and risk matching
+      // unrelated products by coincidence), so skip those.
+      const translitCandidates = word.length >= 3 ? latinToCyrillicCandidates(word) : []
+      const translitStems = translitCandidates.map((c) => stemRu(c))
       // Try the word as typed, its crude stem (bridges "шаров" -> "шар" against
-      // product names built from the singular), and any hand-curated synonyms
-      // of either form.
+      // product names built from the singular), any hand-curated synonyms of
+      // either form, and the Latin->Cyrillic candidates (plus their own stems).
       const variants = [...new Set([
         word, stem,
         ...(WORD_SYNONYMS[word.toLowerCase()] ?? []),
         ...(WORD_SYNONYMS[stem] ?? []),
+        ...translitCandidates, ...translitStems,
       ])]
       return {
         OR: variants.flatMap((w) => [
