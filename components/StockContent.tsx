@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { StockCard } from "@/lib/onecStock";
 import { getPackSize, isSoldByPiece, getDisplayPrice } from "@/lib/pack";
 import { useCart } from "@/context/CartContext";
@@ -42,60 +42,81 @@ type ViewMode = "grid" | "list";
 
 function ImageCarousel({ images, name, sizes, priority, objectFit = "contain" }: { images: string[]; name: string; sizes: string; priority?: boolean; objectFit?: "contain" | "cover" }) {
   const [idx, setIdx] = useState(0);
+  // Photos 2..n are only mounted after the shopper first hovers/touches the
+  // card, so a 48-card catalog page loads one photo per card, not all of them.
+  const [armed, setArmed] = useState(false);
   const total = images.length;
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
 
-  const prev = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIdx(i => (i - 1 + total) % total);
+  // Mouse: scrub through photos by horizontal position, no clicking needed.
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (total < 2) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 0.999);
+    setArmed(true);
+    setIdx(Math.floor(frac * total));
   }, [total]);
 
-  const next = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIdx(i => (i + 1) % total);
+  // Touch: horizontal swipe. Vertical movement is left to the page scroll.
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    setArmed(true);
+    swiped.current = false;
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || total < 2) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) < 30 || Math.abs(dx) < Math.abs(dy)) return;
+    swiped.current = true;
+    setIdx(i => (dx < 0 ? (i + 1) % total : (i - 1 + total) % total));
   }, [total]);
+  // A swipe must not also fire the click on the card link underneath.
+  const onClickCapture = useCallback((e: React.MouseEvent) => {
+    if (swiped.current) {
+      e.preventDefault();
+      e.stopPropagation();
+      swiped.current = false;
+    }
+  }, []);
+
+  const imgClass = objectFit === "cover" ? "object-cover" : "object-contain p-2";
 
   return (
-    <>
-      <Image
-        src={images[idx]}
-        alt={name}
-        fill
-        className={objectFit === "cover" ? "object-cover transition-opacity duration-200" : "object-contain p-2 transition-opacity duration-200"}
-        sizes={sizes}
-        priority={priority}
-      />
+    <div
+      className="absolute inset-0 touch-pan-y"
+      onMouseMove={onMouseMove}
+      onMouseLeave={() => setIdx(0)}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onClickCapture={onClickCapture}
+    >
+      {(armed ? images : images.slice(0, 1)).map((src, i) => (
+        <Image
+          key={src}
+          src={src}
+          alt={i === 0 ? name : `${name} — фото ${i + 1}`}
+          fill
+          className={`${imgClass} transition-opacity duration-150 ${i === idx ? "opacity-100" : "opacity-0"}`}
+          sizes={sizes}
+          priority={priority && i === 0}
+          aria-hidden={i !== idx}
+        />
+      ))}
       {total > 1 && (
-        <>
-          <button
-            onClick={prev}
-            className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/80 shadow flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 text-gray-600 hover:bg-white"
-            aria-label="Предыдущее фото"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            onClick={next}
-            className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white/80 shadow flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 text-gray-600 hover:bg-white"
-            aria-label="Следующее фото"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          <div className="absolute bottom-1.5 left-0 right-0 flex justify-center gap-1 z-10">
-            {images.map((_, i) => (
-              <button
-                key={i}
-                onClick={(e) => { e.stopPropagation(); setIdx(i); }}
-                className={`rounded-full transition-all ${i === idx ? "w-3 h-1.5 bg-sky-500" : "w-1.5 h-1.5 bg-gray-300 hover:bg-sky-300"}`}
-              />
-            ))}
-          </div>
-        </>
+        <div className="absolute bottom-1.5 left-0 right-0 flex justify-center gap-1 z-10 pointer-events-none">
+          {images.map((_, i) => (
+            <span
+              key={i}
+              className={`rounded-full transition-all ${i === idx ? "w-3 h-1.5 bg-sky-500" : "w-1.5 h-1.5 bg-gray-300"}`}
+            />
+          ))}
+        </div>
       )}
-    </>
+    </div>
   );
 }
 

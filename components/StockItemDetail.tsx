@@ -34,10 +34,31 @@ function Gallery({ images, name, badges }: { images: string[]; name: string; bad
   const prev = useCallback(() => setActive(i => (i - 1 + images.length) % images.length), [images.length]);
   const next = useCallback(() => setActive(i => (i + 1) % images.length), [images.length]);
 
+  // Swipe on the main photo (touch) and hover-scrub (mouse), no clicking needed.
+  const touchX = useRef<number | null>(null);
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (images.length < 2) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 0.999);
+    setActive(Math.floor(frac * images.length));
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchX.current;
+    touchX.current = null;
+    if (start === null) return;
+    const dx = e.changedTouches[0].clientX - start;
+    if (Math.abs(dx) >= 30) (dx < 0 ? next : prev)();
+  };
+
   return (
     <div className="flex flex-col gap-3">
       {/* Main image */}
-      <div className="relative w-full aspect-square rounded-2xl bg-white overflow-hidden group">
+      <div
+        className="relative w-full aspect-square rounded-2xl bg-white overflow-hidden group touch-pan-y"
+        onMouseMove={onMouseMove}
+        onTouchStart={(e) => { touchX.current = e.touches[0].clientX; }}
+        onTouchEnd={onTouchEnd}
+      >
         <Image
           key={images[active]}
           src={images[active]}

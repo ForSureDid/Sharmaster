@@ -13,23 +13,20 @@ const SUPABASE_HOST_NEW = '85.198.91.200:8000'
 export default function supabaseImageLoader({
   src,
   width,
-  quality,
 }: {
   src: string
   width: number
   quality?: number
 }) {
-  if (src.includes(SUPABASE_HOST_NEW)) {
-    return `/api/img-proxy?src=${encodeURIComponent(src.split('?')[0])}`
-  }
+  const isNew = src.includes(SUPABASE_HOST_NEW)
+  const isOld = src.includes(SUPABASE_HOST_OLD)
+  if (!isNew && !isOld) return src
 
-  // Supabase render endpoint (/storage/v1/render/image/public/...) produces broken output
-  // at small widths (e.g. 445×445 source → 64×500 at width=128). Always serve originals
-  // via /storage/v1/object/public/ — sources are ≤445px, browser handles the downscale.
-  if (!src.includes(SUPABASE_HOST_OLD)) return src
-
-  // Convert render URL → object URL and strip any ?width/quality query params
-  return src
-    .replace('/storage/v1/render/image/', '/storage/v1/object/')
-    .split('?')[0]
+  // Both hosts go through /api/img-proxy, which resizes to the requested width
+  // and re-encodes to webp (see the route for why). The old host's own
+  // /render/image endpoint is not used — it produced broken output at small
+  // widths (445×445 source → 64×500 at width=128). Convert any render URL back
+  // to the plain object URL first.
+  const clean = src.replace('/storage/v1/render/image/', '/storage/v1/object/').split('?')[0]
+  return `/api/img-proxy?src=${encodeURIComponent(clean)}&w=${width}`
 }
