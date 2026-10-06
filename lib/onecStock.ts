@@ -372,6 +372,12 @@ export function scoreRelevance(
 }
 
 // Fuzzy search via pg_trgm — requires migration 20260725000000's GIN indexes.
+// In-stock outranks the similarity score itself, not just a tiebreak — same
+// reasoning and priority order as the main scoreRelevance sort in
+// getStockItems (Mirasbek 2026-10-06: an out-of-stock item that's merely a
+// *better text match* was burying every in-stock result below it). Then
+// similarity, then has a photo, then alphabetical — every search path (exact
+// text match, fuzzy, vector) settles ties the same way.
 export async function getFuzzyItemIds(query: string, limit = 200): Promise<number[]> {
   const rows = await db.$queryRaw<Array<{ id: number }>>`
     SELECT id
@@ -383,11 +389,13 @@ export async function getFuzzyItemIds(query: string, limit = 200): Promise<numbe
         OR (brand IS NOT NULL AND similarity(${query}::text, brand) > 0.3)
       )
     ORDER BY
+      CASE WHEN stock > 0 THEN 1 ELSE 0 END DESC,
       GREATEST(
         word_similarity(${query}::text, name),
         COALESCE(similarity(${query}::text, brand), 0)
       ) DESC,
-      CASE WHEN stock > 0 THEN 1 ELSE 0 END DESC
+      CASE WHEN "imageUrl" IS NOT NULL THEN 1 ELSE 0 END DESC,
+      name ASC
     LIMIT ${limit}
   `
   return rows.map((r) => Number(r.id))
@@ -408,7 +416,11 @@ export async function getVectorItemIds(query: string, limit = 200): Promise<numb
       "isHidden" = false
       AND embedding IS NOT NULL
       AND (embedding <=> ${literal}::vector) < ${VECTOR_MAX_DISTANCE}
-    ORDER BY embedding <=> ${literal}::vector
+    ORDER BY
+      CASE WHEN stock > 0 THEN 1 ELSE 0 END DESC,
+      embedding <=> ${literal}::vector,
+      CASE WHEN "imageUrl" IS NOT NULL THEN 1 ELSE 0 END DESC,
+      name ASC
     LIMIT ${limit}
   `
   return rows.map((r) => Number(r.id))
@@ -565,7 +577,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
   })
   return db.onecStockItem.findMany({
     where,
-    select: { id: true, name: true, brand: true, stock: true, categoryId: true, article: true, barcode: true, colorGroup: true, theme: true },
+    select: { id: true, name: true, brand: true, stock: true, categoryId: true, article: true, barcode: true, colorGroup: true, theme: true, imageUrl: true },
   })
 }
 
@@ -661,6 +673,12 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
     if (textSearch && textSearch.trim().length > 0) {
       const words = textSearch.trim().split(/\s+/).filter(Boolean)
       allRows.sort((a, b) =>
+        // Stock outranks text relevance, not just the reverse — Mirasbek
+        // 2026-10-06: an exact-name match that's out of stock (e.g. a whole
+        // brand temporarily sold out) was burying every in-stock item below
+        // it, and a shopper can't buy an out-of-stock result anyway. Relevance
+        // still orders *within* the in-stock/out-of-stock group.
+        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
         scoreRelevance(b.name, b.brand, words, {
           article: b.article, barcode: b.barcode, articleQuery, colorGroup: b.colorGroup, theme: b.theme, boostColorGroups,
           quantity: parsed?.quantity, stock: b.stock,
@@ -668,7 +686,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
           article: a.article, barcode: a.barcode, articleQuery, colorGroup: a.colorGroup, theme: a.theme, boostColorGroups,
           quantity: parsed?.quantity, stock: a.stock,
         }) ||
-        (b.stock > 0 ? 1 : 0) - (a.stock > 0 ? 1 : 0) ||
+        (b.imageUrl ? 1 : 0) - (a.imageUrl ? 1 : 0) ||
         a.name.localeCompare(b.name, 'ru')
       )
     } else if (isLatex) {
