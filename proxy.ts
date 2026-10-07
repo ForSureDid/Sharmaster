@@ -51,6 +51,31 @@ const RATE_LIMIT_EXEMPT_PREFIXES = ['/api/1c-exchange', '/api/revalidate', '/adm
 // write endpoints (feedback/review/like spam).
 const STRICT_POST_PREFIXES = ['/login', '/register', '/api/feedback', '/api/reviews', '/api/likes']
 
+// Download/scrape tooling that identifies itself honestly (or sends no UA at
+// all). Trivially spoofed, so it is only the cheap first filter — the per-IP
+// quotas below are what actually bound a determined scraper. Real search
+// crawlers (Googlebot, YandexBot, …) are not on this list.
+const SCRAPER_UA =
+  /^$|curl\/|wget|python-requests|python-urllib|aiohttp|httpx|scrapy|go-http-client|libwww|java\/|node-fetch|axios|undici|headless|phantomjs|httrack|webcopy|offline explorer|\bbot\b.*scrap/i
+
+// Bulk-photo protection: /api/img-proxy serves every product photo, so this
+// is where mass downloads show up. A normal catalog page pulls a few dozen
+// images, and the browser caches them (immutable) so repeat views cost 0.
+const IMG_PER_MINUTE = 300
+const IMG_PER_HOUR = 2000
+
+// Public JSON endpoints that hit the DB / embeddings — fine for a user typing
+// in the search box, expensive when looped over a whole catalog.
+const API_READ_PREFIXES = ['/api/search', '/api/stock', '/api/categories']
+const API_READ_PER_MINUTE = 120
+
+function forbidden(): NextResponse {
+  return new NextResponse('Forbidden', {
+    status: 403,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  })
+}
+
 function tooManyRequests(): NextResponse {
   return new NextResponse('Too Many Requests', {
     status: 429,
@@ -70,6 +95,23 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // to be too tight and blocked real users, bumped 2026-08-16), tight
     // enough to blunt a single IP hammering the app.
     if (!check(`flood:${ip}`, 1000, 60_000)) return tooManyRequests()
+
+    const isImg = pathname.startsWith('/api/img-proxy')
+    const isApiRead = API_READ_PREFIXES.some((p) => pathname.startsWith(p))
+
+    if (isImg || isApiRead) {
+      if (SCRAPER_UA.test(request.headers.get('user-agent') ?? '')) return forbidden()
+    }
+
+    if (isImg) {
+      // Hotlinking from other sites; same-origin <img> loads (and plain
+      // address-bar visits, which send "none") are unaffected.
+      if (request.headers.get('sec-fetch-site') === 'cross-site') return forbidden()
+      if (!check(`img-min:${ip}`, IMG_PER_MINUTE, 60_000)) return tooManyRequests()
+      if (!check(`img-hour:${ip}`, IMG_PER_HOUR, 3_600_000)) return tooManyRequests()
+    } else if (isApiRead) {
+      if (!check(`api:${ip}`, API_READ_PER_MINUTE, 60_000)) return tooManyRequests()
+    }
 
     if (request.method === 'POST' && STRICT_POST_PREFIXES.some((p) => pathname.startsWith(p))) {
       if (!check(`strict:${ip}:${pathname}`, 60, 60_000)) return tooManyRequests()

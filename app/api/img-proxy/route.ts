@@ -32,11 +32,32 @@ const CACHE_HEADERS = {
   "Cache-Control": "public, max-age=31536000, immutable",
 };
 
+// Sharp encoding is CPU-bound; cap how many one client can run at once so a
+// parallel downloader can't monopolise the process. Browsers open ~6 per host.
+const MAX_INFLIGHT_PER_IP = 10;
+const inflight = new Map<string, number>();
+
 function snapWidth(w: number) {
   return WIDTHS.find((x) => x >= w) ?? WIDTHS[WIDTHS.length - 1];
 }
 
 export async function GET(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+  const n = inflight.get(ip) ?? 0;
+  if (n >= MAX_INFLIGHT_PER_IP) {
+    return new NextResponse("Too Many Requests", { status: 429, headers: { "Retry-After": "5" } });
+  }
+  inflight.set(ip, n + 1);
+  try {
+    return await handle(req);
+  } finally {
+    const left = (inflight.get(ip) ?? 1) - 1;
+    if (left <= 0) inflight.delete(ip);
+    else inflight.set(ip, left);
+  }
+}
+
+async function handle(req: NextRequest) {
   const src = req.nextUrl.searchParams.get("src");
   if (!src) return NextResponse.json({ error: "missing src" }, { status: 400 });
 
@@ -58,23 +79,10 @@ export async function GET(req: NextRequest) {
   url.protocol = url.host === "85.198.91.200:8000" ? "http:" : "https:";
   url.search = "";
 
+  // Always re-encoded: a missing/bad ?w= falls back to the largest rung, never
+  // the untouched original (full-resolution files are not for bulk download).
   const wParam = Number(req.nextUrl.searchParams.get("w"));
-  const width = Number.isFinite(wParam) && wParam > 0 ? snapWidth(wParam) : null;
-
-  // No width requested → untouched passthrough (order Excel, admin previews, …).
-  if (!width) {
-    const upstream = await fetch(url.toString());
-    if (!upstream.ok || !upstream.body) {
-      return NextResponse.json({ error: "upstream fetch failed" }, { status: 502 });
-    }
-    return new NextResponse(upstream.body, {
-      status: 200,
-      headers: {
-        "Content-Type": upstream.headers.get("content-type") ?? "application/octet-stream",
-        ...CACHE_HEADERS,
-      },
-    });
-  }
+  const width = snapWidth(Number.isFinite(wParam) && wParam > 0 ? wParam : WIDTHS[WIDTHS.length - 1]);
 
   const cacheFile = path.join(
     CACHE_DIR,
