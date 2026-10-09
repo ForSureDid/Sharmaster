@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ipFromHeaders } from "@/lib/rate-limit";
 
 // The new self-hosted Supabase instance has no HTTPS in front of Storage yet
 // (see project_domain_serverhold_migration memory) — modern browsers
@@ -32,32 +33,40 @@ const CACHE_HEADERS = {
   "Cache-Control": "public, max-age=31536000, immutable",
 };
 
-// Sharp encoding is CPU-bound; cap how many one client can run at once so a
-// parallel downloader can't monopolise the process. Browsers open ~6 per host.
-const MAX_INFLIGHT_PER_IP = 10;
-const inflight = new Map<string, number>();
+// Sharp encoding is CPU-bound, so uncached photos are encoded through a small
+// global queue: a fresh catalog page (dozens of uncached cards at once) waits its
+// turn instead of getting a 429 and showing broken images. Serving an already
+// cached file is cheap and never counts. Only a client piling up an absurd number
+// of pending encodes (a bulk downloader) is rejected.
+const MAX_CONCURRENT_ENCODES = 6;
+const MAX_PENDING_PER_IP = 80;
+const pendingByIp = new Map<string, number>();
+const waiters: (() => void)[] = [];
+let activeEncodes = 0;
+
+async function acquireEncodeSlot() {
+  if (activeEncodes < MAX_CONCURRENT_ENCODES) {
+    activeEncodes++;
+    return;
+  }
+  await new Promise<void>((resolve) => waiters.push(resolve));
+}
+
+function releaseEncodeSlot() {
+  const next = waiters.shift();
+  if (next) next(); // hand the slot straight to the next waiter
+  else activeEncodes--;
+}
 
 function snapWidth(w: number) {
   return WIDTHS.find((x) => x >= w) ?? WIDTHS[WIDTHS.length - 1];
 }
 
 export async function GET(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  const n = inflight.get(ip) ?? 0;
-  if (n >= MAX_INFLIGHT_PER_IP) {
-    return new NextResponse("Too Many Requests", { status: 429, headers: { "Retry-After": "5" } });
-  }
-  inflight.set(ip, n + 1);
-  try {
-    return await handle(req);
-  } finally {
-    const left = (inflight.get(ip) ?? 1) - 1;
-    if (left <= 0) inflight.delete(ip);
-    else inflight.set(ip, left);
-  }
+  return handle(req, ipFromHeaders(req.headers));
 }
 
-async function handle(req: NextRequest) {
+async function handle(req: NextRequest, ip: string) {
   const src = req.nextUrl.searchParams.get("src");
   if (!src) return NextResponse.json({ error: "missing src" }, { status: 400 });
 
@@ -96,6 +105,31 @@ async function handle(req: NextRequest) {
     // cache miss
   }
 
+  const pending = pendingByIp.get(ip) ?? 0;
+  if (pending >= MAX_PENDING_PER_IP) {
+    return new NextResponse("Too Many Requests", { status: 429, headers: { "Retry-After": "5" } });
+  }
+  pendingByIp.set(ip, pending + 1);
+  try {
+    await acquireEncodeSlot();
+    try {
+      return await fetchAndEncode(url, width, cacheFile, headers);
+    } finally {
+      releaseEncodeSlot();
+    }
+  } finally {
+    const left = (pendingByIp.get(ip) ?? 1) - 1;
+    if (left <= 0) pendingByIp.delete(ip);
+    else pendingByIp.set(ip, left);
+  }
+}
+
+async function fetchAndEncode(
+  url: URL,
+  width: number,
+  cacheFile: string,
+  headers: Record<string, string>,
+) {
   const upstream = await fetch(url.toString());
   if (!upstream.ok) {
     return NextResponse.json({ error: "upstream fetch failed" }, { status: 502 });

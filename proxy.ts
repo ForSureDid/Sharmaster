@@ -61,8 +61,11 @@ const SCRAPER_UA =
 // Bulk-photo protection: /api/img-proxy serves every product photo, so this
 // is where mass downloads show up. A normal catalog page pulls a few dozen
 // images, and the browser caches them (immutable) so repeat views cost 0.
-const IMG_PER_MINUTE = 300
-const IMG_PER_HOUR = 2000
+// Limits are per IP, and wholesale customers often share one (office/mobile NAT),
+// so they must clear a few catalog pages a minute with hover-preloaded extra
+// photos; a full-catalog scrape (~25k photos) is still bounded to hours.
+const IMG_PER_MINUTE = 600
+const IMG_PER_HOUR = 6000
 
 // Public JSON endpoints that hit the DB / embeddings — fine for a user typing
 // in the search box, expensive when looped over a whole catalog.
