@@ -17,21 +17,21 @@ type Slide = {
 // same filename doesn't keep serving a stale cached copy — bump it whenever
 // any of these images is replaced.
 const IMG_VERSION = 4;
-// Order below is deliberate (not file-number order) — banner-8 leads, then
-// banner-3, then the rest in their prior relative order. Re-order here only
+// Order below is deliberate (not file-number order) — the seasonal Halloween
+// banner leads, then banner-8 and the rest in their prior relative order. Re-order here only
 // on explicit request.
 const SLIDES: Slide[] = [
+  {
+    key: "halloween",
+    href: `/catalog?occasion=${encodeURIComponent("Хэллоуин")}`,
+    image: `/banners/banner-10-halloween.webp?v=${IMG_VERSION}`,
+    alt: "Хэллоуин — шары, тыквы, привидения и летучие мыши для праздника",
+  },
   {
     key: "magicmax",
     href: `/catalog?q=${encodeURIComponent("Magic Max")}`,
     image: `/banners/banner-8-magicmax.png?v=${IMG_VERSION}`,
     alt: "MagicMax и Sharmaster.kz — обработка в подарок при заказе от 30 000 ₸",
-  },
-  {
-    key: "sentyabr",
-    href: `/catalog?occasion=${encodeURIComponent("1 Сентября")}`,
-    image: `/banners/banner-3-1sentyabrya.png?v=${IMG_VERSION}`,
-    alt: "День учителя — цветы и подарки для любимых учителей",
   },
   {
     key: "giant-heart",
@@ -133,7 +133,7 @@ export default function Hero() {
                   fill
                   className="object-contain"
                   sizes="(max-width: 1280px) 100vw, 1280px"
-                  priority={slide.key === "main"}
+                  priority={slide.key === SLIDES[0].key}
                 />
               </a>
             ))}
