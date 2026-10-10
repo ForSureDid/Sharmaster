@@ -62,31 +62,47 @@ function snapWidth(w: number) {
   return WIDTHS.find((x) => x >= w) ?? WIDTHS[WIDTHS.length - 1];
 }
 
+const STORAGE_PREFIX = "/storage/v1/object/public/";
+const NEW_HOST_BASE = "http://85.198.91.200:8000";
+const OLD_HOST_BASE = "https://tjoreojidkjhfksspbwe.supabase.co";
+
+// Public image URLs carry only an opaque bucket path (?p= new storage, ?q= old
+// cloud project) — the storage host/IP never appears in a link a visitor can open
+// or copy. The legacy ?src=<full url> form is still accepted so cached pages and
+// old links keep working.
+function resolveUpstream(params: URLSearchParams): URL | null {
+  const opaque = params.get("p") ?? params.get("q");
+  if (opaque !== null) {
+    const segs = opaque.split("/");
+    if (segs.some((seg) => !seg || seg === "." || seg === "..")) return null;
+    const base = params.get("p") !== null ? NEW_HOST_BASE : OLD_HOST_BASE;
+    return new URL(base + STORAGE_PREFIX + segs.map(encodeURIComponent).join("/"));
+  }
+
+  const src = params.get("src");
+  if (!src) return null;
+  let url: URL;
+  try {
+    url = new URL(src);
+  } catch {
+    return null;
+  }
+  if (!ALLOWED_HOSTS.has(url.host)) return null;
+  // Storage URLs only — never an arbitrary path on an allowed host.
+  if (!url.pathname.startsWith(STORAGE_PREFIX)) return null;
+  // Old-host links are https; the new host is plain http (see above).
+  url.protocol = url.host === "85.198.91.200:8000" ? "http:" : "https:";
+  url.search = "";
+  return url;
+}
+
 export async function GET(req: NextRequest) {
   return handle(req, ipFromHeaders(req.headers));
 }
 
 async function handle(req: NextRequest, ip: string) {
-  const src = req.nextUrl.searchParams.get("src");
-  if (!src) return NextResponse.json({ error: "missing src" }, { status: 400 });
-
-  let url: URL;
-  try {
-    url = new URL(src);
-  } catch {
-    return NextResponse.json({ error: "invalid src" }, { status: 400 });
-  }
-
-  if (!ALLOWED_HOSTS.has(url.host)) {
-    return NextResponse.json({ error: "host not allowed" }, { status: 400 });
-  }
-  // Storage URLs only — never an arbitrary path on an allowed host.
-  if (!url.pathname.startsWith("/storage/v1/object/public/")) {
-    return NextResponse.json({ error: "path not allowed" }, { status: 400 });
-  }
-  // Old-host links are https; the new host is plain http (see above).
-  url.protocol = url.host === "85.198.91.200:8000" ? "http:" : "https:";
-  url.search = "";
+  const url = resolveUpstream(req.nextUrl.searchParams);
+  if (!url) return NextResponse.json({ error: "bad image reference" }, { status: 400 });
 
   // Always re-encoded: a missing/bad ?w= falls back to the largest rung, never
   // the untouched original (full-resolution files are not for bulk download).

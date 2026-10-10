@@ -28,5 +28,11 @@ export default function supabaseImageLoader({
   // widths (445×445 source → 64×500 at width=128). Convert any render URL back
   // to the plain object URL first.
   const clean = src.replace('/storage/v1/render/image/', '/storage/v1/object/').split('?')[0]
-  return `/api/img-proxy?src=${encodeURIComponent(clean)}&w=${width}`
+  // Opaque bucket path only (?p= new storage, ?q= old project) so the storage
+  // host/IP never shows up in an image link — see app/api/img-proxy/route.ts.
+  const mark = '/storage/v1/object/public/'
+  const at = clean.indexOf(mark)
+  if (at === -1) return `/api/img-proxy?src=${encodeURIComponent(clean)}&w=${width}`
+  const path = clean.slice(at + mark.length).split('/').map(decodeURIComponent).join('/')
+  return `/api/img-proxy?${isNew ? 'p' : 'q'}=${encodeURIComponent(path)}&w=${width}`
 }
