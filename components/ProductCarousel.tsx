@@ -102,8 +102,8 @@ export default function ProductCarousel({ items, title, href: allHref, variant }
                     <div className="w-full h-full flex items-center justify-center text-5xl">🎈</div>
                   )}
                 </Link>
-                <span className={`absolute top-0 left-0 text-white text-xs font-semibold px-2 py-0.5 rounded pointer-events-none ${isSale ? "bg-red-500" : isPending ? "bg-amber-400" : "bg-emerald-400"}`}>
-                  {isSale ? (item.salePercent ? `-${item.salePercent}%` : "акция") : isPending ? "ожидайте" : "new"}
+                <span className={`absolute top-0 left-0 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none ${isSale ? "bg-red-500" : isPending ? "bg-amber-400" : "bg-green-500"}`}>
+                  {isSale ? (item.salePercent ? `-${item.salePercent}%` : "Акция") : isPending ? "Ожидайте" : "Новинка"}
                 </span>
               </div>
 
