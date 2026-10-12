@@ -54,7 +54,7 @@ export type StockDetail = StockCard & {
   weightGrams: number | null
 }
 
-export type NovinkaCard = StockCard & { isNew: boolean; isNewPending: boolean }
+export type NovinkaCard = StockCard & { isNew: boolean; isNewPending: boolean; article: string | null }
 
 export type StockFilters = {
   categoryId?: number
@@ -934,17 +934,16 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
       where: { onSale: true, isHidden: false },
-      select: SELECT_FIELDS,
+      select: { ...SELECT_FIELDS, article: true },
       orderBy: { pricePerPc: 'asc' },
       ...(limit != null ? { take: limit } : {}),
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags))
+  return rawItems.map((i) => ({ ...toCard(i, flags), article: i.article }))
 }
 
-// 6, not 8 — the homepage "Акция" section is a single lg:grid-cols-6 row (see
-// ProductGrid.tsx); 8 items wrapped an ugly partial second row.
-export const getSaleItems = unstable_cache(() => _getSaleItems(6), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
+// Homepage "Акция" is a horizontal carousel (ProductCarousel.tsx), so 15 like the novelties row.
+export const getSaleItems = unstable_cache(() => _getSaleItems(15), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
 // Novelties tab shows the union of both novinka signals (user decision 2026-07-30 — every
@@ -963,11 +962,11 @@ async function _getNovinkaItems(): Promise<NovinkaCard[]> {
     resolveCategoryFlags(),
     db.onecStockItem.findMany({
       where: { OR: [{ isNewPending: true }, { isNew: true }], isHidden: false },
-      select: SELECT_FIELDS,
+      select: { ...SELECT_FIELDS, article: true },
       orderBy: [{ createdAt: 'desc' }],
     }),
   ])
-  return rawItems.map((i) => toCard(i, flags))
+  return rawItems.map((i) => ({ ...toCard(i, flags), article: i.article }))
 }
 
 export const getNovinkaItems = unstable_cache(_getNovinkaItems, ['onecNovinkaItems'], { revalidate: 60, tags: ['onecStockItems'] })
