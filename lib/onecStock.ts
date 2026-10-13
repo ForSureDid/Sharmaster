@@ -408,7 +408,15 @@ export async function getFuzzyItemIds(query: string, limit = 200): Promise<numbe
 const VECTOR_MAX_DISTANCE = 0.6 // cosine distance cutoff — tune after seeing real backfilled results
 
 export async function getVectorItemIds(query: string, limit = 200): Promise<number[]> {
-  const vector = await embedQuery(query)
+  let vector: number[]
+  try {
+    vector = await embedQuery(query)
+  } catch (e) {
+    // Embedding budget exhausted or OpenAI unreachable — vector search is only
+    // ever a fallback, so degrade to "no extra results" rather than a 500.
+    console.error('getVectorItemIds: embedding unavailable:', e instanceof Error ? e.message : e)
+    return []
+  }
   const literal = `[${vector.join(',')}]`
   const rows = await db.$queryRaw<Array<{ id: number }>>`
     SELECT id
@@ -449,6 +457,7 @@ export function buildStockWhere(opts: {
   brands?: string[]
   sizeInches?: string
   shade?: string
+  country?: string
   colorGroup?: string
   occasions?: string[]
   minPrice?: number
@@ -457,7 +466,6 @@ export function buildStockWhere(opts: {
   themeHint?: string
   inStockOnly?: boolean
   isNewPending?: boolean
-  country?: string
   onSale?: boolean
   isHit?: boolean
 }) {
@@ -533,6 +541,7 @@ export function buildStockWhere(opts: {
     ...(brands && brands.length > 0 ? { brand: { in: brands } } : brand ? { brand } : {}),
     ...(sizeInches ? { sizeInches } : {}),
     ...(shade ? { shade } : {}),
+    ...(country ? { countryOfOrigin: country } : {}),
     ...(colorGroup ? { colorGroup } : {}),
     ...(minPrice !== undefined || maxPrice !== undefined
       ? { pricePerPc: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
@@ -541,13 +550,13 @@ export function buildStockWhere(opts: {
   }
 }
 
-    ...(country ? { countryOfOrigin: country } : {}),
 type SmartSortKey = {
   categoryIds: number[] | null
   brand: string | null
   brands: string[] | null
   sizeInches: string | null
   shade: string | null
+  country: string | null
   colorGroup: string | null
   occasions: string[] | null
   minPrice: number | null
@@ -556,7 +565,6 @@ type SmartSortKey = {
   themeHint: string | null
   inStockOnly: boolean
   isNewPending: boolean
-  country: string | null
   onSale: boolean
   isHit: boolean
 }
@@ -568,6 +576,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     brands: key.brands ?? undefined,
     sizeInches: key.sizeInches ?? undefined,
     shade: key.shade ?? undefined,
+    country: key.country ?? undefined,
     colorGroup: key.colorGroup ?? undefined,
     occasions: key.occasions ?? undefined,
     minPrice: key.minPrice ?? undefined,
@@ -576,7 +585,6 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     themeHint: key.themeHint ?? undefined,
     inStockOnly: key.inStockOnly,
     isNewPending: key.isNewPending,
-    country: key.country ?? undefined,
     onSale: key.onSale,
     isHit: key.isHit,
   })
@@ -1017,24 +1025,24 @@ export const getOnecFilterOptions = unstable_cache(
       db.onecStockItem.findMany({ where: { ...where, shade: { not: null } }, select: { shade: true }, distinct: ['shade'] }),
       db.onecStockItem.findMany({ where: { ...where, colorGroup: { not: null } }, select: { colorGroup: true }, distinct: ['colorGroup'] }),
       db.onecStockItem.findMany({ where: { ...where, occasion: { not: null } }, select: { occasion: true }, distinct: ['occasion'] }),
+      db.onecStockItem.findMany({ where: { ...where, countryOfOrigin: { not: null } }, select: { countryOfOrigin: true }, distinct: ['countryOfOrigin'] }),
     ])
+    // Slider top = 98th percentile, not the true max: a handful of 100k+ items would
+    // otherwise squash every realistic price into the first pixel of the track. The
+    // sidebar omits ?max when the right thumb sits at the end, so pricier items stay listed.
+    const prices = priceAgg.map((r) => Number(r.pricePerPc)).sort((a, b) => a - b)
     return {
+      priceMin: prices.length ? Math.floor(prices[0]) : 0,
+      priceMax: prices.length ? Math.ceil(prices[Math.min(prices.length - 1, Math.floor(prices.length * 0.98))]) : 0,
+      countries: countryRows.map((r) => r.countryOfOrigin!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       brands: brandRows.map((r) => r.brand!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       sizes: sizeRows.map((r) => r.sizeInches!).filter(Boolean).sort((a, b) => parseFloat(a) - parseFloat(b) || a.localeCompare(b, 'ru')),
       shades: shadeRows.map((r) => r.shade!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       colors: colorRows.map((r) => r.colorGroup!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       // occasion stores multiple values per row as "14 Февраля;8 Марта" — split and
       // dedupe into individual options.
-      db.onecStockItem.findMany({ where: { ...where, countryOfOrigin: { not: null } }, select: { countryOfOrigin: true }, distinct: ['countryOfOrigin'] }),
       occasions: [...new Set(occasionRows.flatMap((r) => r.occasion!.split(';').map((s) => s.trim()).filter(Boolean)))]
-    // Slider top = 98th percentile, not the true max: a handful of 100k+ items would
-    // otherwise squash every realistic price into the first pixel of the track. The
-    // sidebar omits ?max when the right thumb sits at the end, so pricier items stay listed.
-    const prices = priceAgg.map((r) => Number(r.pricePerPc)).sort((a, b) => a - b)
         .sort((a, b) => a.localeCompare(b, 'ru')),
-      priceMin: prices.length ? Math.floor(prices[0]) : 0,
-      priceMax: prices.length ? Math.ceil(prices[Math.min(prices.length - 1, Math.floor(prices.length * 0.98))]) : 0,
-      countries: countryRows.map((r) => r.countryOfOrigin!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
     }
   },
   ['onec-filter-options-v2'],
