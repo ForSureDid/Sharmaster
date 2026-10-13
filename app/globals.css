@@ -12,6 +12,20 @@
   display: none;
 }
 
+/* Mobile: no double-tap zoom, no sideways page drift. iOS Safari ignores user-scalable=no,
+   so touch-action + overflow-x clip do the real work there. */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
+}
+@media (max-width: 1023px) {
+  body { overflow-x: clip; }
+  /* iOS zooms the page on focus of a text field with font-size < 16px. Text-entry fields
+     only — selects/buttons/range keep their own sizes so toolbars don't blow up. */
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]), textarea { font-size: 16px; }
+}
+
 body {
   font-family: 'Inter', Arial, sans-serif;
 }

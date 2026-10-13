@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
@@ -15,6 +15,15 @@ const SITE_URL = "https://www.sharmaster.kz";
 const SITE_TITLE = "Sharmaster.kz — оптовый магазин воздушных шаров в Казахстане";
 const SITE_DESCRIPTION =
   "Воздушные шары оптом и в розницу: латексные шары, фольгированные шары, шары-сферы, гелий и оборудование. Более 10000 товаров, доставка по всему Казахстану.";
+
+// Locked, non-zoomable viewport: stops the accidental double-tap / pinch zoom and the
+// resulting sideways drift on mobile.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

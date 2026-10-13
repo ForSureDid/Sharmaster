@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Category = {
   id: number;
@@ -16,6 +16,9 @@ type FilterOptions = {
   shades: string[];
   colors: string[];
   occasions: string[];
+  countries?: string[];
+  priceMin: number;
+  priceMax: number;
 };
 
 // OnecStockItem.colorGroup values (Russian color-bucket names from the 1C/donballon
@@ -63,23 +66,27 @@ type Props = {
   lockedZone?: "novinki" | "akcii";
 };
 
-function Section({ title, children, defaultOpen = true }: {
-  title: string; children: React.ReactNode; defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+// Always-open section (donballon style): bold title, content below, thin divider between sections.
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-3 text-sm font-semibold text-gray-700 hover:text-sky-600 transition-colors"
-      >
-        {title}
-        <svg className={`w-4 h-4 transition-transform text-gray-400 ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && <div className="pb-3">{children}</div>}
+    <div className="border-b border-gray-100 last:border-0 py-4 first:pt-1">
+      <h3 className="text-sm font-bold text-gray-800 mb-3">{title}</h3>
+      {children}
     </div>
+  );
+}
+
+// Gray pill chip; active = filled sky.
+function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`px-3 py-1.5 rounded-full text-xs transition-colors ${active ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -112,6 +119,53 @@ function ToggleRow({ label, checked, onChange, activeColor, labelColor = "text-g
   );
 }
 
+// Dual-thumb price slider: two stacked native range inputs. Local state while dragging,
+// URL (min/max) is updated on release so the catalog isn't refetched on every pixel.
+function PriceSlider({ bounds, min, max, onCommit }: {
+  bounds: [number, number]; min: string; max: string; onCommit: (min: string | null, max: string | null) => void;
+}) {
+  const step = bounds[1] - bounds[0] > 1000 ? 10 : 1;
+  // align the track ends to the step grid so the right thumb can sit exactly on "max"
+  const lo = Math.floor(bounds[0] / step) * step;
+  const hi = Math.ceil(bounds[1] / step) * step;
+  const clamp = (n: number) => Math.min(hi, Math.max(lo, n));
+  const curLo = min ? clamp(Number(min)) : lo;
+  const curHi = max ? clamp(Number(max)) : hi;
+  const [a, setA] = useState(curLo);
+  const [b, setB] = useState(curHi);
+  useEffect(() => { setA(curLo); setB(curHi); }, [curLo, curHi]);
+
+  const commit = (x: number, y: number) => onCommit(x <= lo ? null : String(x), y >= hi ? null : String(y));
+  const pct = (n: number) => ((n - lo) / (hi - lo)) * 100;
+  const thumb = "pointer-events-none absolute inset-x-0 top-0 h-5 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-sky-500 [&::-webkit-slider-thumb]:shadow [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-sky-500";
+
+  return (
+    <div>
+      <div className="relative h-5 mx-2.5 mb-3 touch-none">
+        <div className="absolute top-1/2 -translate-y-1/2 inset-x-0 h-1 rounded-full bg-gray-200" />
+        <div className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-sky-500" style={{ left: `${pct(a)}%`, right: `${100 - pct(b)}%` }} />
+        <input type="range" aria-label="Цена от" min={lo} max={hi} step={step} value={a}
+          onChange={(e) => setA(Math.min(Number(e.target.value), b))}
+          onPointerUp={() => commit(a, b)} onKeyUp={() => commit(a, b)} className={thumb} style={{ zIndex: a > hi - (hi - lo) * 0.1 ? 5 : 3 }} />
+        <input type="range" aria-label="Цена до" min={lo} max={hi} step={step} value={b}
+          onChange={(e) => setB(Math.max(Number(e.target.value), a))}
+          onPointerUp={() => commit(a, b)} onKeyUp={() => commit(a, b)} className={thumb} style={{ zIndex: 4 }} />
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="number" inputMode="numeric" value={a} min={lo} max={hi}
+          onChange={(e) => setA(e.target.value === "" ? lo : Number(e.target.value))}
+          onBlur={() => { const v = Math.min(clamp(a), b); setA(v); commit(v, b); }}
+          className="w-full bg-gray-100 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-sky-300" />
+        <span className="text-gray-300 text-xs">—</span>
+        <input type="number" inputMode="numeric" value={b} min={lo} max={hi}
+          onChange={(e) => setB(e.target.value === "" ? hi : Number(e.target.value))}
+          onBlur={() => { const v = Math.max(clamp(b), a); setB(v); commit(a, v); }}
+          className="w-full bg-gray-100 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-2 focus:ring-sky-300" />
+      </div>
+    </div>
+  );
+}
+
 export default function CatalogSidebar({ categories, filterOptions, basePath = "/catalog", lockedZone }: Props) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -135,9 +189,10 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
   }
 
   const activeCat = sp.get("cat") ?? "";
-  const activeBrand = sp.get("brand") ?? "";
+  const activeBrands = sp.get("brand")?.split(",").filter(Boolean) ?? [];
   const activeSize = sp.get("size") ?? "";
   const activeShade = sp.get("shade") ?? "";
+  const activeCountry = sp.get("country") ?? "";
   const activeColor = sp.get("color") ?? "";
   const activeOccasions = sp.get("occasion")?.split(",").filter(Boolean) ?? [];
   const minPrice = sp.get("min") ?? "";
@@ -147,8 +202,8 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
   const akcii = sp.get("akcii") === "1";
   const hit = sp.get("hit") === "1";
 
-  const activeCount = [activeCat, activeBrand, activeSize, activeShade, activeColor, minPrice, maxPrice].filter(Boolean).length
-    + activeOccasions.length + (inStockOnly ? 1 : 0)
+  const activeCount = [activeCat, activeCountry, activeSize, activeShade, activeColor, minPrice, maxPrice].filter(Boolean).length
+    + activeOccasions.length + activeBrands.length + (inStockOnly ? 1 : 0)
     + (novinki && lockedZone !== "novinki" ? 1 : 0)
     + (akcii && lockedZone !== "akcii" ? 1 : 0)
     + (hit ? 1 : 0);
@@ -254,30 +309,18 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
       </Section>
 
       {filterOptions.sizes.length > 0 && (
-        <Section title="Размер" defaultOpen={false}>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {filterOptions.sizes.map((s) => (
-              <li key={s}>
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-                  <input
-                    type="radio"
-                    name="size"
-                    checked={activeSize === s}
-                    readOnly
-                    onClick={() => update("size", activeSize === s ? null : s)}
-                    className="w-3.5 h-3.5 accent-sky-500"
-                  />
-                  {s}
-                </label>
-              </li>
+        <Section title="Размер">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.sizes.map((v) => (
+              <Chip key={v} label={v} active={activeSize === v} onClick={() => update("size", activeSize === v ? null : v)} />
             ))}
-          </ul>
+          </div>
         </Section>
       )}
 
       {filterOptions.colors.length > 0 && (
         <Section title="Цвет">
-          <div className="grid grid-cols-4 gap-x-2 gap-y-3 max-h-64 overflow-y-auto pr-1">
+          <div className="grid grid-cols-4 gap-x-2 gap-y-3 ">
             {filterOptions.colors.map((c) => {
               const active = activeColor === c;
               return (
@@ -303,84 +346,58 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
       )}
 
       {filterOptions.shades.length > 0 && (
-        <Section title="Оттенок" defaultOpen={false}>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {filterOptions.shades.map((s) => (
-              <li key={s}>
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-                  <input
-                    type="radio"
-                    name="shade"
-                    checked={activeShade === s}
-                    readOnly
-                    onClick={() => update("shade", activeShade === s ? null : s)}
-                    className="w-3.5 h-3.5 accent-sky-500"
-                  />
-                  {s}
-                </label>
-              </li>
+        <Section title="Оттенок">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.shades.map((v) => (
+              <Chip key={v} label={v} active={activeShade === v} onClick={() => update("shade", activeShade === v ? null : v)} />
             ))}
-          </ul>
+          </div>
         </Section>
       )}
 
-      <Section title="Цена (₸/шт)" defaultOpen={false}>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            placeholder="от"
-            value={minPrice}
-            onChange={(e) => update("min", e.target.value || null)}
-            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-sky-300 transition-colors"
+      {filterOptions.priceMax > filterOptions.priceMin && (
+        <Section title="Цена (₸/шт)">
+          <PriceSlider
+            bounds={[filterOptions.priceMin, filterOptions.priceMax]}
+            min={minPrice}
+            max={maxPrice}
+            onCommit={(mn, mx) => {
+              const params = new URLSearchParams(sp.toString());
+              mn ? params.set("min", mn) : params.delete("min");
+              mx ? params.set("max", mx) : params.delete("max");
+              params.delete("page");
+              router.push(`${basePath}?${params.toString()}`);
+            }}
           />
-          <span className="text-gray-300 text-xs">—</span>
-          <input
-            type="number"
-            placeholder="до"
-            value={maxPrice}
-            onChange={(e) => update("max", e.target.value || null)}
-            className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:border-sky-300 transition-colors"
-          />
-        </div>
-      </Section>
+        </Section>
+      )}
 
       {filterOptions.brands.length > 0 && (
-        <Section title="Производитель" defaultOpen={false}>
-          <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-            {filterOptions.brands.map((b) => (
-              <li key={b}>
-                <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer hover:text-sky-600">
-                  <input
-                    type="radio"
-                    name="brand"
-                    checked={activeBrand === b}
-                    readOnly
-                    onClick={() => update("brand", activeBrand === b ? null : b)}
-                    className="w-3.5 h-3.5 accent-sky-500"
-                  />
-                  {b}
-                </label>
-              </li>
+        <Section title="Производитель">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.brands.map((v) => (
+              <Chip key={v} label={v} active={activeBrands.includes(v)} onClick={() => toggleInList("brand", v)} />
             ))}
-          </ul>
+          </div>
+        </Section>
+      )}
+
+      {filterOptions.countries && filterOptions.countries.length > 0 && (
+        <Section title="Страна">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.countries.map((v) => (
+              <Chip key={v} label={v} active={activeCountry === v} onClick={() => update("country", activeCountry === v ? null : v)} />
+            ))}
+          </div>
         </Section>
       )}
 
       {filterOptions.occasions.length > 0 && (
-        <Section title="Праздник" defaultOpen={false}>
-          <div className="flex flex-wrap gap-1.5">
-            {filterOptions.occasions.map((o) => {
-              const active = activeOccasions.includes(o);
-              return (
-                <button
-                  key={o}
-                  onClick={() => toggleInList("occasion", o)}
-                  className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${active ? "bg-sky-500 border-sky-500 text-white" : "border-gray-200 text-gray-600 hover:border-sky-300 hover:text-sky-600"}`}
-                >
-                  {o}
-                </button>
-              );
-            })}
+        <Section title="Праздник">
+          <div className="flex flex-wrap gap-2">
+            {filterOptions.occasions.map((v) => (
+              <Chip key={v} label={v} active={activeOccasions.includes(v)} onClick={() => toggleInList("occasion", v)} />
+            ))}
           </div>
         </Section>
       )}

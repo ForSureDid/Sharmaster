@@ -54,6 +54,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   const brands = brandList && brandList.length > 1 ? brandList : undefined;
   const size = str(sp.size);
   const shade = str(sp.shade);
+  const country = str(sp.country);
   const color = str(sp.color);
   const occasionParam = str(sp.occasion);
   const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
@@ -81,7 +82,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
 
   const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii, isHit: hit }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, country, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii, isHit: hit }),
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);

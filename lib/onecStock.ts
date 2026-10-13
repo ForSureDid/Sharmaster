@@ -63,6 +63,7 @@ export type StockFilters = {
   brands?: string[]
   sizeInches?: string
   shade?: string
+  country?: string
   colorGroup?: string
   occasions?: string[]
   minPrice?: number
@@ -456,10 +457,11 @@ export function buildStockWhere(opts: {
   themeHint?: string
   inStockOnly?: boolean
   isNewPending?: boolean
+  country?: string
   onSale?: boolean
   isHit?: boolean
 }) {
-  const { categoryIds, brand, brands, sizeInches, shade, colorGroup, occasions, minPrice, maxPrice, search, themeHint, inStockOnly = false, isNewPending = false, onSale = false, isHit = false } = opts
+  const { categoryIds, brand, brands, sizeInches, shade, country, colorGroup, occasions, minPrice, maxPrice, search, themeHint, inStockOnly = false, isNewPending = false, onSale = false, isHit = false } = opts
 
   // Collected into one shared AND array (rather than each spreading its own top-level
   // OR/AND key) so multiple OR-groups active at once — e.g. novinki zone + occasion filter
@@ -539,6 +541,7 @@ export function buildStockWhere(opts: {
   }
 }
 
+    ...(country ? { countryOfOrigin: country } : {}),
 type SmartSortKey = {
   categoryIds: number[] | null
   brand: string | null
@@ -553,6 +556,7 @@ type SmartSortKey = {
   themeHint: string | null
   inStockOnly: boolean
   isNewPending: boolean
+  country: string | null
   onSale: boolean
   isHit: boolean
 }
@@ -572,6 +576,7 @@ async function _fetchAllForSmartSort(key: SmartSortKey) {
     themeHint: key.themeHint ?? undefined,
     inStockOnly: key.inStockOnly,
     isNewPending: key.isNewPending,
+    country: key.country ?? undefined,
     onSale: key.onSale,
     isHit: key.isHit,
   })
@@ -593,7 +598,7 @@ const cachedFetchAllForSmartSort = unstable_cache(
 // payload transfer, not caching). Every category-filtered view is comfortably
 // under the limit and gets the normal 5-minute cache.
 async function fetchAllForSmartSort(key: SmartSortKey) {
-  const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.brands == null && key.sizeInches == null && key.shade == null
+  const isFullyUnfiltered = key.categoryIds == null && key.brand == null && key.brands == null && key.sizeInches == null && key.shade == null && key.country == null
     && key.colorGroup == null && key.occasions == null && key.minPrice == null && key.maxPrice == null && key.search == null
     && !key.inStockOnly && !key.isNewPending && !key.onSale && !key.isHit
   if (isFullyUnfiltered) {
@@ -606,7 +611,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
   const {
     page = 1, pageSize = 48,
     categoryId, categoryIds: explicitCategoryIds, brand, brands,
-    sizeInches, shade, colorGroup, occasions,
+    sizeInches, shade, country, colorGroup, occasions,
     minPrice, maxPrice, search,
     inStockOnly = false, isNewPending = false, onSale = false, isHit = false, sort = 'smart',
   } = filters
@@ -663,7 +668,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
 
     const stableCatIds = categoryIds ? [...categoryIds].sort((a, b) => a - b) : null
     const allRows = [...(await fetchAllForSmartSort({
-      categoryIds: stableCatIds, brand: effBrand ?? null, brands: effBrands ?? null, sizeInches: effSizeInches ?? null, shade: effShade ?? null,
+      categoryIds: stableCatIds, brand: effBrand ?? null, brands: effBrands ?? null, sizeInches: effSizeInches ?? null, shade: effShade ?? null, country: country ?? null,
       colorGroup: effColorGroup ?? null,
       occasions: effOccasions ?? null, minPrice: effMinPrice ?? null, maxPrice: effMaxPrice ?? null, search: textSearch ?? null,
       themeHint: effTheme ?? null,
@@ -726,7 +731,7 @@ export async function getStockItems(filters: StockFilters = {}): Promise<{ items
         categoryIds,
         brand: effBrand, brands: effBrands,
         sizeInches: sizeInches, // keep only if the shopper explicitly picked it
-        shade: shade,
+        shade: shade, country,
         colorGroup: effColorGroup,
         occasions: effOccasions, minPrice: effMinPrice, maxPrice: effMaxPrice, search: textSearch, themeHint: effTheme,
         inStockOnly, isNewPending, onSale, isHit,
@@ -996,7 +1001,7 @@ export const getOnecCategories = unstable_cache(
   { revalidate: 3600, tags: ['categories'] }
 )
 
-export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; colors: string[]; occasions: string[] }
+export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; colors: string[]; occasions: string[]; countries: string[]; priceMin: number; priceMax: number }
 
 // Scoped to categoryIds (the active category's own subtree) so e.g. latex-only
 // shades/brands never leak into the foil filter list, and vice versa — this is
@@ -1005,7 +1010,8 @@ export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[
 export const getOnecFilterOptions = unstable_cache(
   async (categoryIds: number[] | null): Promise<FilterOptions> => {
     const where = { isHidden: false, ...(categoryIds ? { categoryId: { in: categoryIds } } : {}) }
-    const [brandRows, sizeRows, shadeRows, colorRows, occasionRows] = await Promise.all([
+    const [priceAgg, brandRows, sizeRows, shadeRows, colorRows, occasionRows, countryRows] = await Promise.all([
+      db.onecStockItem.findMany({ where: { ...where, pricePerPc: { gt: 0 } }, select: { pricePerPc: true } }),
       db.onecStockItem.findMany({ where: { ...where, brand: { not: null } }, select: { brand: true }, distinct: ['brand'] }),
       db.onecStockItem.findMany({ where: { ...where, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'] }),
       db.onecStockItem.findMany({ where: { ...where, shade: { not: null } }, select: { shade: true }, distinct: ['shade'] }),
@@ -1019,10 +1025,18 @@ export const getOnecFilterOptions = unstable_cache(
       colors: colorRows.map((r) => r.colorGroup!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
       // occasion stores multiple values per row as "14 Февраля;8 Марта" — split and
       // dedupe into individual options.
+      db.onecStockItem.findMany({ where: { ...where, countryOfOrigin: { not: null } }, select: { countryOfOrigin: true }, distinct: ['countryOfOrigin'] }),
       occasions: [...new Set(occasionRows.flatMap((r) => r.occasion!.split(';').map((s) => s.trim()).filter(Boolean)))]
+    // Slider top = 98th percentile, not the true max: a handful of 100k+ items would
+    // otherwise squash every realistic price into the first pixel of the track. The
+    // sidebar omits ?max when the right thumb sits at the end, so pricier items stay listed.
+    const prices = priceAgg.map((r) => Number(r.pricePerPc)).sort((a, b) => a - b)
         .sort((a, b) => a.localeCompare(b, 'ru')),
+      priceMin: prices.length ? Math.floor(prices[0]) : 0,
+      priceMax: prices.length ? Math.ceil(prices[Math.min(prices.length - 1, Math.floor(prices.length * 0.98))]) : 0,
+      countries: countryRows.map((r) => r.countryOfOrigin!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
     }
   },
-  ['onec-filter-options'],
+  ['onec-filter-options-v2'],
   { revalidate: 3600, tags: ['filters'] }
 )
