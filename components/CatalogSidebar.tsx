@@ -17,6 +17,8 @@ type FilterOptions = {
   colors: string[];
   occasions: string[];
   countries?: string[];
+  popularSizes?: string[];
+  popularOccasions?: string[];
   priceMin: number;
   priceMax: number;
 };
@@ -116,6 +118,30 @@ function ToggleRow({ label, checked, onChange, activeColor, labelColor = "text-g
       <span className={`text-xs font-medium ${labelColor}`}>{label}</span>
       <Toggle checked={checked} onChange={onChange} activeColor={activeColor} />
     </label>
+  );
+}
+
+// Chip list that shows only the popular values (plus any active one) and reveals the rest
+// below on "Все …".
+function ChipGroup({ all, popular, isActive, onPick, allLabel }: {
+  all: string[]; popular: string[]; isActive: (v: string) => boolean; onPick: (v: string) => void; allLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const head = all.filter((v) => popular.includes(v) || isActive(v));
+  const rest = all.filter((v) => !head.includes(v));
+  const shown = open ? [...head, ...rest] : head;
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">
+        {shown.map((v) => <Chip key={v} label={v} active={isActive(v)} onClick={() => onPick(v)} />)}
+      </div>
+      {rest.length > 0 && (
+        <button type="button" onClick={() => setOpen(!open)} className="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 flex items-center gap-1">
+          {open ? "Свернуть" : allLabel}
+          <svg className={`w-3 h-3 transition-transform ${open ? "-rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -310,11 +336,7 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
 
       {filterOptions.sizes.length > 0 && (
         <Section title="Размер">
-          <div className="flex flex-wrap gap-2">
-            {filterOptions.sizes.map((v) => (
-              <Chip key={v} label={v} active={activeSize === v} onClick={() => update("size", activeSize === v ? null : v)} />
-            ))}
-          </div>
+          <ChipGroup all={filterOptions.sizes} popular={filterOptions.popularSizes ?? []} isActive={(v) => activeSize === v} onPick={(v) => update("size", activeSize === v ? null : v)} allLabel="Все размеры" />
         </Section>
       )}
 
@@ -394,11 +416,7 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
 
       {filterOptions.occasions.length > 0 && (
         <Section title="Праздник">
-          <div className="flex flex-wrap gap-2">
-            {filterOptions.occasions.map((v) => (
-              <Chip key={v} label={v} active={activeOccasions.includes(v)} onClick={() => toggleInList("occasion", v)} />
-            ))}
-          </div>
+          <ChipGroup all={filterOptions.occasions} popular={filterOptions.popularOccasions ?? []} isActive={(v) => activeOccasions.includes(v)} onPick={(v) => toggleInList("occasion", v)} allLabel="Все праздники" />
         </Section>
       )}
     </>
@@ -407,7 +425,7 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:block w-64 flex-shrink-0 bg-white rounded-xl border border-gray-100 p-4 sticky top-[130px] max-h-[calc(100vh-150px)] overflow-y-auto">
+      <aside className="hidden lg:block w-64 flex-shrink-0 bg-white rounded-xl border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-800">Фильтры</h2>
           {activeCount > 0 && (

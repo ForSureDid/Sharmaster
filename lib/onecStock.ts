@@ -1009,7 +1009,7 @@ export const getOnecCategories = unstable_cache(
   { revalidate: 3600, tags: ['categories'] }
 )
 
-export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; colors: string[]; occasions: string[]; countries: string[]; priceMin: number; priceMax: number }
+export type FilterOptions = { brands: string[]; sizes: string[]; shades: string[]; colors: string[]; occasions: string[]; countries: string[]; popularSizes: string[]; popularOccasions: string[]; priceMin: number; priceMax: number }
 
 // Scoped to categoryIds (the active category's own subtree) so e.g. latex-only
 // shades/brands never leak into the foil filter list, and vice versa — this is
@@ -1021,17 +1021,25 @@ export const getOnecFilterOptions = unstable_cache(
     const [priceAgg, brandRows, sizeRows, shadeRows, colorRows, occasionRows, countryRows] = await Promise.all([
       db.onecStockItem.findMany({ where: { ...where, pricePerPc: { gt: 0 } }, select: { pricePerPc: true } }),
       db.onecStockItem.findMany({ where: { ...where, brand: { not: null } }, select: { brand: true }, distinct: ['brand'] }),
-      db.onecStockItem.findMany({ where: { ...where, sizeInches: { not: null } }, select: { sizeInches: true }, distinct: ['sizeInches'] }),
+      db.onecStockItem.groupBy({ by: ['sizeInches'], where: { ...where, sizeInches: { not: null } }, _count: { _all: true } }),
       db.onecStockItem.findMany({ where: { ...where, shade: { not: null } }, select: { shade: true }, distinct: ['shade'] }),
       db.onecStockItem.findMany({ where: { ...where, colorGroup: { not: null } }, select: { colorGroup: true }, distinct: ['colorGroup'] }),
-      db.onecStockItem.findMany({ where: { ...where, occasion: { not: null } }, select: { occasion: true }, distinct: ['occasion'] }),
+      db.onecStockItem.groupBy({ by: ['occasion'], where: { ...where, occasion: { not: null } }, _count: { _all: true } }),
       db.onecStockItem.findMany({ where: { ...where, countryOfOrigin: { not: null } }, select: { countryOfOrigin: true }, distinct: ['countryOfOrigin'] }),
     ])
     // Slider top = 98th percentile, not the true max: a handful of 100k+ items would
     // otherwise squash every realistic price into the first pixel of the track. The
     // sidebar omits ?max when the right thumb sits at the end, so pricier items stay listed.
     const prices = priceAgg.map((r) => Number(r.pricePerPc)).sort((a, b) => a - b)
+    // Popularity = number of items carrying the value in this scope; the sidebar shows the
+    // top 10 and tucks the rest behind a "Все …" button.
+    const sizeCounts = new Map(sizeRows.map((r) => [r.sizeInches!, r._count._all]))
+    const occCounts = new Map<string, number>()
+    for (const r of occasionRows) for (const o of r.occasion!.split(';').map((x) => x.trim()).filter(Boolean)) occCounts.set(o, (occCounts.get(o) ?? 0) + r._count._all)
+    const top10 = (m: Map<string, number>) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k]) => k)
     return {
+      popularSizes: top10(sizeCounts),
+      popularOccasions: top10(occCounts),
       priceMin: prices.length ? Math.floor(prices[0]) : 0,
       priceMax: prices.length ? Math.ceil(prices[Math.min(prices.length - 1, Math.floor(prices.length * 0.98))]) : 0,
       countries: countryRows.map((r) => r.countryOfOrigin!).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ru')),
@@ -1045,6 +1053,6 @@ export const getOnecFilterOptions = unstable_cache(
         .sort((a, b) => a.localeCompare(b, 'ru')),
     }
   },
-  ['onec-filter-options-v2'],
+  ['onec-filter-options-v3'],
   { revalidate: 3600, tags: ['filters'] }
 )
