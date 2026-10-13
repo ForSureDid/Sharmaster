@@ -19,6 +19,7 @@ const CATEGORIES: Entry[] = [
   { title: "Свечи", subtitle: "Праздничные, декоративные, цифры", icon: "/icons/candles.png", href: "/catalog?cat=svechi-i-fontany" },
   { title: "Сервировка стола", subtitle: "Тарелки, стаканы, скатерти", icon: "/icons/table-setting.png", href: "/catalog?cat=servirovka-stola" },
   { title: "Товары для праздника", subtitle: "Конфетти, хлопушки, украшения", icon: "/icons/party-goods.png", href: "/catalog?cat=tovary-dlya-prazdnika" },
+  { title: "Флористика", subtitle: "Искусственные растения, кашпо, фоамиран", icon: "/icons/floristics.png", href: "/catalog?cat=floristika" },
 ];
 
 export default function Categories() {
