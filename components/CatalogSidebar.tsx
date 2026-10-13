@@ -121,10 +121,14 @@ function ToggleRow({ label, checked, onChange, activeColor, labelColor = "text-g
   );
 }
 
+// "12" -> 12" (inches); values that already carry a unit/quote are left alone.
+const inchLabel = (v: string) => (/^\d+([.,]\d+)?$/.test(v.trim()) ? `${v.trim()}\"` : v);
+
 // Chip list that shows only the popular values (plus any active one) and reveals the rest
 // below on "Все …".
-function ChipGroup({ all, popular, isActive, onPick, allLabel }: {
+function ChipGroup({ all, popular, isActive, onPick, allLabel, format }: {
   all: string[]; popular: string[]; isActive: (v: string) => boolean; onPick: (v: string) => void; allLabel: string;
+  format?: (v: string) => string; // display label only — the URL/filter value stays raw
 }) {
   const [open, setOpen] = useState(false);
   const head = all.filter((v) => popular.includes(v) || isActive(v));
@@ -133,7 +137,7 @@ function ChipGroup({ all, popular, isActive, onPick, allLabel }: {
   return (
     <div>
       <div className="flex flex-wrap gap-2">
-        {shown.map((v) => <Chip key={v} label={v} active={isActive(v)} onClick={() => onPick(v)} />)}
+        {shown.map((v) => <Chip key={v} label={format ? format(v) : v} active={isActive(v)} onClick={() => onPick(v)} />)}
       </div>
       {rest.length > 0 && (
         <button type="button" onClick={() => setOpen(!open)} className="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 flex items-center gap-1">
@@ -336,7 +340,7 @@ export default function CatalogSidebar({ categories, filterOptions, basePath = "
 
       {filterOptions.sizes.length > 0 && (
         <Section title="Размер">
-          <ChipGroup all={filterOptions.sizes} popular={filterOptions.popularSizes ?? []} isActive={(v) => activeSize === v} onPick={(v) => update("size", activeSize === v ? null : v)} allLabel="Все размеры" />
+          <ChipGroup all={filterOptions.sizes} popular={filterOptions.popularSizes ?? []} isActive={(v) => activeSize === v} onPick={(v) => update("size", activeSize === v ? null : v)} allLabel="Все размеры" format={inchLabel} />
         </Section>
       )}
 
