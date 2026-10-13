@@ -959,6 +959,46 @@ async function _getSaleItems(limit?: number): Promise<StockCard[]> {
 export const getSaleItems = unstable_cache(() => _getSaleItems(15), ['onecSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 export const getAllSaleItems = unstable_cache(() => _getSaleItems(), ['onecAllSaleItems'], { revalidate: 300, tags: ['onecStockItems'] })
 
+// Homepage "Хиты" carousel — items flagged isHit (admin-curated "Хиты продаж"), in stock only.
+// Ranked by real popularity: units ordered in the last 180 days (weight 1) + favourites (3) +
+// search-result clicks (1). Balloons and other goods are then interleaved 2:1 so the row is
+// mixed but still balloon-led; each side keeps its own popularity order. Ties fall back to
+// newest-updated.
+async function _getHitItems(limit: number): Promise<StockCard[]> {
+  const since = new Date(Date.now() - 180 * 24 * 3600 * 1000)
+  const [flags, rawItems, ordered, liked, clicked] = await Promise.all([
+    resolveCategoryFlags(),
+    db.onecStockItem.findMany({
+      where: { isHit: true, isHidden: false, stock: { gt: 0 } },
+      select: { ...SELECT_FIELDS, article: true },
+      orderBy: [{ updatedAt: 'desc' }],
+    }),
+    db.orderItem.groupBy({ by: ['onecStockItemId'], where: { onecStockItemId: { not: null }, order: { createdAt: { gte: since } } }, _sum: { qty: true } }),
+    db.like.groupBy({ by: ['onecStockItemId'], where: { onecStockItemId: { not: null } }, _count: { _all: true } }),
+    db.searchClickEvent.groupBy({ by: ['itemId'], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+  ])
+  const score = new Map<number, number>()
+  const add = (id: number | null, v: number) => { if (id != null) score.set(id, (score.get(id) ?? 0) + v) }
+  for (const r of ordered) add(r.onecStockItemId, r._sum.qty ?? 0)
+  for (const r of liked) add(r.onecStockItemId, 3 * r._count._all)
+  for (const r of clicked) add(r.itemId, r._count._all)
+
+  const cards = rawItems
+    .map((i) => ({ ...toCard(i, flags), article: i.article }))
+    .sort((a, b) => (score.get(b.id) ?? 0) - (score.get(a.id) ?? 0)) // stable: ties keep updatedAt-desc order
+  const balloons = cards.filter((c) => c.isBalloon)
+  const others = cards.filter((c) => !c.isBalloon)
+  const out: typeof cards = []
+  while (out.length < limit && (balloons.length || others.length)) {
+    for (const src of [balloons, balloons, others]) {
+      const c = src.shift()
+      if (c && out.length < limit) out.push(c)
+    }
+  }
+  return out
+}
+export const getHitItems = unstable_cache(() => _getHitItems(15), ['onecHitItems-v3'], { revalidate: 300, tags: ['onecStockItems'] })
+
 // Novelties tab shows the union of both novinka signals (user decision 2026-07-30 — every
 // product with "novinka" status should show here, not just the donballon-agent pipeline):
 //   - isNewPending: rows the donballon-novelties agent (.claude/agents/donballon-novelties.md)

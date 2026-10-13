@@ -335,6 +335,8 @@ model OnecStockItem {
   salePercent     Int?
   isNewPending    Boolean  @default(false) // "Ожидайте поступления" — pre-arrival novelty (admin-created or donballon-novelties agent), never touched by 1C sync
   stockOverride   Boolean  @default(false) // true = admin manually set stock; lib/onecImport.ts's updateOfferChunk skips this column on future syncs
+  priceTierId     String?  // pinned 1C price tier (ИдТипаЦены) — sync uses this tier for the item; learned from priceTargetHint, never auto-reset
+  priceTargetHint Decimal? // price from the 1C retail report; matched against offer tiers once to pin priceTierId
   priceOverride   Boolean  @default(false) // true = admin manually set price; same skip behavior as stockOverride
   isHidden        Boolean  @default(false) // admin permanently hides this row from the storefront (e.g. an unwanted 1C offer variant); survives 1C sync — never written by lib/onecImport.ts, filtered out of every public read path in lib/onecStock.ts
   isHit           Boolean  @default(false) // "Хит продаж" — bootstrapped from donballon.ru's storefront badge (their B2B export has no such column), later from our own weekly sales aggregation; hand-curated, never touched by 1C sync

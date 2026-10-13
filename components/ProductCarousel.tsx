@@ -14,12 +14,14 @@ type Props = {
   items: CarouselItem[];
   title: string;
   href: string;
-  // "new": green "new" badge (amber for not-yet-arrived items); "sale": red -N% badge + red price.
-  variant: "new" | "sale";
+  // "new": green "new" badge (amber for not-yet-arrived items); "sale": red -N% badge + red price;
+  // "hit": orange "Хит" badge.
+  variant: "new" | "sale" | "hit";
 };
 
 export default function ProductCarousel({ items, title, href: allHref, variant }: Props) {
   const isSale = variant === "sale";
+  const isHit = variant === "hit";
   const { items: cartItems, addToCart, updateQty } = useCart();
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -102,8 +104,8 @@ export default function ProductCarousel({ items, title, href: allHref, variant }
                     <div className="w-full h-full flex items-center justify-center text-5xl">🎈</div>
                   )}
                 </Link>
-                <span className={`absolute top-0 left-0 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none ${isSale ? "bg-red-500" : isPending ? "bg-amber-400" : "bg-green-500"}`}>
-                  {isSale ? (item.salePercent ? `-${item.salePercent}%` : "Акция") : isPending ? "Ожидайте" : "Новинка"}
+                <span className={`absolute top-0 left-0 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide pointer-events-none ${isSale ? "bg-red-500" : isHit ? "bg-orange-500" : isPending ? "bg-amber-400" : "bg-green-500"}`}>
+                  {isSale ? (item.salePercent ? `-${item.salePercent}%` : "Акция") : isHit ? "Хит" : isPending ? "Ожидайте" : "Новинка"}
                 </span>
               </div>
 

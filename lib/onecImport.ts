@@ -468,13 +468,22 @@ export type OnecOffer = {
   onecId: string
   stock: number
   price: number | null
+  tiers: { typeId: string; price: number }[]
 }
 
-// TEMPORARY (2026-08-21): diagnosing a report that live prices don't match 1C's
-// intended retail price group — parseOffersXml below always takes prices[0], which
-// is only correct if 1C sends exactly one <Цена> per offer. This dumps the
-// ТипыЦен name→Ид map plus the first few multi-price offers so we can see what's
-// actually coming across, then pick the right ИдТипаЦены. Remove once diagnosed.
+// DIAGNOSED (2026-10-01): offers routinely carry several <Цена> entries — 1C's
+// "Розничная 25/30/40/50/60" price-list tiers — and parseOffersXml used to just
+// take prices[0], which isn't stable (1C doesn't guarantee ordering), so the
+// synced price would land on a different tier from one sync to the next.
+// Every sampled offer across several real syncs (any brand, not just 512 —
+// see the debug captures this function still produces) consistently includes
+// "Розничная 30" (Ид e36aba1c-7608-11f1-9f81-525400b77635) — Mirasbek confirmed
+// that's the real storefront retail price. Kept as the one stable anchor;
+// fall back to prices[0] only for the rare offer that somehow omits it.
+const RETAIL_30_PRICE_TYPE_ID = 'e36aba1c-7608-11f1-9f81-525400b77635'
+
+// Kept (not "remove once diagnosed" anymore) — still useful to spot a future
+// offer that's missing the Розничная 30 tier, or a 1C-side price-list change.
 export function debugOfferPrices(bytes: Uint8Array): string {
   const xml = decodeXml(bytes)
   const doc: XmlNode = parser.parse(xml)
@@ -520,12 +529,45 @@ export function parseOffersXml(bytes: Uint8Array): OnecOffer[] {
 
     const stock = num(o?.Количество) ?? 0
     const prices = asArray<XmlNode>(o?.Цены?.Цена)
-    const price = prices.length > 0 ? num(prices[0]?.ЦенаЗаЕдиницу) : null
+    const retail30 = prices.find((p) => text(p?.ИдТипаЦены) === RETAIL_30_PRICE_TYPE_ID)
+    const price = retail30 ? num(retail30?.ЦенаЗаЕдиницу) : prices.length > 0 ? num(prices[0]?.ЦенаЗаЕдиницу) : null
+    const tiers = prices.flatMap((p) => {
+      const typeId = text(p?.ИдТипаЦены)
+      const v = num(p?.ЦенаЗаЕдиницу)
+      return typeId && v != null ? [{ typeId, price: v }] : []
+    })
 
-    offers.push({ onecId, stock: Math.max(0, Math.round(stock)), price })
+    offers.push({ onecId, stock: Math.max(0, Math.round(stock)), price, tiers })
   }
 
   return offers
+}
+
+// Per-item price tier: the item's pinned tier (priceTierId) wins; otherwise, if the item has a
+// priceTargetHint (price from the 1C retail report) and exactly one offered tier has that
+// price, that tier gets pinned for good; otherwise the default "Розничная 30" logic applies.
+async function resolveTiers(chunk: OnecOffer[]): Promise<{ price: number | null; tier: string | null }[]> {
+  const info = await db.$queryRaw<{ onecId: string; priceTierId: string | null; priceTargetHint: string | null }[]>`
+    SELECT "onecId", "priceTierId", "priceTargetHint"::text AS "priceTargetHint"
+    FROM "OnecStockItem" WHERE "onecId" IN (${Prisma.join(chunk.map((o) => o.onecId))})`
+  const byId = new Map(info.map((r) => [r.onecId, r]))
+  return chunk.map((o) => {
+    const rule = byId.get(o.onecId)
+    if (rule?.priceTierId) {
+      const t = o.tiers.find((x) => x.typeId === rule.priceTierId)
+      if (t) return { price: t.price, tier: rule.priceTierId }
+    }
+    if (!rule?.priceTierId && rule?.priceTargetHint != null) {
+      const hint = Number(rule.priceTargetHint)
+      const hits = o.tiers.filter((x) => x.price === hint)
+      if (hits.length >= 1) {
+        // several tiers can share the amount — prefer the cheaper-named default if it is one of them
+        const pick = hits.find((x) => x.typeId === RETAIL_30_PRICE_TYPE_ID) ?? hits[0]
+        return { price: pick.price, tier: pick.typeId }
+      }
+    }
+    return { price: o.price, tier: null }
+  })
 }
 
 async function updateOfferChunk(chunk: OnecOffer[]): Promise<number> {
@@ -533,8 +575,9 @@ async function updateOfferChunk(chunk: OnecOffer[]): Promise<number> {
   // can't infer types for a derived VALUES table the way it can for a plain INSERT,
   // and silently defaults untyped literals to text, which then fails to unify with
   // the real integer/decimal columns on assignment.
+  const resolved = await resolveTiers(chunk)
   const rows = chunk.map(
-    (o) => Prisma.sql`(${o.onecId}::text, ${o.stock}::int, ${o.price}::decimal)`
+    (o, i) => Prisma.sql`(${o.onecId}::text, ${o.stock}::int, ${resolved[i].price}::decimal, ${resolved[i].tier}::text)`
   )
 
   // COALESCE keeps the existing price when 1C didn't send one for this offer,
@@ -546,8 +589,9 @@ async function updateOfferChunk(chunk: OnecOffer[]): Promise<number> {
     SET
       "stock" = CASE WHEN t."stockOverride" THEN t."stock" ELSE v.stock END,
       "pricePerPc" = CASE WHEN t."priceOverride" THEN t."pricePerPc" ELSE COALESCE(v.price, t."pricePerPc") END,
+      "priceTierId" = COALESCE(t."priceTierId", v.tier),
       "updatedAt" = now()
-    FROM (VALUES ${Prisma.join(rows)}) AS v("onecId", "stock", "price")
+    FROM (VALUES ${Prisma.join(rows)}) AS v("onecId", "stock", "price", "tier")
     WHERE t."onecId" = v."onecId"
   `
   return result

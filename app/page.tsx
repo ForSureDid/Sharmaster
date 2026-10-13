@@ -6,6 +6,7 @@ import BrandsMarquee from "@/components/BrandsMarquee";
 import Categories from "@/components/Categories";
 import StarterKitsSection from "@/components/StarterKitsSection";
 import NovinkaSection from "@/components/NovinkaSection";
+import HitsSection from "@/components/HitsSection";
 import ProductGrid from "@/components/ProductGrid";
 import Benefits from "@/components/Benefits";
 import HolidayProducts from "@/components/HolidayProducts";
@@ -13,12 +14,13 @@ import Schedule from "@/components/Schedule";
 import AboutReviews from "@/components/AboutReviews";
 import Footer from "@/components/Footer";
 import FloatingCart from "@/components/FloatingCart";
-import { getSaleItems, getNovinkaItems } from "@/lib/onecStock";
+import { getSaleItems, getNovinkaItems, getHitItems } from "@/lib/onecStock";
 
 export default async function Home() {
-  const [saleItems, novinkaItems] = await Promise.all([
+  const [saleItems, novinkaItems, hitItems] = await Promise.all([
     getSaleItems(),
     getNovinkaItems(),
+    getHitItems(),
   ]);
   return (
     <>
@@ -29,10 +31,11 @@ export default async function Home() {
         <BrandsMarquee />
         <Categories />
         <NovinkaSection items={novinkaItems.slice(0, 15)} />
-        <Benefits />
         <StarterKitsSection />
+        <HitsSection items={hitItems} />
         <ProductGrid items={saleItems} />
         <HolidayProducts />
+        <Benefits />
         <Schedule />
         <AboutReviews />
       </main>
