@@ -18,10 +18,11 @@ type Props = {
   // /novinka and /sale so they're always that zone, with the rest of the catalog's
   // filter/sort/pagination machinery (CatalogSidebar + StockContent) still working.
   forceNovinki?: boolean;
+  collectionName?: string;
   forceAkcii?: boolean;
 };
 
-export default async function CatalogView({ searchParams, basePath, forceNovinki = false, forceAkcii = false }: Props) {
+export default async function CatalogView({ searchParams, basePath, collectionName, forceNovinki = false, forceAkcii = false }: Props) {
   const sp = await searchParams;
 
   function safeInt(v: string | undefined, fallback: number): number {
@@ -56,6 +57,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   const shade = str(sp.shade);
   const country = str(sp.country);
   const color = str(sp.color);
+  const collection = str(sp.collection);
   const occasionParam = str(sp.occasion);
   const occasions = occasionParam ? occasionParam.split(',').map(s => s.trim()).filter(Boolean) : undefined;
   const minPrice = safeFloat(str(sp.min));
@@ -82,7 +84,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
 
   const [{ items, total }, categories, filterOptions] =
     await Promise.all([
-      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, country, colorGroup: color, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii, isHit: hit }),
+      getStockItems({ categoryId: expandedCategoryIds ? undefined : catId, categoryIds: expandedCategoryIds, brand, brands, sizeInches: size, shade, country, colorGroup: color, collection, occasions, minPrice, maxPrice, sort, page, pageSize: per, search: q, inStockOnly, isNewPending: novinki, onSale: akcii, isHit: hit }),
       getOnecCategories(),
       getOnecFilterOptions(filterCategoryIds),
     ]);
@@ -92,7 +94,7 @@ export default async function CatalogView({ searchParams, basePath, forceNovinki
   if (q && page === 1) await logSearch(q, total);
 
   const totalPages = Math.ceil(total / per);
-  const activeZones = [novinki && "Новинки", akcii && "Акции", hit && "Хиты продаж"].filter(Boolean) as string[];
+  const activeZones = [collectionName && `Коллекция «${collectionName}»`, novinki && "Новинки", akcii && "Акции", hit && "Хиты продаж"].filter(Boolean) as string[];
   const zoneTitle = activeZones.length > 0 ? activeZones.join(" и ") : null;
   const lockedZone = forceNovinki ? "novinki" as const : forceAkcii ? "akcii" as const : undefined;
 

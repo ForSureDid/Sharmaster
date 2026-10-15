@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
+import { getCollections } from "@/lib/collections";
 
 const BASE_URL = "https://www.sharmaster.kz";
 
@@ -12,6 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/catalog`, lastModified: new Date(), changeFrequency: "hourly",  priority: 0.9 },
     { url: `${BASE_URL}/sale`,    lastModified: new Date(), changeFrequency: "daily",   priority: 0.8 },
     { url: `${BASE_URL}/novinka`,   lastModified: new Date(), changeFrequency: "daily",   priority: 0.7 },
+    { url: `${BASE_URL}/collections`, lastModified: new Date(), changeFrequency: "weekly",  priority: 0.7 },
     { url: `${BASE_URL}/helium`,    lastModified: new Date(), changeFrequency: "weekly",  priority: 0.8 },
     { url: `${BASE_URL}/discounts`, lastModified: new Date(), changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/contacts`,  lastModified: new Date(), changeFrequency: "monthly", priority: 0.4 },
@@ -40,5 +42,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...statics, ...dynamic];
+  const collections: MetadataRoute.Sitemap = (await getCollections()).map((c) => ({
+    url: `${BASE_URL}/collections/${c.slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly",
+    priority: 0.6,
+  }));
+
+  return [...statics, ...collections, ...dynamic];
 }
